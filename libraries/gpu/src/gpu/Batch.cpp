@@ -9,12 +9,6 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 #include "Batch.h"
-#include "GPUConfig.h"
-
-#include <QDebug>
-
-#include <GLMHelpers.h>
-
 
 #if defined(NSIGHT_FOUND)
 #include "nvToolsExt.h"
