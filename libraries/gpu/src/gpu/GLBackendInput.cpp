@@ -321,7 +321,7 @@ void GLBackend::resetInputStage() {
     _input._invalidFormat = false;
     _input._attributeActivation.reset();
 
-    for (int i = 0; i < _input._buffers.size(); i++) {
+    for (unsigned int i = 0; i < _input._buffers.size(); i++) {
         _input._buffers[i].reset();
         _input._bufferOffsets[i] = 0;
         _input._bufferStrides[i] = 0;
