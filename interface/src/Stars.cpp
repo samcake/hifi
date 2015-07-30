@@ -214,7 +214,6 @@ void Stars::render(RenderArgs* renderArgs, float alpha) {
     
     // Render the stars
     batch.setPipeline(_starsPipeline);
-
     batch.setInputFormat(streamFormat);
     batch.setInputBuffer(VERTICES_SLOT, posView);
     batch.setInputBuffer(COLOR_SLOT, colView);

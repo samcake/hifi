@@ -8,6 +8,8 @@
 //  Distributed under the Apache License, Version 2.0.
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
+#include <string.h>
+
 #include "Batch.h"
 
 #if defined(NSIGHT_FOUND)
@@ -282,3 +284,6 @@ void Batch::getQuery(const QueryPointer& query) {
     _params.push_back(_queries.cache(query));
 }
 
+void Batch::resetStages() {
+    ADD_COMMAND(resetStages);
+}
