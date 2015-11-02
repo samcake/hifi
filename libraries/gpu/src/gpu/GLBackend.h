@@ -22,6 +22,8 @@
 
 #include "Context.h"
 
+#include "gl/GLBuffer.h"
+
 namespace gpu {
 
 class GLBackend : public Backend {
@@ -240,7 +242,7 @@ public:
     };
 
     void getStats(Stats& stats) const { stats = _stats; }
-
+    
 protected:
     void renderPassTransfer(Batch& batch);
     void renderPassDraw(Batch& batch);
@@ -332,6 +334,9 @@ protected:
         TransformObjects _objects;
         TransformCameras _cameras;
 
+        mutable CircularBuffer<TransformObject> _objectsBuffer;
+        mutable CircularBuffer<TransformCamera> _camerasBuffer;
+        
         size_t _cameraUboSize{ 0 };
         size_t _objectUboSize{ 0 };
         GLuint _objectBuffer{ 0 };
@@ -356,6 +361,7 @@ protected:
         void preUpdate(size_t commandIndex, const StereoState& stereo);
         void update(size_t commandIndex, const StereoState& stereo) const;
         void transfer() const;
+        void batchOver() const;
     } _transform;
 
     int32_t _uboAlignment{ 0 };

@@ -71,6 +71,10 @@ void GLBackend::initTransform() {
     while (_transform._objectUboSize < objectSize) {
         _transform._objectUboSize += _uboAlignment;
     }
+
+    // FIXME: find a way to resize these buffers if needed
+    _transform._camerasBuffer.create(_uboAlignment, BufferStorage::SynchMappedBuffer, GL_UNIFORM_BUFFER, 1000, 0, 0);
+    _transform._objectsBuffer.create(_uboAlignment, BufferStorage::SynchMappedBuffer, GL_UNIFORM_BUFFER, 100000, 0, 0);
 }
 
 void GLBackend::killTransform() {
@@ -119,7 +123,7 @@ void GLBackend::TransformStageState::preUpdate(size_t commandIndex, const Stereo
     }
 
     if (_invalidView || _invalidProj || _invalidViewport) {
-        size_t offset = _cameraUboSize * _cameras.size();
+        size_t offset = _cameras.size();
         if (stereo._enable) {
             _cameraOffsets.push_back(TransformStageState::Pair(commandIndex, offset));
             for (int i = 0; i < 2; ++i) {
@@ -132,7 +136,7 @@ void GLBackend::TransformStageState::preUpdate(size_t commandIndex, const Stereo
     }
 
     if (_invalidModel) {
-        size_t offset = _objectUboSize * _objects.size();
+        size_t offset = _objects.size();
         _objectOffsets.push_back(TransformStageState::Pair(commandIndex, offset));
         _objects.push_back(_object);
     }
@@ -144,21 +148,13 @@ void GLBackend::TransformStageState::preUpdate(size_t commandIndex, const Stereo
 void GLBackend::TransformStageState::transfer() const {
     static QByteArray bufferData;
     if (!_cameras.empty()) {
-        glBindBuffer(GL_UNIFORM_BUFFER, _cameraBuffer);
-        bufferData.resize(_cameraUboSize * _cameras.size());
-        for (size_t i = 0; i < _cameras.size(); ++i) {
-            memcpy(bufferData.data() + (_cameraUboSize * i), &_cameras[i], sizeof(TransformCamera));
-        }
-        glBufferData(GL_UNIFORM_BUFFER, bufferData.size(), bufferData.data(), GL_DYNAMIC_DRAW);
+        _camerasBuffer.bindBuffer();
+        _camerasBuffer.upload(_cameras.data(), _cameras.size());
     }
 
     if (!_objects.empty()) {
-        glBindBuffer(GL_UNIFORM_BUFFER, _objectBuffer);
-        bufferData.resize(_objectUboSize * _objects.size());
-        for (size_t i = 0; i < _objects.size(); ++i) {
-            memcpy(bufferData.data() + (_objectUboSize * i), &_objects[i], sizeof(TransformObject));
-        }
-        glBufferData(GL_UNIFORM_BUFFER, bufferData.size(), bufferData.data(), GL_DYNAMIC_DRAW);
+        _objectsBuffer.bindBuffer();
+        _objectsBuffer.upload(_objects.data(), _objects.size());
     }
 
     if (!_cameras.empty() || !_objects.empty()) {
@@ -174,10 +170,10 @@ void GLBackend::TransformStageState::update(size_t commandIndex, const StereoSta
         ++_objectsItr;
     }
     if (offset >= 0) {
-        glBindBufferRange(GL_UNIFORM_BUFFER, TRANSFORM_OBJECT_SLOT,
-            _objectBuffer, offset, sizeof(Backend::TransformObject));
+        _objectsBuffer.bindBufferRange(TRANSFORM_OBJECT_SLOT, offset, 1);
     }
-
+    (void)CHECK_GL_ERROR();
+    
     offset = -1;
     while ((_camerasItr != _cameraOffsets.end()) && (commandIndex >= (*_camerasItr).first)) {
         offset = (*_camerasItr).second;
@@ -188,16 +184,22 @@ void GLBackend::TransformStageState::update(size_t commandIndex, const StereoSta
         if (stereo._enable && stereo._pass) {
             offset += _cameraUboSize;
         }
-        glBindBufferRange(GL_UNIFORM_BUFFER, TRANSFORM_CAMERA_SLOT,
-            _cameraBuffer, offset, sizeof(Backend::TransformCamera));
+        _camerasBuffer.bindBufferRange(TRANSFORM_CAMERA_SLOT, offset, 1);
     }
 
     (void)CHECK_GL_ERROR();
 }
 
+void GLBackend::TransformStageState::batchOver() const {
+    _objectsBuffer.onUsageComplete();
+    _camerasBuffer.onUsageComplete();
+    
+}
+
 void GLBackend::updateTransform() const {
     _transform.update(_commandIndex, _stereo);
 }
+
 
 void GLBackend::resetTransformStage() {
     
