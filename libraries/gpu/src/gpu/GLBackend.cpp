@@ -241,6 +241,9 @@ void GLBackend::render(Batch& batch) {
         _stereo._pass = 0;
     }
 
+    // batch is over, notify Transfoer stage for buffer transfer synchonization
+    _transform.batchOver();
+    
     // Restore the saved stereo state for the next batch
     _stereo._enable = savedStereo;
 }
