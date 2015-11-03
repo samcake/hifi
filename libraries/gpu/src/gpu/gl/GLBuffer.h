@@ -162,7 +162,8 @@ public:
         switch (_bufferStorage) {
             case BufferStorage::SystemMemory:
             case BufferStorage::PersistentlyMappedBuffer: {
-                return &_bufferContents[lockBegin];
+                GLsizeiptr rangeOffset = lockBegin * _atomStride;
+                return (void*) (reinterpret_cast<GLsizeiptr> (_bufferContents)+rangeOffset);
                 break;
             }
             case BufferStorage::SynchMappedBuffer: {
