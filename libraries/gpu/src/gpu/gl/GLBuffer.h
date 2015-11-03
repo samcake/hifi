@@ -11,9 +11,12 @@
 #ifndef hifi_gpu_gl_GLBuffer_h
 #define hifi_gpu_gl_GLBuffer_h
 
+#include <stdint.h>
 #include <vector>
 
 #include <gl/Config.h>
+
+namespace gl {
 
 struct BufferRange {
     size_t start{ 0 };
@@ -304,5 +307,6 @@ private:
     GLsizeiptr _numAtoms{ 0 };
 };
 
+}
 
 #endif

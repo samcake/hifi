@@ -334,8 +334,8 @@ protected:
         TransformObjects _objects;
         TransformCameras _cameras;
 
-        mutable CircularBuffer<TransformObject> _objectsBuffer;
-        mutable CircularBuffer<TransformCamera> _camerasBuffer;
+        mutable gl::CircularBuffer<TransformObject> _objectsBuffer;
+        mutable gl::CircularBuffer<TransformCamera> _camerasBuffer;
         
         size_t _cameraUboSize{ 0 };
         size_t _objectUboSize{ 0 };

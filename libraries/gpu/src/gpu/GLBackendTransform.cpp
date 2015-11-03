@@ -73,8 +73,13 @@ void GLBackend::initTransform() {
     }
 
     // FIXME: find a way to resize these buffers if needed
-    _transform._camerasBuffer.create(_uboAlignment, BufferStorage::SynchMappedBuffer, GL_UNIFORM_BUFFER, 1000, 0, 0);
-    _transform._objectsBuffer.create(_uboAlignment, BufferStorage::SynchMappedBuffer, GL_UNIFORM_BUFFER, 100000, 0, 0);
+    //_transform._camerasBuffer.create(_uboAlignment, gl::BufferStorage::SynchMappedBuffer, GL_UNIFORM_BUFFER, 1000, 0, 0);
+    //_transform._objectsBuffer.create(_uboAlignment, gl::BufferStorage::SynchMappedBuffer, GL_UNIFORM_BUFFER, 100000, 0, 0);
+    const GLbitfield mapFlags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT;
+    const GLbitfield createFlags = mapFlags | GL_DYNAMIC_STORAGE_BIT;
+    _transform._camerasBuffer.create(_uboAlignment, gl::BufferStorage::PersistentlyMappedBuffer, GL_UNIFORM_BUFFER, 1000, createFlags, mapFlags);
+    _transform._objectsBuffer.create(_uboAlignment, gl::BufferStorage::PersistentlyMappedBuffer, GL_UNIFORM_BUFFER, 100000, createFlags, mapFlags);
+
 }
 
 void GLBackend::killTransform() {

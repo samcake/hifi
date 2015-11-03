@@ -10,6 +10,8 @@
 //
 #include "GLBuffer.h"
 
+namespace gl {
+
 GLuint64 ONE_SECOND_IN_NANO_SECONDS = 1000000000;
 
 BufferLockManager::BufferLockManager(bool cpuUpdates) :
@@ -73,4 +75,6 @@ void BufferLockManager::wait(GLsync* syncObj) {
 
 void BufferLockManager::cleanup(BufferLock& bufferLock) {
     glDeleteSync(bufferLock.syncObj);
+}
+
 }
