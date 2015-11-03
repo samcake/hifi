@@ -336,11 +336,7 @@ protected:
 
         mutable gl::CircularBuffer<TransformObject> _objectsBuffer;
         mutable gl::CircularBuffer<TransformCamera> _camerasBuffer;
-        
-        size_t _cameraUboSize{ 0 };
-        size_t _objectUboSize{ 0 };
-        GLuint _objectBuffer{ 0 };
-        GLuint _cameraBuffer{ 0 };
+
         Transform _model;
         Transform _view;
         Mat4 _projection;

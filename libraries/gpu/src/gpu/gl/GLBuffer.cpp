@@ -26,9 +26,9 @@ BufferLockManager::~BufferLockManager() {
     _bufferLocks.clear();
 }
 
-void BufferLockManager::waitForLockedRange(size_t lockBeginBytes, size_t lockLength) {
-    BufferRange testRange = { lockBeginBytes, lockLength };
-    std::vector<BufferLock> swapLocks;
+void BufferLockManager::waitLockedRange(size_t lockBeginBytes, size_t lockLength) {
+    Range testRange = { lockBeginBytes, lockLength };
+    std::vector<Lock> swapLocks;
     for (auto it : _bufferLocks) {
         if (testRange.overlaps(it.range)) {
             wait(&it.syncObj);
@@ -42,9 +42,9 @@ void BufferLockManager::waitForLockedRange(size_t lockBeginBytes, size_t lockLen
 }
 
 void BufferLockManager::lockRange(size_t _lockBeginBytes, size_t _lockLength) {
-    BufferRange newRange = { _lockBeginBytes, _lockLength };
+    Range newRange = { _lockBeginBytes, _lockLength };
     GLsync syncName = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-    BufferLock newLock = { newRange, syncName };
+    Lock newLock = { newRange, syncName };
     
     _bufferLocks.push_back(newLock);
 }
@@ -60,7 +60,7 @@ void BufferLockManager::wait(GLsync* syncObj) {
             }
             
             if (waitRet == GL_WAIT_FAILED) {
-               // assert(!"Not sure what to do here. Probably raise an exception or something.");
+               // FIXME: Not sure what to do here. Probably raise an exception or something;
                 return;
             }
             
@@ -73,8 +73,105 @@ void BufferLockManager::wait(GLsync* syncObj) {
     }
 }
 
-void BufferLockManager::cleanup(BufferLock& bufferLock) {
+void BufferLockManager::cleanup(Lock& bufferLock) {
     glDeleteSync(bufferLock.syncObj);
+}
+
+
+bool Buffer::create(Usage Usage, GLenum target, GLuint numAtoms, size_t atomSize) {
+    if (_mappedPointer) {
+        destroy();
+    }
+        
+    _usage = Usage;
+    _target = target;
+    _atomStride = 0;
+    _atomSize = (atomSize < 1 ? 1 : atomSize);
+    GLint bindingBufferAlignment = 0;
+    glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &bindingBufferAlignment);
+    while(_atomStride < _atomSize) {
+        _atomStride += bindingBufferAlignment;
+    }
+    _numAtoms = numAtoms;
+
+    switch (_usage) {
+        case Usage::DynamicWrite: {
+            glGenBuffers(1, &_name);
+            glBindBuffer(_target, _name);
+            glBufferData(_target, _atomStride * _numAtoms, nullptr, GL_DYNAMIC_DRAW);
+            break;
+        }
+        case Usage::PersistentMapDynamicWrite: {
+            glGenBuffers(1, &_name);
+            glBindBuffer(_target, _name);
+            const GLbitfield mapFlags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT;
+            const GLbitfield createFlags = mapFlags | GL_DYNAMIC_STORAGE_BIT;
+            glBufferStorage(_target, _atomStride * _numAtoms, nullptr, createFlags);
+            _mappedPointer = (glMapBufferRange(_target, 0, _atomStride * _numAtoms, mapFlags));
+            if (!_mappedPointer) {
+                return false;
+            }
+            break;
+        }
+    };
+    return true;
+}
+
+void Buffer::destroy() {
+    switch (_usage) {
+        case Usage::DynamicWrite: {
+            glDeleteBuffers(1, &_name);
+            break;
+        }
+        case Usage::PersistentMapDynamicWrite: {
+            glBindBuffer(_target, _name);
+            glUnmapBuffer(_target);
+            glDeleteBuffers(1, &_name);
+            _mappedPointer = nullptr;
+            break;
+        }
+    };
+
+    _name = 0;
+    _numAtoms = 0;
+    _atomSize = 0;
+    _atomStride = 0;
+}
+
+void* Buffer::mapRange(GLuint atomOffset, GLuint atomLength) {
+    switch (_usage) {
+        case Usage::DynamicWrite: {
+            _mappingStarted = true;
+            GLsizeiptr rangeOffset = atomOffset * _atomStride;
+            GLsizeiptr rangeLength = atomLength * _atomStride;
+            auto pointer = (glMapBufferRange(_target, rangeOffset, rangeLength, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_RANGE_BIT | GL_MAP_UNSYNCHRONIZED_BIT));
+            return pointer;
+            break;
+        }
+        case Usage::PersistentMapDynamicWrite: {
+            GLsizeiptr rangeOffset = atomOffset * _atomStride;
+            return (void*) (reinterpret_cast<GLsizeiptr> (_mappedPointer)+rangeOffset);
+            break;
+        }
+    }
+    return nullptr;
+}
+    
+void Buffer::unmap() {
+    switch (_usage) {
+        case Usage::DynamicWrite: {
+            if (!_mappingStarted) {
+                _mappingStarted = false;
+            } else {
+                _mappingStarted = false;
+                glUnmapBuffer(_target);
+            }
+            break;
+        }
+        case Usage::PersistentMapDynamicWrite: {
+            break;
+        }
+    }
 }
 
 }

@@ -61,30 +61,18 @@ void GLBackend::do_setDepthRangeTransform(Batch& batch, uint32 paramOffset) {
 }
 
 void GLBackend::initTransform() {
-    glGenBuffers(1, &_transform._objectBuffer);
-    glGenBuffers(1, &_transform._cameraBuffer);
-    size_t cameraSize = sizeof(TransformCamera);
-    while (_transform._cameraUboSize < cameraSize) {
-        _transform._cameraUboSize += _uboAlignment;
-    }
-    size_t objectSize = sizeof(TransformObject);
-    while (_transform._objectUboSize < objectSize) {
-        _transform._objectUboSize += _uboAlignment;
-    }
-
     // FIXME: find a way to resize these buffers if needed
-    //_transform._camerasBuffer.create(_uboAlignment, gl::BufferStorage::SynchMappedBuffer, GL_UNIFORM_BUFFER, 1000, 0, 0);
-    //_transform._objectsBuffer.create(_uboAlignment, gl::BufferStorage::SynchMappedBuffer, GL_UNIFORM_BUFFER, 100000, 0, 0);
-    const GLbitfield mapFlags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT;
-    const GLbitfield createFlags = mapFlags | GL_DYNAMIC_STORAGE_BIT;
-    _transform._camerasBuffer.create(_uboAlignment, gl::BufferStorage::PersistentlyMappedBuffer, GL_UNIFORM_BUFFER, 1000, createFlags, mapFlags);
-    _transform._objectsBuffer.create(_uboAlignment, gl::BufferStorage::PersistentlyMappedBuffer, GL_UNIFORM_BUFFER, 100000, createFlags, mapFlags);
+    //_transform._camerasBuffer.create(gl::Buffer::Usage::DynamicWrite, GL_UNIFORM_BUFFER, 1000);
+    //_transform._objectsBuffer.create(gl::Buffer::Usage::DynamicWrite, GL_UNIFORM_BUFFER, 100000);
+
+    _transform._camerasBuffer.create(gl::Buffer::Usage::PersistentMapDynamicWrite, GL_UNIFORM_BUFFER, 1000);
+    _transform._objectsBuffer.create(gl::Buffer::Usage::PersistentMapDynamicWrite, GL_UNIFORM_BUFFER, 100000);
 
 }
 
 void GLBackend::killTransform() {
-    glDeleteBuffers(1, &_transform._objectBuffer);
-    glDeleteBuffers(1, &_transform._cameraBuffer);
+    _transform._camerasBuffer.destroy();
+    _transform._objectsBuffer.destroy();
 }
 
 void GLBackend::syncTransformStateCache() {
@@ -151,7 +139,6 @@ void GLBackend::TransformStageState::preUpdate(size_t commandIndex, const Stereo
 }
 
 void GLBackend::TransformStageState::transfer() const {
-    static QByteArray bufferData;
     if (!_cameras.empty()) {
         _camerasBuffer.bindBuffer();
         _camerasBuffer.upload(_cameras.data(), _cameras.size());
@@ -187,7 +174,7 @@ void GLBackend::TransformStageState::update(size_t commandIndex, const StereoSta
     if (offset >= 0) {
         // We include both camera offsets for stereo
         if (stereo._enable && stereo._pass) {
-            offset += _cameraUboSize;
+            offset += 1;
         }
         _camerasBuffer.bindBufferRange(TRANSFORM_CAMERA_SLOT, offset, 1);
     }

@@ -18,259 +18,134 @@
 
 namespace gl {
 
-struct BufferRange {
-    size_t start{ 0 };
-    size_t size{ 0 };
-    BufferRange(size_t byteStart, size_t byteSize) : start(byteStart), size(byteSize) {}
-    
-    bool overlaps(const BufferRange& rhs) const {
-        return (start < (rhs.start + rhs.size))
-        && (rhs.start < (start + size));
-    }
-};
+// This code is directly inpired and applied from John Mc Donalds & Cass Everit Presentation:
+// Beyond Porting: How Modern OpenGL Can Radically Reduce Driver Overhead at Steam Dev 2014
+// https://developer.nvidia.com/content/how-modern-opengl-can-radically-reduce-driver-overhead-0
 
-struct BufferLock {
-    BufferRange range;
-    GLsync syncObj;
-};
-
+// BufferLockManager is a class responsible for bookeeping the life of GLSync objects protecting
+// ranges of a buffer currently in use by the gpu in order to avoid read/write collision
 class BufferLockManager {
 public:
+    class Range {
+    public:
+        size_t start{ 0 };
+        size_t size{ 0 };
+        Range(size_t byteStart, size_t byteSize) : start(byteStart), size(byteSize) {}
+
+        bool overlaps(const Range& rhs) const {
+            return (start < (rhs.start + rhs.size))
+            && (rhs.start < (start + size));
+        }
+    };
+
+    class Lock {
+    public:
+        Range range;
+        GLsync syncObj;
+    };
+
     BufferLockManager(bool cpuUpdates);
     ~BufferLockManager();
     
-    void waitForLockedRange(size_t lockBeginBytes, size_t lockLength);
+    void waitLockedRange(size_t lockBeginBytes, size_t lockLength);
     void lockRange(size_t _lockBeginBytes, size_t _lockLength);
-    
+
 private:
     void wait(GLsync* syncObj);
-    void cleanup(BufferLock& bufferLock);
+    void cleanup(Lock& bufferLock);
     
-    std::vector<BufferLock> _bufferLocks;
-    
+    std::vector<Lock> _bufferLocks;
+
     // Whether it's the CPU (true) that updates, or the GPU (false)
     bool _cpuUpdates;
 };
 
-
-
-enum class BufferStorage
-{
-    SystemMemory,
-    SynchMappedBuffer,
-    PersistentlyMappedBuffer
-};
-
-template <typename Atom>
 class Buffer {
 public:
-    Buffer(bool cpuUpdates) :
-        _lockManager(cpuUpdates),
-        _bufferContents(),
-        _name(),
-        _target(),
-        _bufferStorage(BufferStorage::SystemMemory),
-        _atomStride()
-    { }
-    
-    ~Buffer() {
-        destroy();
-    }
-    
-    bool create(GLsizeiptr uboAlignment, BufferStorage storage, GLenum target, GLuint atomCount, GLbitfield createFlags, GLbitfield mapFlags) {
-        if (_bufferContents) {
-            destroy();
-        }
-        
-        _bufferStorage = storage;
-        _target = target;
-        _atomStride = 0;
-        while(_atomStride < sizeof(Atom)) {
-            _atomStride += uboAlignment;
-        }
-        
-        switch (_bufferStorage) {
-            case BufferStorage::SystemMemory: {
-                _bufferContents = new Atom[atomCount];
-                break;
-            }
-            case BufferStorage::SynchMappedBuffer: {
-                glGenBuffers(1, &_name);
-                glBindBuffer(_target, _name);
-                glBufferData(_target, _atomStride * atomCount, nullptr, GL_STATIC_DRAW);
-                break;
-            }
-            case BufferStorage::PersistentlyMappedBuffer: {
-                // This code currently doesn't care about the alignment of the returned memory. This could potentially
-                // cause a crash, but since implementations are likely to return us memory that is at lest aligned
-                // on a 64-byte boundary we're okay with this for now.
-                // A robust implementation would ensure that the memory returned had enough slop that it could deal
-                // with it's own alignment issues, at least. That's more work than I want to do right this second.
-                
-                glGenBuffers(1, &_name);
-                glBindBuffer(_target, _name);
-                glBufferStorage(_target, _atomStride * atomCount, nullptr, createFlags);
-                _bufferContents = reinterpret_cast<Atom*>(glMapBufferRange(_target, 0, _atomStride * atomCount, mapFlags));
-                if (!_bufferContents) {
-                  //  console::warn("glMapBufferRange failed, probable bug.");
-                    return false;
-                }
-                break;
-            }
-                
-            default: {
-              //  console::error("Error, need to update Buffer::Create with logic for _bufferStorage = %d", _bufferStorage);
-                break;
-            }
-        };
-        
-        return true;
-    }
-    
-    // Called by dtor, must be non-virtual.
-    void destroy() {
-        switch (_bufferStorage) {
-            case BufferStorage::SystemMemory: {
-                delete[] _bufferContents;
-                _bufferContents = nullptr;
-                break;
-            }
-            case BufferStorage::SynchMappedBuffer: {
-                glDeleteBuffers(1, &_name);
-                _bufferContents = nullptr;
-                _name = 0;
-                break;
-            }
-            case BufferStorage::PersistentlyMappedBuffer: {
-                glBindBuffer(_target, _name);
-                glUnmapBuffer(_target);
-                glDeleteBuffers(1, &_name);
-                
-                _bufferContents = nullptr;
-                _name = 0;
-                break;
-            }
-                
-            default: {
-              //  console::error("Error, need to update Buffer::Create with logic for _bufferStorage = %d", _bufferStorage);
-                break;
-            }
-        };
-    }
-    
-    void* mapRange(size_t lockBegin, size_t lockLength) {
-        switch (_bufferStorage) {
-            case BufferStorage::SystemMemory:
-            case BufferStorage::PersistentlyMappedBuffer: {
-                GLsizeiptr rangeOffset = lockBegin * _atomStride;
-                return (void*) (reinterpret_cast<GLsizeiptr> (_bufferContents)+rangeOffset);
-                break;
-            }
-            case BufferStorage::SynchMappedBuffer: {
-                _mappingStarted = true;
-                GLsizeiptr rangeOffset = lockBegin * _atomStride;
-                GLsizeiptr rangeLength = lockLength * _atomStride;
-                auto pointer = (glMapBufferRange(_target, rangeOffset, rangeLength, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_RANGE_BIT | GL_MAP_UNSYNCHRONIZED_BIT));
-                if (!pointer) {
-                    auto error = glGetError();
-                    if ( error != GL_NO_ERROR) {
-                        return pointer;
-                    }
-                }
-                return pointer;
-                break;
-            }
-        }
-        return nullptr;
-    }
-    
-    void unmap() {
-        switch (_bufferStorage) {
-            case BufferStorage::SystemMemory:
-            case BufferStorage::PersistentlyMappedBuffer: {
-                break;
-            }
-            case BufferStorage::SynchMappedBuffer: {
-                if (!_mappingStarted) {
-                    _mappingStarted = false;
-                } else {
-                    _mappingStarted = false;
-                    glUnmapBuffer(_target);
-                }
-                break;
-            }
-        }
-    }
-    void waitForLockedRange(size_t lockBegin, size_t lockLength) { _lockManager.waitForLockedRange(lockBegin, lockLength); }
-    Atom* getContents() { return _bufferContents; }
-    void lockRange(size_t lockBegin, size_t lockLength) { _lockManager.lockRange(lockBegin, lockLength); }
-    
-    
+    enum class Usage {
+        DynamicWrite,
+        PersistentMapDynamicWrite,
+    };
+
+    Buffer(bool cpuUpdates) : _lockManager(cpuUpdates) {}
+    ~Buffer() { destroy(); }
+
+    bool create(Usage Usage, GLenum target, GLuint numAtoms, size_t atomSize);
+    void destroy();
+
+    // #1: Before accessing an atom range, call waitLockedRange to guarantee it is available for access
+    void waitLockedRange(GLuint lockOffset, GLuint lockLength) { _lockManager.waitLockedRange(lockOffset, lockLength); }
+    // #2: Map the atom range returning a mapped pointer to it
+    void* mapRange(GLuint atomOffset, GLuint atomLength);
+    // #3: Once done using the pointer, call unmap. Note that this is a no op if the usage is "PersistentMapDynamicWrite"
+    void unmap();
+    // #4 Finally the gl commands using that atom range have been called, lock it
+    void lockRange(GLuint lockOffset, GLuint lockLength) { _lockManager.lockRange(lockOffset, lockLength); }
+
+
     void bindBuffer() { glBindBuffer(_target, _name); }
     void bindBufferBase(GLuint index) { glBindBufferBase(_target, index, _name); }
-    void bindBufferRange(GLuint index, GLsizeiptr head, GLsizeiptr atomCount) {
-        glBindBufferRange(_target, index, _name, head * _atomStride, atomCount * _atomStride);
+    void bindBufferRange(GLuint index, GLuint atomOffset, GLuint atomLength) {
+        glBindBufferRange(_target, index, _name, atomOffset * _atomStride, atomLength * _atomStride);
     }
 
-    size_t getByteSize(uint32_t numAtoms) const { return numAtoms * _atomStride; }
-    
+    GLuint getNumAtoms() const { return _numAtoms; }
     GLsizeiptr getAtomStride() const { return _atomStride; }
-    
+
+    GLvoid* getMappedPointer() { return _mappedPointer; }
+
 private:
     BufferLockManager _lockManager;
-    Atom* _bufferContents;
-    GLuint _name;
-    GLenum _target;
-                                                
-    BufferStorage _bufferStorage;
+    GLvoid* _mappedPointer{ nullptr };
+    GLuint _name{ 0 };
+    GLenum _target{ GL_UNIFORM_BUFFER_BINDING };
+
+    Usage _usage{ Usage::DynamicWrite };
+    GLuint _numAtoms{ 0 };
     GLsizeiptr _atomStride{ 0 };
+    GLsizeiptr _atomSize{ 0 };
     bool _mappingStarted{ false };
+
 };
 
-
-template <typename Atom>
+template <class Atom>
 class CircularBuffer {
 public:
     CircularBuffer(bool _cpuUpdates = true) :
         _buffer(_cpuUpdates)
     {}
-    
-    bool create(GLsizeiptr uboAlignment, BufferStorage storage, GLenum target, GLuint atomCount, GLbitfield createFlags, GLbitfield mapFlags) {
-        _numAtoms = atomCount;
+
+    bool create(Buffer::Usage Usage, GLenum target, GLuint numAtoms) {
         _head = 0;
-        
-        return _buffer.create(uboAlignment, storage, target, atomCount, createFlags, mapFlags);
+        return _buffer.create(Usage, target, numAtoms, sizeof(Atom));
     }
     
-    void Destroy() {
-        _buffer.Destroy();
-        
-        _numAtoms = 0;
+    void destroy() {
+        _buffer.destroy();
         _head = 0;
     }
     
-    void* map(GLsizeiptr atomCount) {
-        if (atomCount > _numAtoms) {
- //           console::error("Requested an update of size %d for a buffer of size %d atoms.", atomCount, mSizeAtoms);
+    void* map(GLuint numAtoms) {
+        if (numAtoms > _buffer.getNumAtoms()) {
+            return nullptr;
         }
-        
+
         GLsizeiptr lockStart = _head;
-        
-        if (lockStart + atomCount > _numAtoms) {
+        if (lockStart + numAtoms > _buffer.getNumAtoms()) {
             // Need to wrap here.
             lockStart = 0;
             _head = 0;
         }
-        _mappedLength = atomCount;
-        _buffer.waitForLockedRange(lockStart, atomCount);
-        return _buffer.mapRange(lockStart, atomCount);
+        _mappedLength = numAtoms;
+        _buffer.waitLockedRange(lockStart, numAtoms);
+        return _buffer.mapRange(lockStart, numAtoms);
     }
     
     void unmap() {
         _buffer.unmap();
     }
     
-    void upload(const Atom* data, GLsizeiptr numAtoms) {
+    void upload(const Atom* data, GLuint numAtoms) {
         void* pointer = map(numAtoms);
         auto atomStride = _buffer.getAtomStride();
         for (int i = 0; i< numAtoms; i++) {
@@ -283,16 +158,17 @@ public:
     void onUsageComplete() {
         if (_mappedLength) {
             _buffer.lockRange(_head, _mappedLength);
-            _head = (_head + _mappedLength) % _numAtoms;
+            _head = (_head + _mappedLength) % _buffer.getNumAtoms();
         }
         _mappedLength = 0;
     }
     
     void bindBuffer() { _buffer.bindBuffer(); }
     void bindBufferBase(GLuint index) { _buffer.bindBufferBase(index); }
-    void bindBufferRangeCurrent(GLuint index, GLsizeiptr atomCount) { _buffer.bindBufferRange(index, _head, atomCount); }
-    void bindBufferRange(GLuint index, GLsizeiptr atomOffset, GLsizeiptr atomCount) {
-        _buffer.bindBufferRange(index, _head + atomOffset, atomCount);
+
+    void bindBufferRangeCurrent(GLuint index, GLuint numAtoms) { _buffer.bindBufferRange(index, _head, numAtoms); }
+    void bindBufferRange(GLuint index, GLuint atomOffset, GLuint numAtoms) {
+        _buffer.bindBufferRange(index, _head + atomOffset, numAtoms);
     }
     
     GLsizeiptr getHead() const { return _head; }
@@ -300,12 +176,9 @@ public:
     GLsizeiptr getSize() const { return _buffer.getSize(); }
     
 private:
-    Buffer<Atom> _buffer;
-    
-    GLsizeiptr _head{ 0 };
-    GLsizeiptr _mappedLength{ 0 };
-    // TODO: Maybe this should be in the Buffer class?
-    GLsizeiptr _numAtoms{ 0 };
+    Buffer _buffer;
+    GLuint _head{ 0 };
+    GLuint _mappedLength{ 0 };
 };
 
 }
