@@ -109,8 +109,8 @@ public:
                 
                 glGenBuffers(1, &_name);
                 glBindBuffer(_target, _name);
-                glBufferStorage(_target, sizeof(Atom) * atomCount, nullptr, createFlags);
-                _bufferContents = reinterpret_cast<Atom*>(glMapBufferRange(_target, 0, sizeof(Atom) * atomCount, mapFlags));
+                glBufferStorage(_target, _atomStride * atomCount, nullptr, createFlags);
+                _bufferContents = reinterpret_cast<Atom*>(glMapBufferRange(_target, 0, _atomStride * atomCount, mapFlags));
                 if (!_bufferContents) {
                   //  console::warn("glMapBufferRange failed, probable bug.");
                     return false;
