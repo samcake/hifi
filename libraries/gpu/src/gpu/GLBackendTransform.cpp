@@ -65,8 +65,8 @@ void GLBackend::initTransform() {
     //_transform._camerasBuffer.create(gl::Buffer::Usage::DynamicWrite, GL_UNIFORM_BUFFER, 1000);
     //_transform._objectsBuffer.create(gl::Buffer::Usage::DynamicWrite, GL_UNIFORM_BUFFER, 100000);
 
-    _transform._camerasBuffer.create(gl::Buffer::Usage::PersistentMapDynamicWrite, GL_UNIFORM_BUFFER, 1000);
-    _transform._objectsBuffer.create(gl::Buffer::Usage::PersistentMapDynamicWrite, GL_UNIFORM_BUFFER, 100000);
+    _transform._camerasBuffer.create(gl::Buffer::Usage::PersistentMapDynamicWrite, GL_UNIFORM_BUFFER, 1000, sizeof(TransformCamera));
+    _transform._objectsBuffer.create(gl::Buffer::Usage::PersistentMapDynamicWrite, GL_UNIFORM_BUFFER, 100000, sizeof(TransformObject));
 
 }
 
@@ -141,12 +141,12 @@ void GLBackend::TransformStageState::preUpdate(size_t commandIndex, const Stereo
 void GLBackend::TransformStageState::transfer() const {
     if (!_cameras.empty()) {
         _camerasBuffer.bindBuffer();
-        _camerasBuffer.upload(_cameras.data(), _cameras.size());
+        _camerasBuffer.upload<TransformCamera>(_cameras.data(), _cameras.size());
     }
 
     if (!_objects.empty()) {
         _objectsBuffer.bindBuffer();
-        _objectsBuffer.upload(_objects.data(), _objects.size());
+        _objectsBuffer.upload<TransformObject>(_objects.data(), _objects.size());
     }
 
     if (!_cameras.empty() || !_objects.empty()) {

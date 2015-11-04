@@ -18,6 +18,8 @@
 
 namespace gl {
 
+
+
 // This code is directly inpired and applied from John Mc Donalds & Cass Everit Presentation:
 // Beyond Porting: How Modern OpenGL Can Radically Reduce Driver Overhead at Steam Dev 2014
 // https://developer.nvidia.com/content/how-modern-opengl-can-radically-reduce-driver-overhead-0
@@ -108,16 +110,15 @@ private:
 
 };
 
-template <class Atom>
 class CircularBuffer {
 public:
     CircularBuffer(bool _cpuUpdates = true) :
         _buffer(_cpuUpdates)
     {}
 
-    bool create(Buffer::Usage Usage, GLenum target, GLuint numAtoms) {
+    bool create(Buffer::Usage Usage, GLenum target, GLuint numAtoms, size_t atomSize) {
         _head = 0;
-        return _buffer.create(Usage, target, numAtoms, sizeof(Atom));
+        return _buffer.create(Usage, target, numAtoms, atomSize);
     }
     
     void destroy() {
@@ -144,7 +145,8 @@ public:
     void unmap() {
         _buffer.unmap();
     }
-    
+
+    template <class Atom>
     void upload(const Atom* data, GLuint numAtoms) {
         void* pointer = map(numAtoms);
         auto atomStride = _buffer.getAtomStride();
@@ -172,8 +174,7 @@ public:
     }
     
     GLsizeiptr getHead() const { return _head; }
-    void* getHeadOffset() const { return (void*)(_head * sizeof(Atom)); }
-    GLsizeiptr getSize() const { return _buffer.getSize(); }
+    GLsizeiptr getSize() const { return _buffer.getNumAtoms() * _buffer.getAtomStride(); }
     
 private:
     Buffer _buffer;
