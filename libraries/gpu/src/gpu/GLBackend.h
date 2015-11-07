@@ -66,9 +66,12 @@ public:
         Stamp _stamp;
         GLuint _buffer;
         GLuint _size;
+        std::shared_ptr<gl::CircularBuffer> _ringBuffer;
 
         GLBuffer();
         ~GLBuffer();
+
+        bool bindBufferRange(GLenum target, GLuint index, GLuint offset, GLuint range);
     };
     static GLBuffer* syncGPUObject(const Buffer& buffer);
     static GLuint getBufferID(const Buffer& buffer);

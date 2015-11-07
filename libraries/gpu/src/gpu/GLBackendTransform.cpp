@@ -183,9 +183,6 @@ void GLBackend::TransformStageState::update(size_t commandIndex, const StereoSta
 }
 
 void GLBackend::TransformStageState::batchOver() const {
-    _objectsBuffer.onUsageComplete();
-    _camerasBuffer.onUsageComplete();
-    
 }
 
 void GLBackend::updateTransform() const {

@@ -34,21 +34,41 @@ GLBackend::GLBuffer* GLBackend::syncGPUObject(const Buffer& buffer) {
     // need to have a gpu object?
     if (!object) {
         object = new GLBuffer();
-        glGenBuffers(1, &object->_buffer);
-        (void) CHECK_GL_ERROR();
         Backend::setGPUObject(buffer, object);
     }
 
-    // Now let's update the content of the bo with the sysmem version
-    // TODO: in the future, be smarter about when to actually upload the glBO version based on the data that did change
-    //if () {
-    glBindBuffer(GL_ARRAY_BUFFER, object->_buffer);
-    glBufferData(GL_ARRAY_BUFFER, buffer.getSysmem().getSize(), buffer.getSysmem().readData(), GL_DYNAMIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    object->_stamp = buffer.getSysmem().getStamp();
-    object->_size = buffer.getSysmem().getSize();
-    //}
-    (void) CHECK_GL_ERROR();
+    if (buffer.isDynamic()) {
+        // Create the ringBuffer if needed
+        if (!object->_ringBuffer) {
+            object->_ringBuffer = std::make_shared<gl::CircularBuffer>();
+            object->_ringBuffer->create(gl::Buffer::Usage::PersistentMapDynamicWrite, GL_UNIFORM_BUFFER, 1, buffer.getSysmem().getSize());
+        }
+
+        // TIme to upload sysmem to the buffer
+        object->_ringBuffer->bindBuffer();
+        object->_ringBuffer->upload(buffer.getSysmem().readData(), 1);
+        glBindBuffer(GL_UNIFORM_BUFFER, 0);
+        object->_stamp = buffer.getSysmem().getStamp();
+        object->_size = buffer.getSysmem().getSize();
+
+        (void) CHECK_GL_ERROR();
+    } else {
+        // Create the BO if needed
+        if (object->_buffer == 0) {
+            glGenBuffers(1, &object->_buffer);
+            (void) CHECK_GL_ERROR();
+        }
+
+        // Now let's update the content of the bo with the sysmem version
+        // The Buffer is  not "dynamic" and so supposely beeing updated rarely, we just do a full BufferData
+        glBindBuffer(GL_ARRAY_BUFFER, object->_buffer);
+        glBufferData(GL_ARRAY_BUFFER, buffer.getSysmem().getSize(), buffer.getSysmem().readData(), GL_STATIC_DRAW);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        object->_stamp = buffer.getSysmem().getStamp();
+        object->_size = buffer.getSysmem().getSize();
+        //}
+        (void) CHECK_GL_ERROR();
+    }
 
     return object;
 }
@@ -64,3 +84,16 @@ GLuint GLBackend::getBufferID(const Buffer& buffer) {
     }
 }
 
+bool GLBackend::GLBuffer::bindBufferRange(GLenum target, GLuint index, GLuint offset, GLuint length) {
+    if (_buffer) {
+        glBindBufferRange(target, index, _buffer, offset, length);
+        return true;
+    } else if (_ringBuffer) {
+        if (offset == 0 && length == _size) {
+            _ringBuffer->bindBufferRangeCurrent(index, 1);
+            return true;
+        }
+    }
+
+    return true;
+}

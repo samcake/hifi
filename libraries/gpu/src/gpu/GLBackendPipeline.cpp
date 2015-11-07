@@ -191,7 +191,9 @@ void GLBackend::do_setUniformBuffer(Batch& batch, uint32 paramOffset) {
     // Sync BufferObject
     auto* object = GLBackend::syncGPUObject(*uniformBuffer);
     if (object) {
-        glBindBufferRange(GL_UNIFORM_BUFFER, slot, object->_buffer, rangeStart, rangeSize);
+        object->bindBufferRange(GL_UNIFORM_BUFFER, slot, rangeStart, rangeSize);
+
+//        glBindBufferRange(GL_UNIFORM_BUFFER, slot, object->_buffer, rangeStart, rangeSize);
 
         _uniform._buffers[slot] = uniformBuffer;
         (void) CHECK_GL_ERROR();

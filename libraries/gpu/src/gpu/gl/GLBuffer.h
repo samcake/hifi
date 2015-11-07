@@ -93,6 +93,7 @@ public:
 
     GLuint getNumAtoms() const { return _numAtoms; }
     GLsizeiptr getAtomStride() const { return _atomStride; }
+    GLsizeiptr getAtomSize() const { return _atomSize; }
 
     GLvoid* getMappedPointer() { return _mappedPointer; }
 
@@ -146,8 +147,22 @@ public:
         _buffer.unmap();
     }
 
+    void upload(const void* data, GLuint numAtoms) {
+        onUsageComplete();
+        void* pointer = map(numAtoms);
+        auto atomStride = _buffer.getAtomStride();
+        auto atomSize = _buffer.getAtomSize();
+        for (int i = 0; i< numAtoms; i++) {
+            auto srcPointer = reinterpret_cast<size_t>(data) + (i * atomSize);
+            auto newPointer = reinterpret_cast<size_t>(pointer) + (i * atomStride);
+            memcpy((void*)newPointer, (const void*) srcPointer, atomSize);
+        }
+        unmap();
+    }
+
     template <class Atom>
     void upload(const Atom* data, GLuint numAtoms) {
+        onUsageComplete();
         void* pointer = map(numAtoms);
         auto atomStride = _buffer.getAtomStride();
         for (int i = 0; i< numAtoms; i++) {

@@ -218,3 +218,12 @@ Buffer::Size Buffer::append(Size size, const Byte* data) {
     return editSysmem().append( size, data);
 }
 
+void Buffer::setDynamic(bool isDynamic) {
+    if (isDynamic != _isDynamic) {
+        _isDynamic = isDynamic;
+        // FIXME find a way to bump the stamp
+        if (_sysmem) {
+         //   _sysmem->bumpStamp();
+        }
+    }
+}

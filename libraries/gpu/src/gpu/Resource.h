@@ -117,6 +117,9 @@ public:
     Buffer& operator=(const Buffer& buf); // deep copy of the sysmem buffer
     ~Buffer();
 
+    bool isDynamic() const { return _isDynamic; }
+    void setDynamic(bool isDynamic);
+
     // The size in bytes of data stored in the buffer
     Size getSize() const { return getSysmem().getSize(); }
     const Byte* getData() const { return getSysmem().readData(); }
@@ -155,8 +158,8 @@ public:
 
 protected:
 
-    Sysmem* _sysmem = NULL;
-
+    Sysmem* _sysmem{ nullptr };
+    bool _isDynamic{ false };
 
     // This shouldn't be used by anything else than the Backend class with the proper casting.
     mutable GPUObject* _gpuObject = NULL;
