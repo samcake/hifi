@@ -85,10 +85,10 @@ public:
     void lockRange(GLuint lockOffset, GLuint lockLength) { _lockManager.lockRange(lockOffset, lockLength); }
 
 
-    void bindBuffer(GLenum target) { glBindBuffer(target, _name); }
-    void bindBufferBase(GLuint index) { glBindBufferBase(_target, index, _name); }
-    void bindBufferRange(GLuint index, GLuint atomOffset, GLuint atomLength) {
-        glBindBufferRange(_target, index, _name, atomOffset * _atomStride, atomLength * _atomStride);
+    void bindBuffer(GLenum target) { glBindBuffer(target, _glObject); }
+    void bindBufferBase(GLuint index) { glBindBufferBase(_target, index, _glObject); }
+    void bindBufferRange(GLenum target, GLuint index, GLuint atomOffset, GLuint atomLength) {
+        glBindBufferRange(target, index, _glObject, atomOffset * _atomStride, atomLength * _atomStride);
     }
 
     GLuint getNumAtoms() const { return _numAtoms; }
@@ -97,11 +97,13 @@ public:
 
     GLvoid* getMappedPointer() { return _mappedPointer; }
 
+    GLuint getGLObject() const { return _glObject; }
+
 private:
     BufferLockManager _lockManager;
     GLvoid* _mappedPointer{ nullptr };
-    GLuint _name{ 0 };
-    GLenum _target{ GL_UNIFORM_BUFFER_BINDING };
+    GLuint _glObject{ 0 };
+    GLenum _target{ GL_UNIFORM_BUFFER };
 
     Usage _usage{ Usage::DynamicWrite };
     GLuint _numAtoms{ 0 };
@@ -171,14 +173,18 @@ public:
     void bindBuffer(GLenum target) { _buffer.bindBuffer(target); }
     void bindBufferBase(GLuint index) { _buffer.bindBufferBase(index); }
 
-    void bindBufferRangeCurrent(GLuint index, GLuint numAtoms) { _buffer.bindBufferRange(index, _head, numAtoms); }
-    void bindBufferRange(GLuint index, GLuint atomOffset, GLuint numAtoms) {
-        _buffer.bindBufferRange(index, _head + atomOffset, numAtoms);
+    void bindBufferRangeCurrent(GLenum target, GLuint index, GLuint numAtoms) { _buffer.bindBufferRange(target, index, _head, numAtoms); }
+    void bindBufferRange(GLenum target, GLuint index, GLuint atomOffset, GLuint numAtoms) {
+        _buffer.bindBufferRange(target, index, _head + atomOffset, numAtoms);
     }
     
     GLsizeiptr getHead() const { return _head; }
+    
+    GLsizeiptr getHeadOffset() const { return _head * _buffer.getAtomStride(); }
     GLsizeiptr getSize() const { return _buffer.getNumAtoms() * _buffer.getAtomStride(); }
     
+    const Buffer& getBuffer() const { return _buffer; }
+
 private:
     Buffer _buffer;
     GLuint _head{ 0 };

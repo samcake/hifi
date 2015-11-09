@@ -96,14 +96,14 @@ bool Buffer::create(Usage Usage, GLenum target, GLuint numAtoms, size_t atomSize
 
     switch (_usage) {
         case Usage::DynamicWrite: {
-            glGenBuffers(1, &_name);
-            glBindBuffer(_target, _name);
+            glGenBuffers(1, &_glObject);
+            glBindBuffer(_target, _glObject);
             glBufferData(_target, _atomStride * _numAtoms, nullptr, GL_DYNAMIC_DRAW);
             break;
         }
         case Usage::PersistentMapDynamicWrite: {
-            glGenBuffers(1, &_name);
-            glBindBuffer(_target, _name);
+            glGenBuffers(1, &_glObject);
+            glBindBuffer(_target, _glObject);
             const GLbitfield mapFlags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT;
             const GLbitfield createFlags = mapFlags | GL_DYNAMIC_STORAGE_BIT;
             glBufferStorage(_target, _atomStride * _numAtoms, nullptr, createFlags);
@@ -120,19 +120,19 @@ bool Buffer::create(Usage Usage, GLenum target, GLuint numAtoms, size_t atomSize
 void Buffer::destroy() {
     switch (_usage) {
         case Usage::DynamicWrite: {
-            glDeleteBuffers(1, &_name);
+            glDeleteBuffers(1, &_glObject);
             break;
         }
         case Usage::PersistentMapDynamicWrite: {
-            glBindBuffer(_target, _name);
+            glBindBuffer(_target, _glObject);
             glUnmapBuffer(_target);
-            glDeleteBuffers(1, &_name);
+            glDeleteBuffers(1, &_glObject);
             _mappedPointer = nullptr;
             break;
         }
     };
 
-    _name = 0;
+    _glObject = 0;
     _numAtoms = 0;
     _atomSize = 0;
     _atomStride = 0;
@@ -144,7 +144,7 @@ void* Buffer::mapRange(GLuint atomOffset, GLuint atomLength) {
             _mappingStarted = true;
             GLsizeiptr rangeOffset = atomOffset * _atomStride;
             GLsizeiptr rangeLength = atomLength * _atomStride;
-            glBindBuffer(GL_COPY_WRITE_BUFFER, _name);
+            glBindBuffer(GL_COPY_WRITE_BUFFER, _glObject);
             auto pointer = (glMapBufferRange(GL_COPY_WRITE_BUFFER, rangeOffset, rangeLength, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_RANGE_BIT | GL_MAP_UNSYNCHRONIZED_BIT));
             return pointer;
             break;

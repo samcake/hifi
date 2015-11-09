@@ -80,9 +80,25 @@ GLBackend::GLBuffer* GLBackend::syncGPUObject(const Buffer& buffer) {
 GLuint GLBackend::getBufferID(const Buffer& buffer) {
     GLBuffer* bo = GLBackend::syncGPUObject(buffer);
     if (bo) {
-        return bo->_buffer;
+        return bo->getID();
     } else {
         return 0;
+    }
+}
+
+GLuint GLBackend::GLBuffer::getID() {
+    if (_buffer) {
+        return _buffer;
+    } else if (_ringBuffer) {
+        return _ringBuffer->getBuffer().getGLObject();
+    }
+}
+
+GLsizeiptr GLBackend::GLBuffer::getHeadOffset() {
+    if (_buffer) {
+        return 0;
+    } else if (_ringBuffer) {
+        return _ringBuffer->getHeadOffset();
     }
 }
 
@@ -104,7 +120,7 @@ bool GLBackend::GLBuffer::bindBufferRange(GLenum target, GLuint index, GLuint of
         return true;
     } else if (_ringBuffer) {
         if (offset == 0 && length == _size) {
-            _ringBuffer->bindBufferRangeCurrent(index, 1);
+            _ringBuffer->bindBufferRangeCurrent(target, index, 1);
             return true;
         }
     }

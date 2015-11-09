@@ -161,7 +161,7 @@ void GLBackend::TransformStageState::update(size_t commandIndex, const StereoSta
         ++_objectsItr;
     }
     if (offset >= 0) {
-        _objectsBuffer.bindBufferRange(TRANSFORM_OBJECT_SLOT, offset, 1);
+        _objectsBuffer.bindBufferRange(GL_UNIFORM_BUFFER, TRANSFORM_OBJECT_SLOT, offset, 1);
     }
     (void)CHECK_GL_ERROR();
     
@@ -175,7 +175,7 @@ void GLBackend::TransformStageState::update(size_t commandIndex, const StereoSta
         if (stereo._enable && stereo._pass) {
             offset += 1;
         }
-        _camerasBuffer.bindBufferRange(TRANSFORM_CAMERA_SLOT, offset, 1);
+        _camerasBuffer.bindBufferRange(GL_UNIFORM_BUFFER, TRANSFORM_CAMERA_SLOT, offset, 1);
     }
 
     (void)CHECK_GL_ERROR();

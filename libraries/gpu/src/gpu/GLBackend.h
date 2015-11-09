@@ -71,6 +71,9 @@ public:
         GLBuffer();
         ~GLBuffer();
 
+        GLuint getID();
+        GLsizeiptr getHeadOffset();
+
         bool bindBuffer(GLenum target);
         bool bindBufferRange(GLenum target, GLuint index, GLuint offset, GLuint range);
     };

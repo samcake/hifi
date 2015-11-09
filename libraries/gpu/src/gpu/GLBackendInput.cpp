@@ -209,6 +209,7 @@ void GLBackend::updateInput() {
             _stats._ISNumInputBufferChanges++;
 
             GLuint boundVBO = 0;
+            GLsizeiptr boundBufferHeadOffset = 0;
             for (auto& channelIt : inputChannels) {
                 const Stream::Format::ChannelMap::value_type::second_type& channel = (channelIt).second;
                 if ((channelIt).first < buffers.size()) {
@@ -218,9 +219,10 @@ void GLBackend::updateInput() {
                       //  GLuint vbo = gpu::GLBackend::getBufferID((*buffers[bufferNum]));
                         GLuint vbo = _input._bufferVBOs[bufferNum];
                         if (boundVBO != vbo) {
-                            syncGPUObject(*_input._buffers[bufferNum])->bindBuffer(GL_ARRAY_BUFFER);
-
-                            glBindBuffer(GL_ARRAY_BUFFER, vbo);
+                            auto glBuffer = syncGPUObject(*_input._buffers[bufferNum]);
+                            glBuffer->bindBuffer(GL_ARRAY_BUFFER);
+                            boundBufferHeadOffset = glBuffer->getHeadOffset();
+                          //  glBindBuffer(GL_ARRAY_BUFFER, vbo);
                             (void) CHECK_GL_ERROR();
                             boundVBO = vbo;
                         }
@@ -235,7 +237,7 @@ void GLBackend::updateInput() {
                             // GLenum perLocationStride = strides[bufferNum];
                             GLenum perLocationStride = attrib._element.getLocationSize();
                             GLuint stride = strides[bufferNum];
-                            GLuint pointer = attrib._offset + offsets[bufferNum];
+                            GLuint pointer = attrib._offset + offsets[bufferNum] + boundBufferHeadOffset;
                             GLboolean isNormalized = attrib._element.isNormalized();
 
                             for (size_t locNum = 0; locNum < locationCount; ++locNum) {
