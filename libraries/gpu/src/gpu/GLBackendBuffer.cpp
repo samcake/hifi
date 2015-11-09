@@ -49,9 +49,7 @@ GLBackend::GLBuffer* GLBackend::syncGPUObject(const Buffer& buffer) {
         }
 
         // TIme to upload sysmem to the buffer
-        object->_ringBuffer->bindBuffer();
         object->_ringBuffer->upload(buffer.getSysmem().readData(), 1);
-        glBindBuffer(GL_UNIFORM_BUFFER, 0);
         object->_stamp = buffer.getSysmem().getStamp();
         object->_size = buffer.getSysmem().getSize();
 

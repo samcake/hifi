@@ -144,7 +144,8 @@ void* Buffer::mapRange(GLuint atomOffset, GLuint atomLength) {
             _mappingStarted = true;
             GLsizeiptr rangeOffset = atomOffset * _atomStride;
             GLsizeiptr rangeLength = atomLength * _atomStride;
-            auto pointer = (glMapBufferRange(_target, rangeOffset, rangeLength, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_RANGE_BIT | GL_MAP_UNSYNCHRONIZED_BIT));
+            glBindBuffer(GL_COPY_WRITE_BUFFER, _name);
+            auto pointer = (glMapBufferRange(GL_COPY_WRITE_BUFFER, rangeOffset, rangeLength, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_RANGE_BIT | GL_MAP_UNSYNCHRONIZED_BIT));
             return pointer;
             break;
         }
@@ -164,7 +165,8 @@ void Buffer::unmap() {
                 _mappingStarted = false;
             } else {
                 _mappingStarted = false;
-                glUnmapBuffer(_target);
+                glUnmapBuffer(GL_COPY_WRITE_BUFFER);
+                glBindBuffer(GL_COPY_WRITE_BUFFER, 0);
             }
             break;
         }
