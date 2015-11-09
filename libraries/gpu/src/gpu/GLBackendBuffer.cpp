@@ -22,6 +22,9 @@ GLBackend::GLBuffer::~GLBuffer() {
     if (_buffer != 0) {
         glDeleteBuffers(1, &_buffer);
     }
+    if (_ringBuffer) {
+        _ringBuffer->destroy();
+    }
 }
 
 GLBackend::GLBuffer* GLBackend::syncGPUObject(const Buffer& buffer) {
@@ -38,10 +41,11 @@ GLBackend::GLBuffer* GLBackend::syncGPUObject(const Buffer& buffer) {
     }
 
     if (buffer.isDynamic()) {
-        // Create the ringBuffer if needed
-        if (!object->_ringBuffer) {
+
+        // Create the ringBuffer if needed or recreate it if it actually grew in size
+        if (!object->_ringBuffer || (buffer.getSysmem().getSize() > object->_size)) {
             object->_ringBuffer = std::make_shared<gl::CircularBuffer>();
-            object->_ringBuffer->create(gl::Buffer::Usage::PersistentMapDynamicWrite, GL_UNIFORM_BUFFER, 1, buffer.getSysmem().getSize());
+            object->_ringBuffer->create(gl::Buffer::Usage::PersistentMapDynamicWrite, GL_UNIFORM_BUFFER, 3, buffer.getSysmem().getSize());
         }
 
         // TIme to upload sysmem to the buffer
@@ -60,7 +64,7 @@ GLBackend::GLBuffer* GLBackend::syncGPUObject(const Buffer& buffer) {
         }
 
         // Now let's update the content of the bo with the sysmem version
-        // The Buffer is  not "dynamic" and so supposely beeing updated rarely, we just do a full BufferData
+        // The Buffer is  not "dynamic" and so supposely beeing updated rarely, we just do a full update of BufferData
         glBindBuffer(GL_ARRAY_BUFFER, object->_buffer);
         glBufferData(GL_ARRAY_BUFFER, buffer.getSysmem().getSize(), buffer.getSysmem().readData(), GL_STATIC_DRAW);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -82,6 +86,18 @@ GLuint GLBackend::getBufferID(const Buffer& buffer) {
     } else {
         return 0;
     }
+}
+
+bool GLBackend::GLBuffer::bindBuffer(GLenum target) {
+    if (_buffer) {
+        glBindBuffer(target, _buffer);
+        return true;
+    } else if (_ringBuffer) {
+        _ringBuffer->bindBuffer(target);
+        return true;
+    }
+
+    return true;
 }
 
 bool GLBackend::GLBuffer::bindBufferRange(GLenum target, GLuint index, GLuint offset, GLuint length) {

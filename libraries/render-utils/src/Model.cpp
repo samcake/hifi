@@ -172,6 +172,7 @@ bool Model::updateGeometry() {
 
             auto buffer = std::make_shared<gpu::Buffer>();
             if (!mesh.blendshapes.isEmpty()) {
+                buffer->setDynamic(true);
                 buffer->resize((mesh.vertices.size() + mesh.normals.size()) * sizeof(glm::vec3));
                 buffer->setSubData(0, mesh.vertices.size() * sizeof(glm::vec3), (gpu::Byte*) mesh.vertices.constData());
                 buffer->setSubData(mesh.vertices.size() * sizeof(glm::vec3),
@@ -1008,6 +1009,7 @@ void Model::updateClusterMatrices() {
         if (mesh.clusters.size() > 1) {
             if (!state.clusterBuffer) {
                 state.clusterBuffer = std::make_shared<gpu::Buffer>(state.clusterMatrices.size() * sizeof(glm::mat4), (const gpu::Byte*) state.clusterMatrices.constData());
+                state.clusterBuffer->setDynamic(true);
             } else {
                 state.clusterBuffer->setSubData(0, state.clusterMatrices.size() * sizeof(glm::mat4), (const gpu::Byte*) state.clusterMatrices.constData());
             }
@@ -1015,6 +1017,7 @@ void Model::updateClusterMatrices() {
             if (!_cauterizeBoneSet.empty() && (state.cauterizedClusterMatrices.size() > 1)) {
                 if (!state.cauterizedClusterBuffer) {
                     state.cauterizedClusterBuffer = std::make_shared<gpu::Buffer>(state.cauterizedClusterMatrices.size() * sizeof(glm::mat4), (const gpu::Byte*) state.cauterizedClusterMatrices.constData());
+                    state.cauterizedClusterBuffer->setDynamic(true);
                 } else {
                     state.cauterizedClusterBuffer->setSubData(0, state.cauterizedClusterMatrices.size() * sizeof(glm::mat4), (const gpu::Byte*) state.cauterizedClusterMatrices.constData());
                 }

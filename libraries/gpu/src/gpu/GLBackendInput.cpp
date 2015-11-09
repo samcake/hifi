@@ -218,6 +218,8 @@ void GLBackend::updateInput() {
                       //  GLuint vbo = gpu::GLBackend::getBufferID((*buffers[bufferNum]));
                         GLuint vbo = _input._bufferVBOs[bufferNum];
                         if (boundVBO != vbo) {
+                            syncGPUObject(*_input._buffers[bufferNum])->bindBuffer(GL_ARRAY_BUFFER);
+
                             glBindBuffer(GL_ARRAY_BUFFER, vbo);
                             (void) CHECK_GL_ERROR();
                             boundVBO = vbo;
@@ -295,7 +297,8 @@ void GLBackend::do_setIndexBuffer(Batch& batch, uint32 paramOffset) {
     if (indexBuffer != _input._indexBuffer) {
         _input._indexBuffer = indexBuffer;
         if (indexBuffer) {
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, getBufferID(*indexBuffer));
+           // glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, getBufferID(*indexBuffer));
+            syncGPUObject(*indexBuffer)->bindBuffer(GL_ELEMENT_ARRAY_BUFFER);
         } else {
             // FIXME do we really need this?  Is there ever a draw call where we care that the element buffer is null?
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
@@ -312,8 +315,9 @@ void GLBackend::do_setIndirectBuffer(Batch& batch, uint32 paramOffset) {
     if (buffer != _input._indirectBuffer) {
         _input._indirectBuffer = buffer;
         if (buffer) {
-            glBindBuffer(GL_DRAW_INDIRECT_BUFFER, getBufferID(*buffer));
-        } else {
+            //glBindBuffer(GL_DRAW_INDIRECT_BUFFER, getBufferID(*buffer));
+            syncGPUObject(*buffer)->bindBuffer(GL_DRAW_INDIRECT_BUFFER);
+       } else {
             // FIXME do we really need this?  Is there ever a draw call where we care that the element buffer is null?
             glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
         }

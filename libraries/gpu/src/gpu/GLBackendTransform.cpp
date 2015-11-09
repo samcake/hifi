@@ -141,12 +141,12 @@ void GLBackend::TransformStageState::preUpdate(size_t commandIndex, const Stereo
 void GLBackend::TransformStageState::transfer() const {
     if (!_cameras.empty()) {
         _camerasBuffer.bindBuffer();
-        _camerasBuffer.upload<TransformCamera>(_cameras.data(), _cameras.size());
+        _camerasBuffer.upload((const void*) _cameras.data(), _cameras.size());
     }
 
     if (!_objects.empty()) {
         _objectsBuffer.bindBuffer();
-        _objectsBuffer.upload<TransformObject>(_objects.data(), _objects.size());
+        _objectsBuffer.upload((const void*) _objects.data(), _objects.size());
     }
 
     if (!_cameras.empty() || !_objects.empty()) {
