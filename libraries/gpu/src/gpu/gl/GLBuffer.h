@@ -85,7 +85,7 @@ public:
     void lockRange(GLuint lockOffset, GLuint lockLength) { _lockManager.lockRange(lockOffset, lockLength); }
 
 
-    void bindBuffer() { glBindBuffer(_target, _name); }
+    void bindBuffer(GLenum target) { glBindBuffer(target, _name); }
     void bindBufferBase(GLuint index) { glBindBufferBase(_target, index, _name); }
     void bindBufferRange(GLuint index, GLuint atomOffset, GLuint atomLength) {
         glBindBufferRange(_target, index, _name, atomOffset * _atomStride, atomLength * _atomStride);
@@ -160,18 +160,6 @@ public:
         unmap();
     }
 
-    template <class Atom>
-    void upload(const Atom* data, GLuint numAtoms) {
-        onUsageComplete();
-        void* pointer = map(numAtoms);
-        auto atomStride = _buffer.getAtomStride();
-        for (int i = 0; i< numAtoms; i++) {
-            auto newPointer = reinterpret_cast<size_t>(pointer) + (i * atomStride);
-            memcpy((void*)newPointer, data + i, sizeof(Atom));
-        }
-        unmap();
-    }
-    
     void onUsageComplete() {
         if (_mappedLength) {
             _buffer.lockRange(_head, _mappedLength);
@@ -179,8 +167,8 @@ public:
         }
         _mappedLength = 0;
     }
-    
-    void bindBuffer() { _buffer.bindBuffer(); }
+
+    void bindBuffer(GLenum target) { _buffer.bindBuffer(target); }
     void bindBufferBase(GLuint index) { _buffer.bindBufferBase(index); }
 
     void bindBufferRangeCurrent(GLuint index, GLuint numAtoms) { _buffer.bindBufferRange(index, _head, numAtoms); }
