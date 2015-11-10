@@ -12,6 +12,7 @@
 #define hifi_gpu_gl_GLBuffer_h
 
 #include <stdint.h>
+#include <cstring>
 #include <vector>
 
 #include <gl/Config.h>
@@ -154,7 +155,7 @@ public:
         void* pointer = map(numAtoms);
         auto atomStride = _buffer.getAtomStride();
         auto atomSize = _buffer.getAtomSize();
-        for (int i = 0; i< numAtoms; i++) {
+        for (GLuint i = 0; i< numAtoms; i++) {
             auto srcPointer = reinterpret_cast<size_t>(data) + (i * atomSize);
             auto newPointer = reinterpret_cast<size_t>(pointer) + (i * atomStride);
             memcpy((void*)newPointer, (const void*) srcPointer, atomSize);
