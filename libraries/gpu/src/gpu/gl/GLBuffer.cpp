@@ -95,13 +95,13 @@ bool Buffer::create(Usage Usage, GLenum target, GLuint numAtoms, size_t atomSize
     _numAtoms = numAtoms;
 
     switch (_usage) {
-        case Usage::DynamicWrite: {
+        case Buffer::Usage::DynamicWrite: {
             glGenBuffers(1, &_glObject);
             glBindBuffer(_target, _glObject);
             glBufferData(_target, _atomStride * _numAtoms, nullptr, GL_DYNAMIC_DRAW);
             break;
         }
-        case Usage::PersistentMapDynamicWrite: {
+        case Buffer::Usage::PersistentMapDynamicWrite: {
             glGenBuffers(1, &_glObject);
             glBindBuffer(_target, _glObject);
             const GLbitfield mapFlags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT;
@@ -119,11 +119,11 @@ bool Buffer::create(Usage Usage, GLenum target, GLuint numAtoms, size_t atomSize
 
 void Buffer::destroy() {
     switch (_usage) {
-        case Usage::DynamicWrite: {
+        case Buffer::Usage::DynamicWrite: {
             glDeleteBuffers(1, &_glObject);
             break;
         }
-        case Usage::PersistentMapDynamicWrite: {
+        case Buffer::Usage::PersistentMapDynamicWrite: {
             glBindBuffer(_target, _glObject);
             glUnmapBuffer(_target);
             glDeleteBuffers(1, &_glObject);
@@ -140,7 +140,7 @@ void Buffer::destroy() {
 
 void* Buffer::mapRange(GLuint atomOffset, GLuint atomLength) {
     switch (_usage) {
-        case Usage::DynamicWrite: {
+        case Buffer::Usage::DynamicWrite: {
             _mappingStarted = true;
             GLsizeiptr rangeOffset = atomOffset * _atomStride;
             GLsizeiptr rangeLength = atomLength * _atomStride;
@@ -149,7 +149,7 @@ void* Buffer::mapRange(GLuint atomOffset, GLuint atomLength) {
             return pointer;
             break;
         }
-        case Usage::PersistentMapDynamicWrite: {
+        case Buffer::Usage::PersistentMapDynamicWrite: {
             GLsizeiptr rangeOffset = atomOffset * _atomStride;
             return (void*) (reinterpret_cast<GLsizeiptr> (_mappedPointer)+rangeOffset);
             break;
