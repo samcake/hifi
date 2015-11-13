@@ -221,6 +221,8 @@ void GLBackend::renderPassDraw(Batch& batch) {
 }
 
 void GLBackend::render(Batch& batch) {
+    _batch.batchNum++;
+
     // Finalize the batch by moving all the instanced rendering into the command buffer
     batch.preExecute();
 

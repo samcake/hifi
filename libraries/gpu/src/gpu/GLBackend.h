@@ -63,12 +63,13 @@ public:
 
     class GLBuffer : public GPUObject {
     public:
-        Stamp _stamp;
-        GLuint _buffer;
-        GLuint _size;
+        uint32 _syncedAtBatch{ -1 };
+        Stamp _stamp{ 0 };
+        GLuint _buffer{ 0 };
+        GLuint _size{ 0 };
         std::shared_ptr<gl::CircularBuffer> _ringBuffer;
 
-        GLBuffer();
+        GLBuffer() {}
         ~GLBuffer();
 
         GLuint getID();
@@ -77,8 +78,8 @@ public:
         bool bindBuffer(GLenum target);
         bool bindBufferRange(GLenum target, GLuint index, GLuint offset, GLuint range);
     };
-    static GLBuffer* syncGPUObject(const Buffer& buffer);
-    static GLuint getBufferID(const Buffer& buffer);
+    GLBuffer* syncGPUObject(const Buffer& buffer);
+    GLuint getBufferID(const Buffer& buffer);
 
     class GLTexture : public GPUObject {
     public:
@@ -255,6 +256,10 @@ protected:
     void renderPassDraw(Batch& batch);
 
     Stats _stats;
+
+    struct BatchState {
+        uint32 batchNum = 0;
+    } _batch;
 
     // Draw Stage
     void do_draw(Batch& batch, uint32 paramOffset);

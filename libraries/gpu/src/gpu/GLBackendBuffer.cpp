@@ -12,12 +12,6 @@
 
 using namespace gpu;
 
-GLBackend::GLBuffer::GLBuffer() :
-    _stamp(0),
-    _buffer(0),
-    _size(0)
-{}
-
 GLBackend::GLBuffer::~GLBuffer() {
     if (_buffer != 0) {
         glDeleteBuffers(1, &_buffer);
@@ -71,6 +65,8 @@ GLBackend::GLBuffer* GLBackend::syncGPUObject(const Buffer& buffer) {
         //}
         (void) CHECK_GL_ERROR();
     }
+
+    object->_syncedAtBatch = _batch.batchNum;
 
     return object;
 }
