@@ -164,6 +164,12 @@ glm::vec2 RenderableWebEntityItem::getWindowSize() const {
 }
 
 void RenderableWebEntityItem::render(RenderArgs* args) {
+
+    static bool passWebEntities = true;
+    if (passWebEntities) {
+        return;
+    }
+
     checkFading();
 
     #ifdef WANT_EXTRA_DEBUGGING

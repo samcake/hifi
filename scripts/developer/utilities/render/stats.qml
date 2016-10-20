@@ -146,7 +146,7 @@ Item {
 
         PlotPerf {
            title: "Timing"
-           height: parent.evalEvenHeight()
+           height: 2 * parent.evalEvenHeight()
            object: parent.drawOpaqueConfig
            valueUnit: "ms"
            valueScale: 1
@@ -171,9 +171,68 @@ Item {
                    color: "#FED959"
                },
                {
+                   object: Render.getConfig("LinearDepth"),
+                   prop: "cpuRunTime",
+                   label: "LinearDepth",
+                   color: "#D959FE"
+               },
+                {
+                   object: Render.getConfig("SurfaceGeometry"),
+                   prop: "cpuRunTime",
+                   label: "SurfaceGeometry",
+                   color: "#FED959"
+               },
+               {
                    object: Render.getConfig("RenderDeferredTask"),
                    prop: "cpuRunTime",
                    label: "RenderFrame",
+                   color: "#E2334D"
+               }
+           ]
+        }
+
+         PlotPerf {
+           title: "Timing"
+           height: 2 * parent.evalEvenHeight()
+           object: parent.drawOpaqueConfig
+           valueUnit: "ms"
+           valueScale: 1
+           valueNumDigits: "2"
+           plots: [
+               {
+                   object: Render.getConfig("FetchSceneSelection"),
+                   prop: "cpuRunTime",
+                   label: "FetchSceneSelection",
+                   color: "#1AC567"
+               },
+               {
+                   object: Render.getConfig("CullSceneSelection"),
+                   prop: "cpuRunTime",
+                   label: "CullSceneSelection",
+                   color: "#00B4EF"
+               },
+               {
+                   object: Render.getConfig("DepthSortOpaque"),
+                   prop: "cpuRunTime",
+                   label: "DepthSortOpaque",
+                   color: "#FED959"
+               },
+               {
+                   object: Render.getConfig("DepthSortTransparent"),
+                   prop: "cpuRunTime",
+                   label: "DepthSortTransparent",
+                   color: "#D959FE"
+               },
+                {
+                   object: Render.getConfig("Antialiasing"),
+                   prop: "cpuRunTime",
+                   label: "Antialiasing",
+                   color: "#FED959"
+               },
+               {
+                   object: Render.getConfig("Blit"),
+                   prop: "cpuRunTime",
+                   label: "Blit",
                    color: "#E2334D"
                }
            ]

@@ -100,7 +100,7 @@ RenderDeferredTask::RenderDeferredTask(CullFunctor cullFunctor) {
     // GPU jobs: Start preparing the primary, deferred and lighting buffer
     const auto primaryFramebuffer = addJob<PreparePrimaryFramebuffer>("PreparePrimaryBuffer");
 
-   // const auto fullFrameRangeTimer = addJob<BeginGPURangeTimer>("BeginRangeTimer");
+    const auto fullFrameRangeTimer = addJob<BeginGPURangeTimer>("BeginRangeTimer");
     const auto opaqueRangeTimer = addJob<BeginGPURangeTimer>("BeginOpaqueRangeTimer");
 
     const auto prepareDeferredInputs = PrepareDeferred::Inputs(primaryFramebuffer, lightingModel).hasVarying();
@@ -146,8 +146,8 @@ RenderDeferredTask::RenderDeferredTask(CullFunctor cullFunctor) {
     addJob<DrawLight>("DrawLight", lights);
 
     const auto deferredLightingInputs = RenderDeferred::Inputs(deferredFrameTransform, deferredFramebuffer, lightingModel,
-		surfaceGeometryFramebuffer, ambientOcclusionFramebuffer, scatteringResource).hasVarying();
-	
+        surfaceGeometryFramebuffer, ambientOcclusionFramebuffer, scatteringResource).hasVarying();
+    
     // DeferredBuffer is complete, now let's shade it into the LightingBuffer
     addJob<RenderDeferred>("RenderDeferred", deferredLightingInputs);
 
@@ -174,9 +174,9 @@ RenderDeferredTask::RenderDeferredTask(CullFunctor cullFunctor) {
     
     // Debugging stages
     {
-		// Debugging Deferred buffer job
-		const auto debugFramebuffers = render::Varying(DebugDeferredBuffer::Inputs(deferredFramebuffer, linearDepthTarget, surfaceGeometryFramebuffer, ambientOcclusionFramebuffer));
-		addJob<DebugDeferredBuffer>("DebugDeferredBuffer", debugFramebuffers);
+        // Debugging Deferred buffer job
+        const auto debugFramebuffers = render::Varying(DebugDeferredBuffer::Inputs(deferredFramebuffer, linearDepthTarget, surfaceGeometryFramebuffer, ambientOcclusionFramebuffer));
+        addJob<DebugDeferredBuffer>("DebugDeferredBuffer", debugFramebuffers);
 
         addJob<DebugSubsurfaceScattering>("DebugScattering", deferredLightingInputs);
 
@@ -208,7 +208,7 @@ RenderDeferredTask::RenderDeferredTask(CullFunctor cullFunctor) {
     // Blit!
     addJob<Blit>("Blit", primaryFramebuffer);
 
- //   addJob<EndGPURangeTimer>("RangeTimer", fullFrameRangeTimer);
+    addJob<EndGPURangeTimer>("RangeTimer", fullFrameRangeTimer);
 
 }
 

@@ -37,7 +37,13 @@ Item {
            valueScale: 1
            valueNumDigits: "4"
            plots: [
-            {
+              /* {
+                   object: Render.getConfig("RangeTimer"),
+                   prop: "gpuRunTime",
+                   label: "frame",
+                   color: "#EE00FF"
+               },*/
+               {
                    object: Render.getConfig("OpaqueRangeTimer"),
                    prop: "gpuRunTime",
                    label: "Opaque",
@@ -59,8 +65,7 @@ Item {
                    prop: "gpuRunTime",
                    label: "DeferredLighting",
                    color: "#FF00FF"
-               }
-               ,
+               },
                {
                    object: Render.getConfig("ToneAndPostRangeTimer"),
                    prop: "gpuRunTime",
@@ -77,7 +82,13 @@ Item {
            valueScale: 1
            valueNumDigits: "3"
            plots: [
-            {
+              /* {
+                   object: Render.getConfig("RangeTimer"),
+                   prop: "batchRunTime",
+                   label: "frame",
+                   color: "#EE00FF"
+               },*/
+               {
                    object: Render.getConfig("OpaqueRangeTimer"),
                    prop: "batchRunTime",
                    label: "Opaque",
@@ -99,8 +110,7 @@ Item {
                    prop: "batchRunTime",
                    label: "DeferredLighting",
                    color: "#FF00FF"
-               }
-               ,
+               },
                {
                    object: Render.getConfig("ToneAndPostRangeTimer"),
                    prop: "batchRunTime",
@@ -110,7 +120,7 @@ Item {
            ]
         }
 
-        
+/*
         PlotPerf {
             title: "Triangles"
             height: parent.evalEvenHeight()
@@ -173,7 +183,7 @@ Item {
                     color: "#E2334D"
                 }
             ]
-        }  
+        }  */
     }
 
 }

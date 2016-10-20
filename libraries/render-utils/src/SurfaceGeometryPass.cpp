@@ -61,9 +61,9 @@ void LinearDepthFramebuffer::updatePrimaryDepth(const gpu::TexturePointer& depth
 void LinearDepthFramebuffer::clear() {
     _linearDepthFramebuffer.reset();
     _linearDepthTexture.reset();
-	_downsampleFramebuffer.reset();
-	_halfLinearDepthTexture.reset();
-	_halfNormalTexture.reset();
+    _downsampleFramebuffer.reset();
+    _halfLinearDepthTexture.reset();
+    _halfNormalTexture.reset();
 }
 
 void LinearDepthFramebuffer::allocate() {
