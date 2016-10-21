@@ -66,6 +66,12 @@ Item {
                    label: "DeferredLighting",
                    color: "#FF00FF"
                },
+            /*   {
+                   object: Render.getConfig("TransparentRangeTimer"),
+                   prop: "gpuRunTime",
+                   label: "transparent",
+                   color: "#BBEEFF"
+               },*/
                {
                    object: Render.getConfig("ToneAndPostRangeTimer"),
                    prop: "gpuRunTime",
@@ -111,6 +117,12 @@ Item {
                    label: "DeferredLighting",
                    color: "#FF00FF"
                },
+             /*  {
+                   object: Render.getConfig("TransparentRangeTimer"),
+                   prop: "batchRunTime",
+                   label: "transparent",
+                   color: "#BBEEFF"
+               },*/
                {
                    object: Render.getConfig("ToneAndPostRangeTimer"),
                    prop: "batchRunTime",

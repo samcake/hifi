@@ -100,7 +100,7 @@ RenderDeferredTask::RenderDeferredTask(CullFunctor cullFunctor) {
     // GPU jobs: Start preparing the primary, deferred and lighting buffer
     const auto primaryFramebuffer = addJob<PreparePrimaryFramebuffer>("PreparePrimaryBuffer");
 
-    const auto fullFrameRangeTimer = addJob<BeginGPURangeTimer>("BeginRangeTimer");
+//    const auto fullFrameRangeTimer = addJob<BeginGPURangeTimer>("BeginRangeTimer");
     const auto opaqueRangeTimer = addJob<BeginGPURangeTimer>("BeginOpaqueRangeTimer");
 
     const auto prepareDeferredInputs = PrepareDeferred::Inputs(primaryFramebuffer, lightingModel).hasVarying();
@@ -151,13 +151,18 @@ RenderDeferredTask::RenderDeferredTask(CullFunctor cullFunctor) {
     // DeferredBuffer is complete, now let's shade it into the LightingBuffer
     addJob<RenderDeferred>("RenderDeferred", deferredLightingInputs);
 
+
     // Use Stencil and draw background in Lighting buffer to complete filling in the opaque
     const auto backgroundInputs = DrawBackgroundDeferred::Inputs(background, lightingModel).hasVarying();
     addJob<DrawBackgroundDeferred>("DrawBackgroundDeferred", backgroundInputs);
 
+    const auto transparentRangeTimer = addJob<BeginGPURangeTimer>("BeginTransparentRangeTimer");
     // Render transparent objects forward in LightingBuffer
     const auto transparentsInputs = DrawDeferred::Inputs(transparents, lightingModel).hasVarying();
     addJob<DrawDeferred>("DrawTransparentDeferred", transparentsInputs, shapePlumber);
+
+    addJob<EndGPURangeTimer>("TransparentRangeTimer", transparentRangeTimer);
+
 
     const auto toneAndPostRangeTimer = addJob<BeginGPURangeTimer>("BeginToneAndPostRangeTimer");
 
@@ -171,7 +176,7 @@ RenderDeferredTask::RenderDeferredTask(CullFunctor cullFunctor) {
     addJob<DrawOverlay3D>("DrawOverlay3DOpaque", overlayOpaquesInputs, true);
     addJob<DrawOverlay3D>("DrawOverlay3DTransparent", overlayTransparentsInputs, false);
 
-    
+
     // Debugging stages
     {
         // Debugging Deferred buffer job
@@ -208,7 +213,7 @@ RenderDeferredTask::RenderDeferredTask(CullFunctor cullFunctor) {
     // Blit!
     addJob<Blit>("Blit", primaryFramebuffer);
 
-    addJob<EndGPURangeTimer>("RangeTimer", fullFrameRangeTimer);
+ //   addJob<EndGPURangeTimer>("RangeTimer", fullFrameRangeTimer);
 
 }
 
