@@ -1729,6 +1729,7 @@ void Application::initializeUi() {
     // though I can't find it. Hence, "ApplicationInterface"
     rootContext->setContextProperty("ApplicationInterface", this);
     rootContext->setContextProperty("Audio", &AudioScriptingInterface::getInstance());
+    rootContext->setContextProperty("AudioStats", DependencyManager::get<AudioClient>()->getStats().data());
     rootContext->setContextProperty("Controller", DependencyManager::get<controller::ScriptingInterface>().data());
     rootContext->setContextProperty("Entities", DependencyManager::get<EntityScriptingInterface>().data());
     FileScriptingInterface* fileDownload = new FileScriptingInterface(engine);
@@ -3759,12 +3760,6 @@ void Application::updateDialogs(float deltaTime) const {
     PerformanceWarning warn(showWarnings, "Application::updateDialogs()");
     auto dialogsManager = DependencyManager::get<DialogsManager>();
 
-    // Update audio stats dialog, if any
-    AudioStatsDialog* audioStatsDialog = dialogsManager->getAudioStatsDialog();
-    if(audioStatsDialog) {
-        audioStatsDialog->update();
-    }
-
     // Update bandwidth dialog, if any
     BandwidthDialog* bandwidthDialog = dialogsManager->getBandwidthDialog();
     if (bandwidthDialog) {
@@ -5013,6 +5008,7 @@ void Application::registerScriptEngineWithApplicationServices(ScriptEngine* scri
     scriptEngine->registerGlobalObject("Stats", Stats::getInstance());
     scriptEngine->registerGlobalObject("Settings", SettingsScriptingInterface::getInstance());
     scriptEngine->registerGlobalObject("AudioDevice", AudioDeviceScriptingInterface::getInstance());
+    scriptEngine->registerGlobalObject("AudioStats", DependencyManager::get<AudioClient>()->getStats().data());
 
     // Caches
     scriptEngine->registerGlobalObject("AnimationCache", DependencyManager::get<AnimationCache>().data());
@@ -5681,6 +5677,9 @@ void Application::updateDisplayMode() {
     // Make the switch atomic from the perspective of other threads
     {
         std::unique_lock<std::mutex> lock(_displayPluginLock);
+        // Tell the desktop to no reposition (which requires plugin info), until we have set the new plugin, below.
+        bool wasRepositionLocked = offscreenUi->getDesktop()->property("repositionLocked").toBool();
+        offscreenUi->getDesktop()->setProperty("repositionLocked", true);
 
         auto oldDisplayPlugin = _displayPlugin;
         if (_displayPlugin) {
@@ -5717,6 +5716,7 @@ void Application::updateDisplayMode() {
         _offscreenContext->makeCurrent();
         getApplicationCompositor().setDisplayPlugin(newDisplayPlugin);
         _displayPlugin = newDisplayPlugin;
+        offscreenUi->getDesktop()->setProperty("repositionLocked", wasRepositionLocked);
     }
 
     emit activeDisplayPluginChanged();
