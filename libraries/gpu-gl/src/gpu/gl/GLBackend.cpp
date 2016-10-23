@@ -32,6 +32,8 @@
 using namespace gpu;
 using namespace gpu::gl;
 
+#include "../nv/NvidiaHelpers.h"
+
 static const QString DEBUG_FLAG("HIFI_DISABLE_OPENGL_45");
 static bool disableOpenGL45 = QProcessEnvironment::systemEnvironment().contains(DEBUG_FLAG);
 
@@ -166,6 +168,17 @@ void GLBackend::init() {
             int swapInterval = wglGetSwapIntervalEXT();
             qCDebug(gpugllogging, "V-Sync is %s\n", (swapInterval > 0 ? "ON" : "OFF"));
         }
+
+        // Try detecting NvDriver:
+        auto nvDriver = nv::NvDriver::get();
+        if (nvDriver) {
+            auto memInfo = nvDriver->getGPUMemInfo();
+           qCDebug(gpugllogging) << "Nvidia is in the house:"
+                 << "\nAvailableDedicatedVideoMemory [MB] : " << memInfo.AvailableDedicatedVideoMemoryInMB
+                 << "\nDedicatedVideoMemory [MB] : " << memInfo.DedicatedVideoMemoryInMB
+                 << "\nCurrentAvailableDedicatedVideoMemory [MB] : " << memInfo.CurrentAvailableDedicatedVideoMemoryInMB;
+        }
+
 #endif
 
 #if defined(Q_OS_LINUX)

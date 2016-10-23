@@ -5,6 +5,7 @@ GroupSources("src")
 
 target_opengl()
 target_nsight()
+target_nvapi()
 
 if (NOT ANDROID)
   target_glew()
