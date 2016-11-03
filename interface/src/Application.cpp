@@ -523,6 +523,7 @@ Application::Application(int& argc, char** argv, QElapsedTimer& startupTimer, bo
     _mirrorViewRect(QRect(MIRROR_VIEW_LEFT_PADDING, MIRROR_VIEW_TOP_PADDING, MIRROR_VIEW_WIDTH, MIRROR_VIEW_HEIGHT)),
     _previousScriptLocation("LastScriptLocation", DESKTOP_LOCATION),
     _fieldOfView("fieldOfView", DEFAULT_FIELD_OF_VIEW_DEGREES),
+    _constrainToolbarPosition("toolbar/constrainToolbarToCenterX", true),
     _scaleMirror(1.0f),
     _rotateMirror(0.0f),
     _raiseMirror(0.0f),
@@ -534,6 +535,8 @@ Application::Application(int& argc, char** argv, QElapsedTimer& startupTimer, bo
     _maxOctreePPS(maxOctreePacketsPerSecond.get()),
     _lastFaceTrackerUpdate(0)
 {
+    setProperty("com.highfidelity.launchedFromSteam", SteamClient::isRunning());
+
     _runningMarker.startRunningMarker();
 
     PluginContainer* pluginContainer = dynamic_cast<PluginContainer*>(this); // set the container for any plugins that care
@@ -569,6 +572,7 @@ Application::Application(int& argc, char** argv, QElapsedTimer& startupTimer, bo
     _deadlockWatchdogThread = new DeadlockWatchdogThread();
     _deadlockWatchdogThread->start();
 
+    qCDebug(interfaceapp) << "[VERSION] SteamVR buildID:" << SteamClient::getSteamVRBuildID();
     qCDebug(interfaceapp) << "[VERSION] Build sequence:" << qPrintable(applicationVersion());
     qCDebug(interfaceapp) << "[VERSION] MODIFIED_ORGANIZATION:" << BuildInfo::MODIFIED_ORGANIZATION;
     qCDebug(interfaceapp) << "[VERSION] VERSION:" << BuildInfo::VERSION;
@@ -858,7 +862,7 @@ Application::Application(int& argc, char** argv, QElapsedTimer& startupTimer, bo
         { "gl_version_int", glVersionToInteger(glContextData.value("version").toString()) },
         { "gl_version", glContextData["version"] },
         { "gl_vender", glContextData["vendor"] },
-        { "gl_sl_version", glContextData["slVersion"] },
+        { "gl_sl_version", glContextData["sl_version"] },
         { "gl_renderer", glContextData["renderer"] },
         { "ideal_thread_count", QThread::idealThreadCount() }
     };
@@ -881,8 +885,6 @@ Application::Application(int& argc, char** argv, QElapsedTimer& startupTimer, bo
     }
 
     UserActivityLogger::getInstance().logAction("launch", properties);
-
-    _connectionMonitor.init();
 
     // Tell our entity edit sender about our known jurisdictions
     _entityEditSender.setServerJurisdictions(&_entityServerJurisdictions);
@@ -1144,7 +1146,7 @@ Application::Application(int& argc, char** argv, QElapsedTimer& startupTimer, bo
     });
 
     // If the user clicks somewhere where there is NO entity at all, we will release focus
-    connect(getEntities(), &EntityTreeRenderer::mousePressOffEntity, [=]() {
+    connect(getEntities().data(), &EntityTreeRenderer::mousePressOffEntity, [=]() {
         setKeyboardFocusEntity(UNKNOWN_ENTITY_ID);
     });
 
@@ -1175,15 +1177,25 @@ Application::Application(int& argc, char** argv, QElapsedTimer& startupTimer, bo
             properties["process_memory_used"] = static_cast<qint64>(memInfo.processUsedMemoryBytes);
         }
 
+        // content location and build info - useful for filtering stats
+        auto addressManager = DependencyManager::get<AddressManager>();
+        auto currentDomain = addressManager->currentShareableAddress(true).toString(); // domain only
+        auto currentPath = addressManager->currentPath(true); // with orientation
+        properties["current_domain"] = currentDomain;
+        properties["current_path"] = currentPath;
+        properties["build_version"] = BuildInfo::VERSION;
+
         auto displayPlugin = qApp->getActiveDisplayPlugin();
 
         properties["fps"] = _frameCounter.rate();
         properties["target_frame_rate"] = getTargetFrameRate();
+        properties["render_rate"] = displayPlugin->renderRate();
         properties["present_rate"] = displayPlugin->presentRate();
         properties["new_frame_present_rate"] = displayPlugin->newFramePresentRate();
         properties["dropped_frame_rate"] = displayPlugin->droppedFrameRate();
         properties["sim_rate"] = getAverageSimsPerSecond();
         properties["avatar_sim_rate"] = getAvatarSimrate();
+        properties["has_async_reprojection"] = displayPlugin->hasAsyncReprojection();
 
         auto bandwidthRecorder = DependencyManager::get<BandwidthRecorder>();
         properties["packet_rate_in"] = bandwidthRecorder->getCachedTotalAverageInputPacketsPerSecond();
@@ -1223,6 +1235,11 @@ Application::Application(int& argc, char** argv, QElapsedTimer& startupTimer, bo
 
         properties["active_display_plugin"] = getActiveDisplayPlugin()->getName();
         properties["using_hmd"] = isHMDMode();
+
+        auto glInfo = getGLContextData();
+        properties["gl_info"] = glInfo;
+        properties["gpu_free_memory"] = (int)BYTES_TO_MB(gpu::Context::getFreeGPUMemory());
+        properties["ideal_thread_count"] = QThread::idealThreadCount();
 
         auto hmdHeadPose = getHMDSensorPose();
         properties["hmd_head_pose_changed"] = isHMDMode() && (hmdHeadPose != lastHMDHeadPose);
@@ -1376,6 +1393,8 @@ Application::Application(int& argc, char** argv, QElapsedTimer& startupTimer, bo
         }
     }
 
+    _connectionMonitor.init();
+
     // After all of the constructor is completed, then set firstRun to false.
     firstRun.set(false);
 }
@@ -1478,6 +1497,7 @@ void Application::updateHeartbeat() const {
 
 void Application::aboutToQuit() {
     emit beforeAboutToQuit();
+    DependencyManager::get<AudioClient>()->beforeAboutToQuit();
 
     foreach(auto inputPlugin, PluginManager::getInstance()->getInputPlugins()) {
         if (inputPlugin->isActive()) {
@@ -1556,17 +1576,6 @@ void Application::cleanupBeforeQuit() {
     saveSettings();
     _window->saveGeometry();
 
-    // stop the AudioClient
-    QMetaObject::invokeMethod(DependencyManager::get<AudioClient>().data(),
-                              "stop", Qt::BlockingQueuedConnection);
-
-    // destroy the AudioClient so it and its thread have a chance to go down safely
-    DependencyManager::destroy<AudioClient>();
-
-    // destroy the AudioInjectorManager so it and its thread have a chance to go down safely
-    // this will also stop any ongoing network injectors
-    DependencyManager::destroy<AudioInjectorManager>();
-
     // Destroy third party processes after scripts have finished using them.
 #ifdef HAVE_DDE
     DependencyManager::destroy<DdeFaceTracker>();
@@ -1575,10 +1584,29 @@ void Application::cleanupBeforeQuit() {
     DependencyManager::destroy<EyeTracker>();
 #endif
 
+    // stop QML
     DependencyManager::destroy<OffscreenUi>();
+
+    // stop audio after QML, as there are unexplained audio crashes originating in qtwebengine
+
+    // stop the AudioClient, synchronously
+    QMetaObject::invokeMethod(DependencyManager::get<AudioClient>().data(),
+                              "stop", Qt::BlockingQueuedConnection);
+
+    // destroy Audio so it and its threads have a chance to go down safely
+    DependencyManager::destroy<AudioClient>();
+    DependencyManager::destroy<AudioInjectorManager>();
+
+    // shutdown render engine
+    _main3DScene = nullptr;
+    _renderEngine = nullptr;
+
+    qCDebug(interfaceapp) << "Application::cleanupBeforeQuit() complete";
 }
 
 Application::~Application() {
+    DependencyManager::destroy<Preferences>();
+
     _entityClipboard->eraseAllOctreeElements();
     _entityClipboard.reset();
 
@@ -1596,7 +1624,6 @@ Application::~Application() {
     DependencyManager::get<AvatarManager>()->getObjectsToRemoveFromPhysics(motionStates);
     _physicsEngine->removeObjects(motionStates);
 
-    DependencyManager::destroy<OffscreenUi>();
     DependencyManager::destroy<AvatarManager>();
     DependencyManager::destroy<AnimationCache>();
     DependencyManager::destroy<FramebufferCache>();
@@ -2124,12 +2151,27 @@ void Application::setFieldOfView(float fov) {
     }
 }
 
+void Application::setSettingConstrainToolbarPosition(bool setting) {
+    _constrainToolbarPosition.set(setting);
+    DependencyManager::get<OffscreenUi>()->setConstrainToolbarToCenterX(setting);
+}
+
 void Application::aboutApp() {
     InfoView::show(INFO_WELCOME_PATH);
 }
 
 void Application::showHelp() {
-    InfoView::show(INFO_HELP_PATH);
+    static const QString QUERY_STRING_XBOX = "xbox";
+    static const QString QUERY_STRING_VIVE = "vive";
+
+    QString queryString = "";
+    if (PluginUtils::isViveControllerAvailable()) {
+        queryString = QUERY_STRING_VIVE;
+    } else if (PluginUtils::isXboxControllerAvailable()) {
+        queryString = QUERY_STRING_XBOX;
+    }
+
+    InfoView::show(INFO_HELP_PATH, false, queryString);
 }
 
 void Application::resizeEvent(QResizeEvent* event) {
@@ -2165,13 +2207,10 @@ void Application::resizeGL() {
     auto offscreenUi = DependencyManager::get<OffscreenUi>();
     auto uiSize = displayPlugin->getRecommendedUiSize();
     // Bit of a hack since there's no device pixel ratio change event I can find.
-    static qreal lastDevicePixelRatio = 0;
-    qreal devicePixelRatio = _window->devicePixelRatio();
-    if (offscreenUi->size() != fromGlm(uiSize) || devicePixelRatio != lastDevicePixelRatio) {
+    if (offscreenUi->size() != fromGlm(uiSize)) {
         qCDebug(interfaceapp) << "Device pixel ratio changed, triggering resize to " << uiSize;
         offscreenUi->resize(fromGlm(uiSize), true);
         _offscreenContext->makeCurrent();
-        lastDevicePixelRatio = devicePixelRatio;
     }
 }
 
@@ -3449,7 +3488,7 @@ void Application::init() {
 
     // connect the _entityCollisionSystem to our EntityTreeRenderer since that's what handles running entity scripts
     connect(_entitySimulation.get(), &EntitySimulation::entityCollisionWithEntity,
-            getEntities(), &EntityTreeRenderer::entityCollisionWithEntity);
+            getEntities().data(), &EntityTreeRenderer::entityCollisionWithEntity);
 
     // connect the _entities (EntityTreeRenderer) to our script engine's EntityScriptingInterface for firing
     // of events related clicking, hovering over, and entering entities
@@ -3972,8 +4011,6 @@ void Application::update(float deltaTime) {
                 auto collisionEvents = _physicsEngine->getCollisionEvents();
                 avatarManager->handleCollisionEvents(collisionEvents);
 
-                _physicsEngine->dumpStatsIfNecessary();
-
                 if (!_aboutToQuit) {
                     PerformanceTimer perfTimer("entities");
                     // Collision events (and their scripts) must not be handled when we're locked, above. (That would risk
@@ -3986,6 +4023,13 @@ void Application::update(float deltaTime) {
                 }
 
                 myAvatar->harvestResultsFromPhysicsSimulation(deltaTime);
+
+                if (Menu::getInstance()->isOptionChecked(MenuOption::DisplayDebugTimingDetails) &&
+                        Menu::getInstance()->isOptionChecked(MenuOption::ExpandPhysicsSimulationTiming)) {
+                    _physicsEngine->harvestPerformanceStats();
+                }
+                // NOTE: the PhysicsEngine stats are written to stdout NOT to Qt log framework
+                _physicsEngine->dumpStatsIfNecessary();
             }
         }
     }

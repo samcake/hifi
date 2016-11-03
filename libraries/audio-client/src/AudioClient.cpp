@@ -82,21 +82,29 @@ public:
 
     CheckDevicesThread(AudioClient* audioClient)
         : _audioClient(audioClient) {
+    }
 
-        connect(qApp, &QCoreApplication::aboutToQuit, [this] {
-            _quit = true;
-        });
+    void beforeAboutToQuit() {
+        Lock lock(_checkDevicesMutex);
+        _quit = true;
     }
 
     void run() override {
-        while (!_quit) {
+        while (true) {
+            {
+                Lock lock(_checkDevicesMutex);
+                if (_quit) {
+                    break;
+                }
+                _audioClient->checkDevices();
+            }
             QThread::msleep(DEVICE_CHECK_INTERVAL_MSECS);
-            _audioClient->checkDevices();
         }
     }
 
 private:
     AudioClient* _audioClient { nullptr };
+    Mutex _checkDevicesMutex;
     bool _quit { false };
 };
 
@@ -159,10 +167,10 @@ AudioClient::AudioClient() :
     _outputDevices = getDeviceNames(QAudio::AudioOutput);
 
     // start a thread to detect any device changes
-    QThread* checkDevicesThread = new CheckDevicesThread(this);
-    checkDevicesThread->setObjectName("CheckDevices Thread");
-    checkDevicesThread->setPriority(QThread::LowPriority);
-    checkDevicesThread->start();
+    _checkDevicesThread = new CheckDevicesThread(this);
+    _checkDevicesThread->setObjectName("CheckDevices Thread");
+    _checkDevicesThread->setPriority(QThread::LowPriority);
+    _checkDevicesThread->start();
 
     configureReverb();
 
@@ -177,12 +185,18 @@ AudioClient::AudioClient() :
 }
 
 AudioClient::~AudioClient() {
+    delete _checkDevicesThread;
     stop();
     if (_codec && _encoder) {
         _codec->releaseEncoder(_encoder);
         _encoder = nullptr;
     }
 }
+
+void AudioClient::beforeAboutToQuit() {
+    static_cast<CheckDevicesThread*>(_checkDevicesThread)->beforeAboutToQuit();
+}
+
 
 void AudioClient::handleMismatchAudioFormat(SharedNodePointer node, const QString& currentCodec, const QString& recievedCodec) {
     qCDebug(audioclient) << __FUNCTION__ << "sendingNode:" << *node << "currentCodec:" << currentCodec << "recievedCodec:" << recievedCodec;
