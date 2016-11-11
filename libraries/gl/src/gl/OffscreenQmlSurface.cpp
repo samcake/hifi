@@ -350,7 +350,7 @@ OffscreenQmlSurface::~OffscreenQmlSurface() {
 
     cleanup();
 
-    _canvas->deleteLater();
+ //   _canvas->deleteLater();
     _rootItem->deleteLater();
     _qmlComponent->deleteLater();
     _qmlEngine->deleteLater();
@@ -380,11 +380,20 @@ void OffscreenQmlSurface::create(QOpenGLContext* shareContext) {
 
     _renderControl->_renderWindow = _proxyWindow;
 
-    _canvas = new OffscreenGLCanvas();
+    static OffscreenGLCanvas* theCanvas = nullptr;
+    if (!theCanvas) {
+        theCanvas = new OffscreenGLCanvas();
+        if (!theCanvas->create(shareContext)) {
+            qFatal("Failed to create OffscreenGLCanvas");
+            return;
+        };
+    }
+  /*  _canvas = new OffscreenGLCanvas();
     if (!_canvas->create(shareContext)) {
         qFatal("Failed to create OffscreenGLCanvas");
         return;
-    };
+    };*/
+    _canvas = theCanvas;
 
     connect(_quickWindow, &QQuickWindow::focusObjectChanged, this, &OffscreenQmlSurface::onFocusObjectChanged);
 
