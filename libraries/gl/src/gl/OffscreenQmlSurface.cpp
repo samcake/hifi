@@ -368,10 +368,13 @@ OffscreenGLCanvasPointer OffscreenQmlSurface::_sharedGLCanvas;
 
 OffscreenGLCanvasPointer OffscreenQmlSurface::getSharedGLCanvas(QOpenGLContext* context) {
     if (!_sharedGLCanvas) {
-        _sharedGLCanvas = OffscreenGLCanvasPointer(new OffscreenGLCanvas());
-        if (!_sharedGLCanvas->create(context)) {
+        auto aNewCanvas = OffscreenGLCanvasPointer(new OffscreenGLCanvas());
+        if (!aNewCanvas->create(context)) {
             qFatal("Failed to create OffscreenGLCanvas");
-        };
+        } else {
+            // All good, save the new canvas as the shared one
+            _sharedGLCanvas = aNewCanvas;
+        }
     }
 
     return _sharedGLCanvas;
@@ -397,6 +400,10 @@ void OffscreenQmlSurface::create(QOpenGLContext* shareContext) {
 
 
     _canvas = getSharedGLCanvas(shareContext);
+    if (!_canvas) {
+        // Failed to get ta valid GLCanvas. Exit here
+        return;
+    }
 
     connect(_quickWindow, &QQuickWindow::focusObjectChanged, this, &OffscreenQmlSurface::onFocusObjectChanged);
 
