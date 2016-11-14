@@ -188,6 +188,9 @@ private:
     std::list<OffscreenQmlSurface::TextureAndFence> _returnedTextures;
     uint64_t _lastReport { 0 };
     size_t _totalTextureUsage { 0 };
+
+
+    OffscreenGLCanvas* _offscreenCanvas { nullptr };
 } offscreenTextures;
 
 class UrlHandler : public QObject {
@@ -350,7 +353,6 @@ OffscreenQmlSurface::~OffscreenQmlSurface() {
 
     cleanup();
 
- //   _canvas->deleteLater();
     _rootItem->deleteLater();
     _qmlComponent->deleteLater();
     _qmlEngine->deleteLater();
@@ -360,6 +362,19 @@ OffscreenQmlSurface::~OffscreenQmlSurface() {
 void OffscreenQmlSurface::onAboutToQuit() {
     _paused = true;
     QObject::disconnect(&_updateTimer);
+}
+
+OffscreenGLCanvasPointer OffscreenQmlSurface::_sharedGLCanvas;
+
+OffscreenGLCanvasPointer OffscreenQmlSurface::getSharedGLCanvas(QOpenGLContext* context) {
+    if (!_sharedGLCanvas) {
+        _sharedGLCanvas = OffscreenGLCanvasPointer(new OffscreenGLCanvas());
+        if (!_sharedGLCanvas->create(context)) {
+            qFatal("Failed to create OffscreenGLCanvas");
+        };
+    }
+
+    return _sharedGLCanvas;
 }
 
 void OffscreenQmlSurface::create(QOpenGLContext* shareContext) {
@@ -380,20 +395,8 @@ void OffscreenQmlSurface::create(QOpenGLContext* shareContext) {
 
     _renderControl->_renderWindow = _proxyWindow;
 
-    static OffscreenGLCanvas* theCanvas = nullptr;
-    if (!theCanvas) {
-        theCanvas = new OffscreenGLCanvas();
-        if (!theCanvas->create(shareContext)) {
-            qFatal("Failed to create OffscreenGLCanvas");
-            return;
-        };
-    }
-  /*  _canvas = new OffscreenGLCanvas();
-    if (!_canvas->create(shareContext)) {
-        qFatal("Failed to create OffscreenGLCanvas");
-        return;
-    };*/
-    _canvas = theCanvas;
+
+    _canvas = getSharedGLCanvas(shareContext);
 
     connect(_quickWindow, &QQuickWindow::focusObjectChanged, this, &OffscreenQmlSurface::onFocusObjectChanged);
 
