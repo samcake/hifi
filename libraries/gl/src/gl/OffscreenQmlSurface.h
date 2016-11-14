@@ -14,6 +14,8 @@
 #include <map>
 #include <functional>
 
+#include <QSharedPointer>
+
 #include <QtCore/QJsonObject>
 #include <QtCore/QTimer>
 #include <QtCore/QUrl>
@@ -23,13 +25,15 @@
 
 class QWindow;
 class QMyQuickRenderControl;
-class OffscreenGLCanvas;
 class QOpenGLContext;
+class OffscreenGLCanvas;
 class QQmlEngine;
 class QQmlContext;
 class QQmlComponent;
 class QQuickWindow;
 class QQuickItem;
+
+using OffscreenGLCanvasPointer = QSharedPointer<OffscreenGLCanvas>;
 
 // GPU resources are typically buffered for one copy being used by the renderer, 
 // one copy in flight, and one copy being used by the receiver
@@ -126,12 +130,13 @@ private slots:
     void onFocusObjectChanged(QObject* newFocus);
 
 private:
+
     QQuickWindow* _quickWindow { nullptr };
     QMyQuickRenderControl* _renderControl{ nullptr };
     QQmlEngine* _qmlEngine { nullptr };
     QQmlComponent* _qmlComponent { nullptr };
     QQuickItem* _rootItem { nullptr };
-    OffscreenGLCanvas* _canvas { nullptr };
+    OffscreenGLCanvasPointer _canvas;
     QJsonObject _glData;
 
     QTimer _updateTimer;
@@ -152,6 +157,10 @@ private:
     QWindow* _proxyWindow { nullptr };
 
     QQuickItem* _currentFocusItem { nullptr };
+
+
+    static OffscreenGLCanvasPointer getSharedGLCanvas(QOpenGLContext* context);
+    static OffscreenGLCanvasPointer _sharedGLCanvas;
 };
 
 #endif
