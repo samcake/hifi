@@ -234,6 +234,7 @@ protected:
     void setupStereoSide(int side);
 #endif
 
+    // Input Stage
     virtual void initInput() final;
     virtual void killInput() final;
     virtual void syncInputStateCache() final;
@@ -281,6 +282,7 @@ protected:
             _bufferVBOs(_invalidBuffers.size(), 0) {}
     } _input;
 
+    // Transform Stage
     virtual void initTransform() = 0;
     void killTransform();
     // Synchronize the state cache of this Backend with the actual real state of the GL Context
@@ -319,6 +321,7 @@ protected:
 
         GLuint _objectBuffer { 0 };
         GLuint _cameraBuffer { 0 };
+        GLuint _cameraCorrectionBuffer { 0 };
         GLuint _drawCallInfoBuffer { 0 };
         GLuint _objectBufferTexture { 0 };
         size_t _cameraUboSize { 0 };
@@ -334,6 +337,8 @@ protected:
         bool _invalidProj { false };
         bool _invalidViewport { false };
 
+        bool _invalidCorrectionBufferData { false };
+
         bool _enabledDrawcallInfoBuffer{ false };
 
         using Pair = std::pair<size_t, size_t>;
@@ -345,9 +350,11 @@ protected:
         void preUpdate(size_t commandIndex, const StereoState& stereo);
         void update(size_t commandIndex, const StereoState& stereo) const;
         void bindCurrentCamera(int stereoSide) const;
+        void bindCameraCorrection() const;
     } _transform;
 
     virtual void transferTransformState(const Batch& batch) const = 0;
+
 
     struct UniformStageState {
         std::array<BufferPointer, MAX_NUM_UNIFORM_BUFFERS> _buffers;
@@ -382,11 +389,11 @@ protected:
         PipelinePointer _pipeline;
 
         GLuint _program { 0 };
-        GLint _cameraCorrectionLocation { -1 };
+   //     GLint _cameraCorrectionLocation { -1 };
         GLShader* _programShader { nullptr };
         bool _invalidProgram { false };
 
-        BufferView _cameraCorrectionBuffer { gpu::BufferView(std::make_shared<gpu::Buffer>(sizeof(CameraCorrection), nullptr )) };
+//        BufferView _cameraCorrectionBuffer { gpu::BufferView(std::make_shared<gpu::Buffer>(sizeof(CameraCorrection), nullptr )) };
 
         State::Data _stateCache{ State::DEFAULT };
         State::Signature _stateSignatureCache { 0 };
@@ -395,7 +402,7 @@ protected:
         bool _invalidState { false };
 
         PipelineStageState() {
-            _cameraCorrectionBuffer.edit<CameraCorrection>() = CameraCorrection();
+  //          _cameraCorrectionBuffer.edit<CameraCorrection>() = CameraCorrection();
         }
     } _pipeline;
 

@@ -749,9 +749,3 @@ void GLBackend::recycle() const {
 #endif
 }
 
-void GLBackend::setCameraCorrection(const Mat4& correction) {
-    _transform._correction.correction = correction;
-    _transform._correction.correctionInverse = glm::inverse(correction);
-    _pipeline._cameraCorrectionBuffer._buffer->setSubData(0, _transform._correction);
-    _pipeline._cameraCorrectionBuffer._buffer->flush();
-}

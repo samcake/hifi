@@ -16,6 +16,7 @@ using namespace gpu::gl41;
 void GL41Backend::initTransform() {
     glGenBuffers(1, &_transform._objectBuffer);
     glGenBuffers(1, &_transform._cameraBuffer);
+    glGenBuffers(1, &_transform._cameraCorrectionBuffer);
     glGenBuffers(1, &_transform._drawCallInfoBuffer);
     glGenTextures(1, &_transform._objectBufferTexture);
     size_t cameraSize = sizeof(TransformStageState::CameraBufferElement);
@@ -35,6 +36,13 @@ void GL41Backend::transferTransformState(const Batch& batch) const {
         glBindBuffer(GL_UNIFORM_BUFFER, _transform._cameraBuffer);
         glBufferData(GL_UNIFORM_BUFFER, bufferData.size(), bufferData.data(), GL_DYNAMIC_DRAW);
         glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    }
+
+    if (_transform._invalidCorrectionBufferData) {
+        glBindBuffer(GL_UNIFORM_BUFFER, _transform._cameraCorrectionBuffer);
+        glBufferData(GL_UNIFORM_BUFFER, sizeof(CameraCorrection), (GLvoid*)&_transform._correction, GL_DYNAMIC_DRAW);
+        glBindBuffer(GL_UNIFORM_BUFFER, 0);
+        _transform._invalidCorrectionBufferData = false;
     }
 
     if (!batch._objects.empty()) {
@@ -73,6 +81,9 @@ void GL41Backend::transferTransformState(const Batch& batch) const {
         glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, _transform._objectBuffer);
     }
 #endif
+
+    // Bind the correction ubo for the full batch
+    glBindBufferBase(GL_UNIFORM_BUFFER, TRANSFORM_CAMERA_CORRECTION_SLOT, _transform._cameraCorrectionBuffer);
 
     CHECK_GL_ERROR();
 

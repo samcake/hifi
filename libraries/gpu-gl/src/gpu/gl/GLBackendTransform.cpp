@@ -13,6 +13,13 @@
 using namespace gpu;
 using namespace gpu::gl;
 
+// Camera Correction update
+void GLBackend::setCameraCorrection(const Mat4& correction) {
+    _transform._correction.correction = correction;
+    _transform._correction.correctionInverse = glm::inverse(correction);
+    _transform._invalidCorrectionBufferData = true;
+}
+
 // Transform Stage
 void GLBackend::do_setModelTransform(const Batch& batch, size_t paramOffset) {
 }
@@ -69,6 +76,7 @@ void GLBackend::do_setDepthRangeTransform(const Batch& batch, size_t paramOffset
 void GLBackend::killTransform() {
     glDeleteBuffers(1, &_transform._objectBuffer);
     glDeleteBuffers(1, &_transform._cameraBuffer);
+    glDeleteBuffers(1, &_transform._cameraCorrectionBuffer);
     glDeleteBuffers(1, &_transform._drawCallInfoBuffer);
     glDeleteTextures(1, &_transform._objectBufferTexture);
 }
@@ -85,6 +93,9 @@ void GLBackend::syncTransformStateCache() {
     Mat4 modelView;
     auto modelViewInv = glm::inverse(modelView);
     _transform._view.evalFromRawMatrix(modelViewInv);
+
+    // reset correction:
+    setCameraCorrection(Mat4());
 
     glDisableVertexAttribArray(gpu::Stream::DRAW_CALL_INFO);
     _transform._enabledDrawcallInfoBuffer = false;
@@ -136,7 +147,7 @@ void GLBackend::TransformStageState::preUpdate(size_t commandIndex, const Stereo
     }
 
     // Flags are clean
-    _invalidView = _invalidProj = _invalidViewport = false;
+    _invalidView = _invalidProj = _invalidViewport = _invalidCorrection = false;
 }
 
 void GLBackend::TransformStageState::update(size_t commandIndex, const StereoState& stereo) const {
@@ -164,6 +175,13 @@ void GLBackend::TransformStageState::bindCurrentCamera(int eye) const {
         glBindBufferRange(GL_UNIFORM_BUFFER, TRANSFORM_CAMERA_SLOT, _cameraBuffer, _currentCameraOffset + eye * _cameraUboSize, sizeof(CameraBufferElement));
     }
 }
+
+void GLBackend::TransformStageState::bindCameraCorrection() const {
+    if (_invalidCorrection) {
+        glBuffer
+    }
+}
+
 
 void GLBackend::resetTransformStage() {
     glDisableVertexAttribArray(gpu::Stream::DRAW_CALL_INFO);

@@ -14,11 +14,12 @@ using namespace gpu;
 using namespace gpu::gl45;
 
 void GL45Backend::initTransform() {
-    GLuint transformBuffers[3];
-    glCreateBuffers(3, transformBuffers);
+    GLuint transformBuffers[4];
+    glCreateBuffers(4, transformBuffers);
     _transform._objectBuffer = transformBuffers[0];
     _transform._cameraBuffer = transformBuffers[1];
-    _transform._drawCallInfoBuffer = transformBuffers[2];
+    _transform._cameraCorrectionBuffer = transformBuffers[2];
+    _transform._drawCallInfoBuffer = transformBuffers[3];
     glCreateTextures(GL_TEXTURE_BUFFER, 1, &_transform._objectBufferTexture);
     size_t cameraSize = sizeof(TransformStageState::CameraBufferElement);
     while (_transform._cameraUboSize < cameraSize) {
@@ -35,6 +36,11 @@ void GL45Backend::transferTransformState(const Batch& batch) const {
             memcpy(bufferData.data() + (_transform._cameraUboSize * i), &_transform._cameras[i], sizeof(TransformStageState::CameraBufferElement));
         }
         glNamedBufferData(_transform._cameraBuffer, bufferData.size(), bufferData.data(), GL_STREAM_DRAW);
+    }
+
+    if (_transform._invalidCorrection) {
+        glNamedBufferData(_transform._cameraCorrectionBuffer, sizeof(CameraCorrection), (GLvoid*)&_transform._correction, GL_STREAM_DRAW);
+        _transform._invalidCorrectionBufferData = false;
     }
 
     if (!batch._objects.empty()) {
@@ -60,6 +66,9 @@ void GL45Backend::transferTransformState(const Batch& batch) const {
     glBindTexture(GL_TEXTURE_BUFFER, _transform._objectBufferTexture);
     glTextureBuffer(_transform._objectBufferTexture, GL_RGBA32F, _transform._objectBuffer);
 #endif
+
+    // Bind the correction ubo for the full batch
+    glBindBufferBase(GL_UNIFORM_BUFFER, TRANSFORM_CAMERA_CORRECTION_SLOT, _transform._cameraCorrectionBuffer);
 
     CHECK_GL_ERROR();
 
