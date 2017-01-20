@@ -227,6 +227,7 @@ void Model::updateRenderItems() {
         render::PendingChanges pendingChanges;
         foreach (auto itemID, self->_modelMeshRenderItems.keys()) {
             pendingChanges.updateItem<ModelMeshPartPayload>(itemID, [modelTransform, deleteGeometryCounter](ModelMeshPartPayload& data) {
+                PROFILE_RANGE(render, "ModelMeshPartPayload");
                 if (data._model && data._model->isLoaded()) {
                     if (!data.hasStartedFade() && data._model->getGeometry()->areTexturesLoaded()) {
                         data.startFade();

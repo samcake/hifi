@@ -115,6 +115,7 @@ void Scene::processPendingChangesQueue() {
 }
 
 void Scene::resetItems(const ItemIDs& ids, Payloads& payloads) {
+    PROFILE_RANGE(render, __FUNCTION__);
     auto resetPayload = payloads.begin();
     for (auto resetID : ids) {
         // Access the true item
@@ -141,7 +142,8 @@ void Scene::resetItems(const ItemIDs& ids, Payloads& payloads) {
 }
 
 void Scene::removeItems(const ItemIDs& ids) {
-    for (auto removedID :ids) {
+    PROFILE_RANGE(render, __FUNCTION__);
+    for (auto removedID : ids) {
         // Access the true item
         auto& item = _items[removedID];
         auto oldCell = item.getCell();
@@ -160,7 +162,7 @@ void Scene::removeItems(const ItemIDs& ids) {
 }
 
 void Scene::updateItems(const ItemIDs& ids, UpdateFunctors& functors) {
-
+    PROFILE_RANGE(render, __FUNCTION__);
     auto updateFunctor = functors.begin();
     for (auto updateID : ids) {
         if (updateID == Item::INVALID_ITEM_ID) {
