@@ -241,7 +241,7 @@ bool RenderableModelEntityItem::addToScene(EntityItemPointer self, std::shared_p
         makeEntityItemStatusGetters(getThisPointer(), statusGetters);
 
         // note: we don't mind if the model fails to add, we'll retry (in render()) until it succeeds
-        _model->addToScene(scene, pendingChanges, statusGetters);
+        _model->addToScene(_myMetaItem, scene, pendingChanges, statusGetters);
     }
 
     // we've successfully added _myMetaItem so we always return true
@@ -459,7 +459,7 @@ void RenderableModelEntityItem::render(RenderArgs* args) {
 
                 render::Item::Status::Getters statusGetters;
                 makeEntityItemStatusGetters(getThisPointer(), statusGetters);
-                _model->addToScene(scene, pendingChanges, statusGetters);
+                _model->addToScene(_myMetaItem, scene, pendingChanges, statusGetters);
 
                 scene->enqueuePendingChanges(pendingChanges);
             }

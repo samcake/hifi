@@ -396,6 +396,16 @@ public:
     ~UpdateFunctor() {}
 };
 
+template <class M, class S> class UpdateMultiFunctor : public UpdateFunctor<M> {
+public:
+    using Parent = UpdateFunctor<M>;
+    using FuncM = typename Parent::Func;
+    using FuncS = std::function<void(S&)>;
+    FuncS _funcSub;
+
+    UpdateMultiFunctor(FuncM func, FuncS funcS) : Parent(func), _funcSub(funcS) {}
+    ~UpdateMultiFunctor() {}
+};
 
 inline QDebug operator<<(QDebug debug, const Item& item) {
     debug << "[Item: _key:" << item.getKey() << ", bounds:" << item.getBound() << "]";

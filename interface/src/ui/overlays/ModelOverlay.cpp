@@ -60,7 +60,7 @@ void ModelOverlay::update(float deltatime) {
 
 bool ModelOverlay::addToScene(Overlay::Pointer overlay, std::shared_ptr<render::Scene> scene, render::PendingChanges& pendingChanges) {
     Volume3DOverlay::addToScene(overlay, scene, pendingChanges);
-    _model->addToScene(scene, pendingChanges);
+    _model->addToScene(render::Item::INVALID_ITEM_ID, scene, pendingChanges);
     return true;
 }
 
@@ -77,7 +77,7 @@ void ModelOverlay::render(RenderArgs* args) {
     render::PendingChanges pendingChanges;
     if (_model->needsFixupInScene()) {
         _model->removeFromScene(scene, pendingChanges);
-        _model->addToScene(scene, pendingChanges);
+        _model->addToScene(render::Item::INVALID_ITEM_ID, scene, pendingChanges);
     }
 
     _model->setVisibleInScene(_visible, scene);

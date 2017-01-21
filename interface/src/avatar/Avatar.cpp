@@ -466,10 +466,10 @@ bool Avatar::addToScene(AvatarSharedPointer self, std::shared_ptr<render::Scene>
     auto avatarPayloadPointer = Avatar::PayloadPointer(avatarPayload);
     _renderItemID = scene->allocateID();
     pendingChanges.resetItem(_renderItemID, avatarPayloadPointer);
-    _skeletonModel->addToScene(scene, pendingChanges);
+    _skeletonModel->addToScene(_renderItemID, scene, pendingChanges);
 
     for (auto& attachmentModel : _attachmentModels) {
-        attachmentModel->addToScene(scene, pendingChanges);
+        attachmentModel->addToScene(_renderItemID, scene, pendingChanges);
     }
 
     _inScene = true;
@@ -668,12 +668,12 @@ void Avatar::fixupModelsInScene() {
     render::PendingChanges pendingChanges;
     if (_skeletonModel->isRenderable() && _skeletonModel->needsFixupInScene()) {
         _skeletonModel->removeFromScene(scene, pendingChanges);
-        _skeletonModel->addToScene(scene, pendingChanges);
+        _skeletonModel->addToScene(_renderItemID, scene, pendingChanges);
     }
     for (auto attachmentModel : _attachmentModels) {
         if (attachmentModel->isRenderable() && attachmentModel->needsFixupInScene()) {
             attachmentModel->removeFromScene(scene, pendingChanges);
-            attachmentModel->addToScene(scene, pendingChanges);
+            attachmentModel->addToScene(_renderItemID, scene, pendingChanges);
         }
     }
 

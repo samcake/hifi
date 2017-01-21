@@ -105,6 +105,7 @@ protected:
     void removeItems(const ItemIDs& ids);
     void updateItems(const ItemIDs& ids, UpdateFunctors& functors);
 
+
     friend class Engine;
 };
 

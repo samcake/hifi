@@ -224,7 +224,7 @@ void Model::updateRenderItems() {
         uint32_t deleteGeometryCounter = self->_deleteGeometryCounter;
 
         render::PendingChanges pendingChanges;
-        foreach (auto itemID, self->_modelMeshRenderItems.keys()) {
+   /*     foreach (auto itemID, self->_modelMeshRenderItems.keys()) {
             pendingChanges.updateItem<ModelMeshPartPayload>(itemID, [modelTransform, deleteGeometryCounter](ModelMeshPartPayload& data) {
                 PROFILE_RANGE(render, "ModelMeshPartPayload");
                 if (data._model && data._model->isLoaded()) {
@@ -240,6 +240,25 @@ void Model::updateRenderItems() {
                 }
             });
         }
+        */
+
+        pendingChanges.updateItem(self->getMetaID(), std::make_shared<render::UpdateMultiFunctor<int, ModelMeshPartPayload>>(nullptr,
+            [modelTransform, deleteGeometryCounter](ModelMeshPartPayload& data) {
+            PROFILE_RANGE(render, "ModelMeshPartPayload");
+            if (data._model && data._model->isLoaded()) {
+                // Ensure the model geometry was not reset between frames
+                if (deleteGeometryCounter == data._model->_deleteGeometryCounter) {
+                    // lazy update of cluster matrices used for rendering.  We need to update them here, so we can correctly update the bounding box.
+                    data._model->updateClusterMatrices();
+
+                    // update the model transform and bounding box for this render item.
+                    const Model::MeshState& state = data._model->_meshStates.at(data._meshIndex);
+                    data.updateTransformForSkinnedMesh(modelTransform, state.clusterMatrices);
+                }
+            }
+         })
+         );
+
 
         // collision mesh does not share the same unit scale as the FBX file's mesh: only apply offset
         Transform collisionMeshOffset;
@@ -630,7 +649,7 @@ void Model::setLayeredInFront(bool layered, std::shared_ptr<render::Scene> scene
     }
 }
 
-bool Model::addToScene(std::shared_ptr<render::Scene> scene,
+bool Model::addToScene(render::ItemID metaID, ::shared_ptr<render::Scene> scene,
                        render::PendingChanges& pendingChanges,
                        render::Item::Status::Getters& statusGetters) {
     bool readyToRender = _collisionGeometry || isLoaded();

@@ -122,7 +122,7 @@ void RenderableZoneEntityItem::render(RenderArgs* args) {
                     _model->removeFromScene(scene, pendingChanges);
                     render::Item::Status::Getters statusGetters;
                     makeEntityItemStatusGetters(getThisPointer(), statusGetters);
-                    _model->addToScene(scene, pendingChanges);
+                    _model->addToScene(_myMetaItem, scene, pendingChanges);
                     
                     scene->enqueuePendingChanges(pendingChanges);
                     

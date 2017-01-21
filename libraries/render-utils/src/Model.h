@@ -85,12 +85,12 @@ public:
 
     bool needsReload() const { return _needsReload; }
     bool initWhenReady(render::ScenePointer scene);
-    bool addToScene(std::shared_ptr<render::Scene> scene,
+    bool addToScene(render::ItemID metaID, std::shared_ptr<render::Scene> scene,
                     render::PendingChanges& pendingChanges) {
         auto getters = render::Item::Status::Getters(0);
-        return addToScene(scene, pendingChanges, getters);
+        return addToScene(metaID, scene, pendingChanges, getters);
     }
-    bool addToScene(std::shared_ptr<render::Scene> scene,
+    bool addToScene(render::ItemID metaID, std::shared_ptr<render::Scene> scene,
                     render::PendingChanges& pendingChanges,
                     render::Item::Status::Getters& statusGetters);
     void removeFromScene(std::shared_ptr<render::Scene> scene, render::PendingChanges& pendingChanges);
@@ -248,6 +248,8 @@ public:
     uint32_t getGeometryCounter() const { return _deleteGeometryCounter; }
     const QMap<render::ItemID, render::PayloadPointer>& getRenderItems() const { return _modelMeshRenderItems; }
 
+    render::ItemID getMetaID() const { return _metaID; }
+
 public slots:
     void loadURLFinished(bool success);
 
@@ -377,6 +379,7 @@ protected:
 
 
     static AbstractViewStateInterface* _viewState;
+    render::ItemID _metaID;
 
     QSet<std::shared_ptr<MeshPartPayload>> _collisionRenderItemsSet;
     QMap<render::ItemID, render::PayloadPointer> _collisionRenderItems;
