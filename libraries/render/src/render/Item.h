@@ -305,8 +305,14 @@ public:
     class UpdateFunctorInterface {
     public:
         virtual ~UpdateFunctorInterface() {}
+        virtual bool isMeta() const { return false; }
+
+        using Pointer = std::shared_ptr<UpdateFunctorInterface>;
+
+        virtual Pointer getMeta() const { return nullptr; }
+        virtual Pointer getSub() const { return nullptr; }
     };
-    typedef std::shared_ptr<UpdateFunctorInterface> UpdateFunctorPointer;
+    using UpdateFunctorPointer = UpdateFunctorInterface::Pointer;
 
     // Payload is whatever is in this Item and implement the Payload Interface
     class PayloadInterface {
@@ -384,27 +390,36 @@ protected:
 
 
 typedef Item::UpdateFunctorInterface UpdateFunctorInterface;
-typedef Item::UpdateFunctorPointer UpdateFunctorPointer;
+using UpdateFunctorPointer = Item::UpdateFunctorPointer;
 typedef std::vector<UpdateFunctorPointer> UpdateFunctors;
 
 template <class T> class UpdateFunctor : public Item::UpdateFunctorInterface {
 public:
-    typedef std::function<void(T&)> Func;
+    using Func = std::function<void(T&)>;
     Func _func;
 
     UpdateFunctor(Func func): _func(func) {}
     ~UpdateFunctor() {}
+
+    using Pointer = std::shared_ptr<UpdateFunctor<T>>;
 };
 
-template <class M, class S> class UpdateMultiFunctor : public UpdateFunctor<M> {
+template <class M, class S> class UpdateMultiFunctor : public Item::UpdateFunctorInterface {
 public:
-    using Parent = UpdateFunctor<M>;
-    using FuncM = typename Parent::Func;
-    using FuncS = std::function<void(S&)>;
-    FuncS _funcSub;
+    using Meta = UpdateFunctor<M>;
+    using FuncM = typename Meta::Func;
+    using Sub = UpdateFunctor<S>;
+    using FuncS = typename Sub::Func;
 
-    UpdateMultiFunctor(FuncM func, FuncS funcS) : Parent(func), _funcSub(funcS) {}
+    UpdateFunctorPointer _meta;
+    UpdateFunctorPointer _sub;
+
+    UpdateMultiFunctor(FuncM func, FuncS funcS) : _meta(std::make_shared<Meta>(func)), _sub(std::make_shared<Sub>(funcS)) {}
     ~UpdateMultiFunctor() {}
+
+    virtual bool isMeta() const { return true; }
+    virtual UpdateFunctorPointer getMeta() const { return _meta; }
+    virtual UpdateFunctorPointer getSub() const { return _sub; }
 };
 
 inline QDebug operator<<(QDebug debug, const Item& item) {

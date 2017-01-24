@@ -105,6 +105,8 @@ protected:
     void removeItems(const ItemIDs& ids);
     void updateItems(const ItemIDs& ids, UpdateFunctors& functors);
 
+    void updateItem(ItemID id, UpdateFunctorPointer functor);
+    void updateMetaItem(ItemID id, UpdateFunctorPointer functor);
 
     friend class Engine;
 };

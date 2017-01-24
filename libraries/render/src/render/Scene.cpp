@@ -170,37 +170,58 @@ void Scene::updateItems(const ItemIDs& ids, UpdateFunctors& functors) {
             continue;
         }
 
-        // Access the true item
-        auto& item = _items[updateID];
-        auto oldCell = item.getCell();
-        auto oldKey = item.getKey();
-
-        // Update the item
-        item.update((*updateFunctor));
-        auto newKey = item.getKey();
-
-        // Update the item's container
-        if (oldKey.isSpatial() == newKey.isSpatial()) {
-            if (newKey.isSpatial()) {
-                auto newCell = _masterSpatialTree.resetItem(oldCell, oldKey, item.getBound(), updateID, newKey);
-                item.resetCell(newCell, newKey.isSmall());
-            }
+        if ((*updateFunctor) && (*updateFunctor)->isMeta()) {
+            updateMetaItem(updateID, (*updateFunctor));
         } else {
-            if (newKey.isSpatial()) {
-                _masterNonspatialSet.erase(updateID);
-
-                auto newCell = _masterSpatialTree.resetItem(oldCell, oldKey, item.getBound(), updateID, newKey);
-                item.resetCell(newCell, newKey.isSmall());
-            } else {
-                _masterSpatialTree.removeItem(oldCell, oldKey, updateID);
-                item.resetCell();
-
-                _masterNonspatialSet.insert(updateID);
-            }
+            updateItem(updateID, (*updateFunctor));
         }
-
 
         // next loop
         updateFunctor++;
+    }
+}
+
+void Scene::updateItem(ItemID updateID, UpdateFunctorPointer functor) {
+    // Access the true item
+    auto& item = _items[updateID];
+    auto oldCell = item.getCell();
+    auto oldKey = item.getKey();
+
+    // Update the item
+    item.update(functor);
+    auto newKey = item.getKey();
+
+    // Update the item's container
+    if (oldKey.isSpatial() == newKey.isSpatial()) {
+        if (newKey.isSpatial()) {
+            auto newCell = _masterSpatialTree.resetItem(oldCell, oldKey, item.getBound(), updateID, newKey);
+            item.resetCell(newCell, newKey.isSmall());
+        }
+    } else {
+        if (newKey.isSpatial()) {
+            _masterNonspatialSet.erase(updateID);
+
+            auto newCell = _masterSpatialTree.resetItem(oldCell, oldKey, item.getBound(), updateID, newKey);
+            item.resetCell(newCell, newKey.isSmall());
+        } else {
+            _masterSpatialTree.removeItem(oldCell, oldKey, updateID);
+            item.resetCell();
+
+            _masterNonspatialSet.insert(updateID);
+        }
+    }
+}
+
+void Scene::updateMetaItem(ItemID updateID, UpdateFunctorPointer functor) {
+    updateItem(updateID, functor->getMeta());
+    // Access the true item
+    auto& item = _items[updateID];
+
+    auto subUpdateFunctor = functor->getSub();
+    ItemIDs subs;
+    auto length = item.fetchMetaSubItems(subs);
+    for (auto& subID : subs) {
+         updateItem(subID, subUpdateFunctor
+         );
     }
 }
