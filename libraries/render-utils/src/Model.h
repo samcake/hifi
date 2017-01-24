@@ -379,7 +379,7 @@ protected:
 
 
     static AbstractViewStateInterface* _viewState;
-    render::ItemID _metaID;
+    render::ItemID _metaID { render::Item::INVALID_ITEM_ID };
 
     QSet<std::shared_ptr<MeshPartPayload>> _collisionRenderItemsSet;
     QMap<render::ItemID, render::PayloadPointer> _collisionRenderItems;

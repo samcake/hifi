@@ -221,7 +221,6 @@ void Scene::updateMetaItem(ItemID updateID, UpdateFunctorPointer functor) {
     ItemIDs subs;
     auto length = item.fetchMetaSubItems(subs);
     for (auto& subID : subs) {
-         updateItem(subID, subUpdateFunctor
-         );
+         updateItem(subID, subUpdateFunctor);
     }
 }

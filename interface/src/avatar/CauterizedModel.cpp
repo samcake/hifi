@@ -221,6 +221,27 @@ void CauterizedModel::updateRenderItems() {
             uint32_t deleteGeometryCounter = self->getGeometryCounter();
 
             render::PendingChanges pendingChanges;
+            pendingChanges.updateItem(self->getMetaID(), std::make_shared<render::UpdateMultiFunctor<int, CauterizedMeshPartPayload>>(
+                nullptr,
+                [modelTransform, deleteGeometryCounter](CauterizedMeshPartPayload& data) {
+                    PROFILE_RANGE(render, "CauterizedModelMeshPartPayload");
+                    if (data._model && data._model->isLoaded()) {
+                        // Ensure the model geometry was not reset between frames
+                        if (deleteGeometryCounter == data._model->getGeometryCounter()) {
+                            // lazy update of cluster matrices used for rendering.  We need to update them here, so we can correctly update the bounding box.
+                            data._model->updateClusterMatrices();
+
+                            // update the model transform and bounding box for this render item.
+                            const Model::MeshState& state = data._model->getMeshState(data._meshIndex);
+                            CauterizedModel* cModel = static_cast<CauterizedModel*>(data._model);
+                            assert(data._meshIndex < cModel->_cauterizeMeshStates.size());
+                            const Model::MeshState& cState = cModel->_cauterizeMeshStates.at(data._meshIndex);
+                            data.updateTransformForSkinnedCauterizedMesh(modelTransform, state.clusterMatrices, cState.clusterMatrices);
+                        }
+                    }
+                })
+            );
+            /*
             QList<render::ItemID> keys = self->getRenderItems().keys();
             foreach (auto itemID, keys) {
                 pendingChanges.updateItem<CauterizedMeshPartPayload>(itemID, [modelTransform, deleteGeometryCounter](CauterizedMeshPartPayload& data) {
@@ -239,7 +260,7 @@ void CauterizedModel::updateRenderItems() {
                         }
                     }
                 });
-            }
+            }*/
 
             scene->enqueuePendingChanges(pendingChanges);
         });

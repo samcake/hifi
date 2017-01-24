@@ -652,6 +652,10 @@ void Model::setLayeredInFront(bool layered, std::shared_ptr<render::Scene> scene
 bool Model::addToScene(render::ItemID metaID, ::shared_ptr<render::Scene> scene,
                        render::PendingChanges& pendingChanges,
                        render::Item::Status::Getters& statusGetters) {
+    if (_metaID != metaID) {
+        _metaID = metaID;
+    }
+
     bool readyToRender = _collisionGeometry || isLoaded();
     if (!_addedToScene && readyToRender) {
         createRenderItemSet();

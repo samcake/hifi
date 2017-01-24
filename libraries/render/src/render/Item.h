@@ -414,7 +414,9 @@ public:
     UpdateFunctorPointer _meta;
     UpdateFunctorPointer _sub;
 
-    UpdateMultiFunctor(FuncM func, FuncS funcS) : _meta(std::make_shared<Meta>(func)), _sub(std::make_shared<Sub>(funcS)) {}
+    UpdateMultiFunctor(FuncM func, FuncS funcS) :
+        _meta((func ? std::make_shared<Meta>(func) : nullptr)),
+        _sub((funcS ? std::make_shared<Sub>(funcS) : nullptr)) {}
     ~UpdateMultiFunctor() {}
 
     virtual bool isMeta() const { return true; }
