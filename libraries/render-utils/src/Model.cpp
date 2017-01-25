@@ -244,7 +244,7 @@ void Model::updateRenderItems() {
 
         pendingChanges.updateItem(self->getMetaID(), std::make_shared<render::UpdateMultiFunctor<int, ModelMeshPartPayload>>(nullptr,
             [modelTransform, deleteGeometryCounter](ModelMeshPartPayload& data) {
-            PROFILE_RANGE(render, "ModelMeshPartPayload");
+          //  PROFILE_RANGE(render, "ModelMeshPartPayload");
             if (data._model && data._model->isLoaded()) {
                 // Ensure the model geometry was not reset between frames
                 if (deleteGeometryCounter == data._model->_deleteGeometryCounter) {
