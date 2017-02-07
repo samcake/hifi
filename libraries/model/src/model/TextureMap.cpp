@@ -291,13 +291,13 @@ gpu::Texture* TextureUsage::process2DTextureColorFromImage(const QImage& srcImag
         if (generateMips) {
             
             {
-            
-                PROFILE_RANGE(resource_parse, "generateMipsSAM");
+                PROFILE_RANGE(resource_parse, "generateMips");
                 auto numMips = theTexture->evalNumMips();
-  
                 std::vector<image::Surface<image::PixRGB32>> mips;
-            
-                surface.downsample(mips, numMips);
+
+                {
+                    surface.downsample(mips, numMips);
+                }
                 
                 for (uint16 level = 1; level < numMips && (mips.size() <= level); ++level) {
                 
@@ -305,7 +305,7 @@ gpu::Texture* TextureUsage::process2DTextureColorFromImage(const QImage& srcImag
                     theTexture->assignStoredMip(level, formatMip, m._pixels.byteSize(), (const Byte *) m._pixels.readBytes(0));
                 }
             }
-           // ::generateMips(theTexture, image, formatMip);
+            //::generateMips(theTexture, image, formatMip);
         }
     }
 

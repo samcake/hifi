@@ -37,8 +37,7 @@ namespace image {
     
     Byte mix5_4(const Byte x, const Byte y, const Byte a) { return mix<5, 4>(x, y, a); }
     Byte mix6_4(const Byte x, const Byte y, const Byte a) { return mix<6, 4>(x, y, a); }
-
-
+    Byte mix8_8(const Byte x, const Byte y, const Byte a) { return mix<8, 8>(x, y, a); }
 
     // Coordinate and count types
     using Coord = uint16_t;
@@ -60,6 +59,10 @@ namespace image {
             Byte g { BLACK8 };
             Byte b { BLACK8 };
             Byte x { WHITE8 };
+
+            RGB32() {}
+            RGB32(const RGB32& rgb) : r(rgb.r), g(rgb.g), b(rgb.b) {}
+            RGB32(Byte pR, Byte pG, Byte pB) : r(pR), g(pG), b(pB) {}
         };
         
         struct RGBA32 {
@@ -67,6 +70,10 @@ namespace image {
             Byte g { BLACK8 };
             Byte b { BLACK8 };
             Byte a { WHITE8 };
+
+            RGBA32() {}
+            RGBA32(const RGBA32& rgba) : r(rgba.r), g(rgba.g), b(rgba.b), a(rgba.a) {}
+            RGBA32(Byte pR, Byte pG, Byte pB, Byte pA) : r(pR), g(pG), b(pB), a(pA) {}
         };
 
         struct R10G10B12 {
@@ -90,9 +97,18 @@ namespace image {
         
 
         template <typename P, typename S> const P mix(const P p0, const P p1, const S alpha) { return p0; }
+        template <> const RGB32 mix(const RGB32 p0, const RGB32 p1, const float alpha);
+        template <> const RGB32 mix(const RGB32 p0, const RGB32 p1, const Byte alpha);
         template <> const RGB16_565 mix(const RGB16_565 p0, const RGB16_565 p1, const Byte alpha);
 
+        template <typename P> P filterQuadBox(const P& p00, const P& p10, const P& p01, const P& p11) { return p00; }
+        template <> RGB32 filterQuadBox(const RGB32& p00, const RGB32& p10, const RGB32& p01, const RGB32& p11);
+        template <> RGBA32 filterQuadBox(const RGBA32& p00, const RGBA32& p10, const RGBA32& p01, const RGBA32& p11);
+
+
         template <typename F, typename S = typename storage<sizeof(F)>::type > class Pixel {
+
+
         public:
             using This = Pixel<F,S>;
             using Format = F;
@@ -100,14 +116,24 @@ namespace image {
 
             static const uint32_t SIZE { sizeof(S) };
 
+            static void copy(F* dest, const F* src) { memcpy(dest, src, SIZE); }
+
             Format val { Format() };
 
-            Pixel() : val(Format()) {};
-            Pixel(Format v) : val(v) {}
-            Pixel(Storage s) : val(*static_cast<Format> (&s)) {}
+            Pixel() {}
+            Pixel(const Format& v) : val(v) {}
+            Pixel(const Storage& s) : val(storageToFormatConst(s)) {}
 
-            const Storage* storage() const { return static_cast<Storage> (&val); }
-            
+            Pixel& operator = (const Pixel& src) {
+                copy(&val, &src.val);
+                return (*this);
+            }
+
+            const Storage* storage() const { return reinterpret_cast<const Storage*> (this); }
+
+            static const Format& storageToFormatConst(const Storage& s) { return *(reinterpret_cast<const This*>(&s)); }
+            static Format& storageToFormat(Storage& s) { return *(reinterpret_cast<This*>(&s)); }
+
             static This* cast(Storage* s) { return reinterpret_cast<This*>(s); }
             static const This* cast(const Storage* s) { return reinterpret_cast<const This*>(s); }
         };
@@ -154,15 +180,12 @@ namespace image {
         };
     };
 
-
-
     using PixRGB565 = pixel::Pixel<pixel::RGB16_565>;
     using PixRGB32 = pixel::Pixel<pixel::RGB32>;
     using PixRGBA32 = pixel::Pixel<pixel::RGBA32>;
     using PixR10G10B12 = pixel::Pixel<pixel::R10G10B12>;
     using PixR8 = pixel::Pixel<pixel::R8>;
-    
-    
+
     class BC {
     public:
         static int cpp;
@@ -262,10 +285,15 @@ namespace image {
             resetBytes(src.byteSize(), src.readBytes(0));
         }
         PixelArray(PixelArray&& src) {
-            _buffer.reset(src._buffer.release());
+            _buffer = std::move(src._buffer);
+        }
+        This& operator = (const This& src) {
+            resetBytes(src.byteSize(), src.readBytes(0));
+            return (*this);
         }
         This& operator = (This&& src) {
-            _buffer.reset(src._buffer.release());
+            _buffer = std::move(src._buffer);
+            return (*this);
         }
     
         int numPixels() const { return _buffer->count(); }
@@ -428,11 +456,31 @@ namespace image {
         Dim _dim { 0, 0 };
         Pixels _pixels;
 
-      /*  Surface(This&& src) {
-            _dim = src._dim;
-            _pixels = src._pixels;
-            
-        }*/
+        using PixelPair = Pixel[2];
+
+        Surface()
+        {}
+        Surface(const Surface& src) :
+            _dim(src._dim),
+            _pixels(src._pixels) 
+        {}
+        Surface(Surface&& src) :
+            _dim(src._dim),
+            _pixels(std::move(src._pixels))
+        {}
+
+        Surface& operator = (const Surface& src) {
+            _dim = (src._dim);
+            _pixels = (src._pixels);
+            return (*this);
+        }
+
+        Surface& operator = (Surface&& src) {
+            _dim = (src._dim);
+            _pixels = std::move(src._pixels);
+            return (*this);
+        }
+
         Surface(Coord width, Coord height, size_t byteSize = 0, const void* bytes = nullptr) :
             _dim(width, height),
             _pixels((byteSize ? byteSize : Pixels::evalByteSize(width * height)), bytes)
@@ -440,26 +488,48 @@ namespace image {
 
         This nextMip() const {
             Dim subDim = _dim.nextMip();
+
             auto sub = Surface<P>(subDim._dims.x, subDim._dims.y);
-            
-            for (int y = 0; y < subDim._dims.y; y++) {
-                for (int x = 0; x < subDim._dims.x; x++) {
-                    
+            {
+                for (int y = 0; y < subDim._dims.y; y++) {
                     // get pixels from source at 2x, 2x +1 2y, 2y +1
-                    auto srcIndex0 = _dim.indexAt(2 * x, 2 * y);
-                    auto srcIndex1 = _dim.indexAt(2 * x, 2 * y + 1);
-                    
-                    auto srcP0 = (*_pixels.readPixel(srcIndex0));
-                    auto srcP01 = (*_pixels.readPixel(srcIndex0 + 1));
-                    auto srcP1 = (*_pixels.readPixel(srcIndex1));
-                    auto srcP11 = (*_pixels.readPixel(srcIndex1 + 1));
-                    
-                    // and filter
-                    auto destIndex = subDim.indexAt(x, y);
-                    auto destP = sub._pixels.editPixel(destIndex);
-                    
-                    // assign to dest
-                    *destP = srcP0;
+                    auto srcIndex0 = _dim.indexAt(0, 2 * y);
+                    auto srcIndex1 = _dim.indexAt(0, 2 * y + 1);
+
+                    auto srcLine0 = (_pixels.readPixel(srcIndex0));
+                    auto srcLine1 = (_pixels.readPixel(srcIndex1));
+
+                    // Dest
+                    auto destIndex = subDim.indexAt(0, y);
+                    auto destLine = sub._pixels.editPixel(destIndex);
+
+
+                    for (int x = 0; x < subDim._dims.x; x++) {
+                        /**
+                        // get pixels from source at 2x, 2x +1 2y, 2y +1
+                        auto srcIndex0 = _dim.indexAt(2 * x, 2 * y);
+                        auto srcIndex1 = _dim.indexAt(2 * x, 2 * y + 1);
+
+                        auto srcP0 = (*srcLine0);
+                        auto srcP01 = (*(srcLine0 + 1));
+                        auto srcP1 = (*_pixels.readPixel(srcIndex1));
+                        auto srcP11 = (*_pixels.readPixel(srcIndex1 + 1));
+
+                        // and filter
+                        auto destIndex = subDim.indexAt(x, y);
+                        auto destP = sub._pixels.editPixel(destIndex);
+                        */
+
+                        // filter and assign to dest
+                        (*destLine) = pixel::filterQuadBox<Format>( (*srcLine0).val, (*(srcLine0 + 1)).val, (*srcLine1).val, (*(srcLine1 + 1)).val );
+
+                        // next
+                        destLine++;
+                        srcLine0++;
+                        srcLine0++;
+                        srcLine1++;
+                        srcLine1++;
+                    }
                 }
             }
             return sub;
@@ -477,14 +547,13 @@ namespace image {
             else if (num < -1) {
                 return;
             }
-        
+            mips.resize(num);
             
-            mips.emplace_back(nextMip());
+            mips[0] = std::move(nextMip());
         
             for (int i = 1; i < num; i++) {
-                mips.emplace_back(mips.back().nextMip());
+                mips[i] = (std::move(mips.back().nextMip()));
             }
-            
         }
 
     };

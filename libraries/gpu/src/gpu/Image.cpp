@@ -12,8 +12,38 @@ namespace image {
                 mix6_4(p0.g, p1.g, alpha),
                 mix5_4(p0.b, p1.b, alpha));
         }
-    }
     
+        template <> const RGB32 mix(const RGB32 p0, const RGB32 p1, const float alpha) {
+            Byte a = 255 * alpha;
+            return RGB32(
+                mix8_8(p0.r, p1.r, a),
+                mix8_8(p0.g, p1.g, a),
+                mix8_8(p0.b, p1.b, a));
+        }
+
+        template <> const RGB32 mix(const RGB32 p0, const RGB32 p1, const Byte alpha) {
+            return RGB32(
+                mix8_8(p0.r, p1.r, alpha),
+                mix8_8(p0.g, p1.g, alpha),
+                mix8_8(p0.b, p1.b, alpha));
+        }
+
+
+        template <> RGB32 filterQuadBox(const RGB32& p00, const RGB32& p10, const RGB32& p01, const RGB32& p11) {
+            return RGB32((p00.r + p10.r + p11.r + p01.r) * (127 * 127) / (255 * 255),
+            //    ((int)p00.g + (int)p10.g + (int)p11.g + (int)p01.g) * (127 * 127) / (255 * 255),
+                0,
+                ((int)p00.b + (int)p10.b + (int)p11.b + (int)p01.b) * (127 * 127) / (255 * 255));
+        }
+        template <> RGBA32 filterQuadBox(const RGBA32& p00, const RGBA32& p10, const RGBA32& p01, const RGBA32& p11) {
+            return RGBA32(((int)p00.r + (int)p10.r + (int)p11.r + (int)p01.r) * (127 * 127) / (255 * 255),
+                    ((int)p00.g + (int)p10.g + (int)p11.g + (int)p01.g) * (127 * 127) / (255 * 255),
+                    ((int)p00.b + (int)p10.b + (int)p11.b + (int)p01.b) * (127 * 127) / (255 * 255),
+                    ((int)p00.a + (int)p10.a + (int)p11.a + (int)p01.a) * (127 * 127) / (255 * 255));
+        }
+    }
+
+
 template <> void compress(const PB_RGB32& src, CB_BC1& dst) {
 }
 
