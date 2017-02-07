@@ -64,6 +64,17 @@ namespace image {
             RGB32(const RGB32& rgb) : r(rgb.r), g(rgb.g), b(rgb.b) {}
             RGB32(Byte pR, Byte pG, Byte pB) : r(pR), g(pG), b(pB) {}
         };
+
+        struct SRGB32 {
+            Byte r { BLACK8 };
+            Byte g { BLACK8 };
+            Byte b { BLACK8 };
+            Byte x { WHITE8 };
+
+            SRGB32() {}
+            SRGB32(const SRGB32& rgb) : r(rgb.r), g(rgb.g), b(rgb.b) {}
+            SRGB32(Byte pR, Byte pG, Byte pB) : r(pR), g(pG), b(pB) {}
+        };
         
         struct RGBA32 {
             Byte r { BLACK8 };
@@ -104,6 +115,7 @@ namespace image {
         template <typename P> P filterQuadBox(const P& p00, const P& p10, const P& p01, const P& p11) { return p00; }
         template <> RGB32 filterQuadBox(const RGB32& p00, const RGB32& p10, const RGB32& p01, const RGB32& p11);
         template <> RGBA32 filterQuadBox(const RGBA32& p00, const RGBA32& p10, const RGBA32& p01, const RGBA32& p11);
+        template <> SRGB32 filterQuadBox(const SRGB32& p00, const SRGB32& p10, const SRGB32& p01, const SRGB32& p11);
 
 
         template <typename F, typename S = typename storage<sizeof(F)>::type > class Pixel {
@@ -125,11 +137,12 @@ namespace image {
             Pixel(const Storage& s) : val(storageToFormatConst(s)) {}
 
             Pixel& operator = (const Pixel& src) {
-                copy(&val, &src.val);
+                *editStorage() = *src.storage();
                 return (*this);
             }
 
             const Storage* storage() const { return reinterpret_cast<const Storage*> (this); }
+            Storage* editStorage() { return reinterpret_cast<Storage*> (this); }
 
             static const Format& storageToFormatConst(const Storage& s) { return *(reinterpret_cast<const This*>(&s)); }
             static Format& storageToFormat(Storage& s) { return *(reinterpret_cast<This*>(&s)); }
@@ -183,6 +196,7 @@ namespace image {
     using PixRGB565 = pixel::Pixel<pixel::RGB16_565>;
     using PixRGB32 = pixel::Pixel<pixel::RGB32>;
     using PixRGBA32 = pixel::Pixel<pixel::RGBA32>;
+    using PixSRGB32 = pixel::Pixel<pixel::SRGB32>;
     using PixR10G10B12 = pixel::Pixel<pixel::R10G10B12>;
     using PixR8 = pixel::Pixel<pixel::R8>;
 
@@ -552,7 +566,7 @@ namespace image {
             mips[0] = std::move(nextMip());
         
             for (int i = 1; i < num; i++) {
-                mips[i] = (std::move(mips.back().nextMip()));
+                mips[i] = (std::move(mips[i-1].nextMip()));
             }
         }
 

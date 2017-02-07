@@ -261,7 +261,7 @@ void GL45Texture::withPreservedTexture(std::function<void()> f) const {
 }
 
 void GL45Texture::generateMips() const {
-    glGenerateTextureMipmap(_id);
+//    glGenerateTextureMipmap(_id);
     (void)CHECK_GL_ERROR();
 }
 
