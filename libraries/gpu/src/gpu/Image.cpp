@@ -1,3 +1,13 @@
+//
+//  Image.cpp
+//  libraries/gpu/src/gpu
+//
+//  Created by Sam Gateau on 1/17/2017.
+//  Copyright 2017 High Fidelity, Inc.
+//
+//  Distributed under the Apache License, Version 2.0.
+//  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
+//
 #include "Image.h"
 
 
@@ -46,6 +56,9 @@ uint8_t linearFloatTosRGB8(const float l) {
 }
 
 namespace image {
+    Byte mix5_4(const Byte x, const Byte y, const Byte a) { return mix<5, 4>(x, y, a); }
+    Byte mix6_4(const Byte x, const Byte y, const Byte a) { return mix<6, 4>(x, y, a); }
+    Byte mix8_8(const Byte x, const Byte y, const Byte a) { return mix<8, 8>(x, y, a); }
 
     namespace pixel {
         template <> const RGB16_565 mix(const RGB16_565 p0, const RGB16_565 p1, const Byte alpha) {
@@ -56,7 +69,7 @@ namespace image {
         }
     
         template <> const RGB32 mix(const RGB32 p0, const RGB32 p1, const float alpha) {
-            Byte a = 255 * alpha;
+            Byte a = (Byte) (255 * alpha);
             return RGB32(
                 mix8_8(p0.r, p1.r, a),
                 mix8_8(p0.g, p1.g, a),

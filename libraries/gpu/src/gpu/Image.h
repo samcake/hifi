@@ -1,7 +1,15 @@
-/*
- Let s try compressing images
- 
-*/
+//
+//  Image.h
+//  libraries/gpu/src/gpu
+//
+//  Created by Sam Gateau on 1/17/2017.
+//  Copyright 2017 High Fidelity, Inc.
+//
+//  Distributed under the Apache License, Version 2.0.
+//  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
+//
+#ifndef hifi_gpu_Image_h
+#define hifi_gpu_Image_h
 
 #include <glm/glm.hpp>
 #include "Forward.h"
@@ -34,10 +42,10 @@ namespace image {
     template <int N> int bitVal() { return 1 << N; }
     template <int Tn, int An> int bitProduct() { return bitVal<Tn>() * bitVal<An>(); }
     template <int Tn, int An, typename T = Byte, typename A = T> T mix(const T x, const T y, const A a) { return T(((bitVal<An>() - a) * x + a * y) / bitProduct<Tn, An>()); }
-    
-    Byte mix5_4(const Byte x, const Byte y, const Byte a) { return mix<5, 4>(x, y, a); }
-    Byte mix6_4(const Byte x, const Byte y, const Byte a) { return mix<6, 4>(x, y, a); }
-    Byte mix8_8(const Byte x, const Byte y, const Byte a) { return mix<8, 8>(x, y, a); }
+
+    Byte mix5_4(const Byte x, const Byte y, const Byte a);// { return mix<5, 4>(x, y, a); }
+    Byte mix6_4(const Byte x, const Byte y, const Byte a);// { return mix<6, 4>(x, y, a); }
+    Byte mix8_8(const Byte x, const Byte y, const Byte a);// { return mix<8, 8>(x, y, a); }
 
     // Coordinate and count types
     using Coord = uint16_t;
@@ -573,3 +581,4 @@ namespace image {
     };
 }
 
+#endif
