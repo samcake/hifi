@@ -84,25 +84,26 @@ namespace image {
         }
 
 
-        template <> RGB32 filterQuadBox(const RGB32& p00, const RGB32& p10, const RGB32& p01, const RGB32& p11) {
-            return RGB32((p00.r + p10.r + p11.r + p01.r) * (127 * 127) / (255 * 255),
-                ((int)p00.g + (int)p10.g + (int)p11.g + (int)p01.g) * (127 * 127) / (255 * 255),
-              //  0,
-                ((int)p00.b + (int)p10.b + (int)p11.b + (int)p01.b) * (127 * 127) / (255 * 255));
+        template <> RGB32 filterQuadBox(const RGB32 p[4]) {
+            return RGB32(
+                ((int)p[0].r + (int)p[1].r + (int)p[2].r + (int)p[3].r) * (127 * 127) / (255 * 255),
+                ((int)p[0].g + (int)p[1].g + (int)p[2].g + (int)p[3].g) * (127 * 127) / (255 * 255),
+                ((int)p[0].b + (int)p[1].b + (int)p[2].b + (int)p[3].b) * (127 * 127) / (255 * 255));
         }
 
-        template <> SRGB32 filterQuadBox(const SRGB32& p00, const SRGB32& p10, const SRGB32& p01, const SRGB32& p11) {
+        template <> SRGB32 filterQuadBox(const SRGB32 p[4]) {
             return SRGB32(
-                linearFloatTosRGB8((sRGB8ToLinearFloat(p00.r) + sRGB8ToLinearFloat(p10.r) + sRGB8ToLinearFloat(p11.r) + sRGB8ToLinearFloat(p01.r)) * 0.25f),
-                linearFloatTosRGB8((sRGB8ToLinearFloat(p00.g) + sRGB8ToLinearFloat(p10.g) + sRGB8ToLinearFloat(p11.g) + sRGB8ToLinearFloat(p01.g)) * 0.25f),
-                linearFloatTosRGB8((sRGB8ToLinearFloat(p00.b) + sRGB8ToLinearFloat(p10.b) + sRGB8ToLinearFloat(p11.b) + sRGB8ToLinearFloat(p01.b)) * 0.25f) );
+                linearFloatTosRGB8((sRGB8ToLinearFloat(p[0].r) + sRGB8ToLinearFloat(p[1].r) + sRGB8ToLinearFloat(p[2].r) + sRGB8ToLinearFloat(p[3].r)) * 0.25f),
+                linearFloatTosRGB8((sRGB8ToLinearFloat(p[0].g) + sRGB8ToLinearFloat(p[1].g) + sRGB8ToLinearFloat(p[2].g) + sRGB8ToLinearFloat(p[3].g)) * 0.25f),
+                linearFloatTosRGB8((sRGB8ToLinearFloat(p[0].b) + sRGB8ToLinearFloat(p[1].b) + sRGB8ToLinearFloat(p[2].b) + sRGB8ToLinearFloat(p[3].b)) * 0.25f) );
         }
 
-        template <> RGBA32 filterQuadBox(const RGBA32& p00, const RGBA32& p10, const RGBA32& p01, const RGBA32& p11) {
-            return RGBA32(((int)p00.r + (int)p10.r + (int)p11.r + (int)p01.r) * (127 * 127) / (255 * 255),
-                    ((int)p00.g + (int)p10.g + (int)p11.g + (int)p01.g) * (127 * 127) / (255 * 255),
-                    ((int)p00.b + (int)p10.b + (int)p11.b + (int)p01.b) * (127 * 127) / (255 * 255),
-                    ((int)p00.a + (int)p10.a + (int)p11.a + (int)p01.a) * (127 * 127) / (255 * 255));
+        template <> RGBA32 filterQuadBox(const RGBA32 p[4]) {
+            return RGBA32(
+                    ((int)p[0].r + (int)p[1].r + (int)p[2].r + (int)p[3].r) * (127 * 127) / (255 * 255),
+                    ((int)p[0].g + (int)p[1].g + (int)p[2].g + (int)p[3].g) * (127 * 127) / (255 * 255),
+                    ((int)p[0].b + (int)p[1].b + (int)p[2].b + (int)p[3].b) * (127 * 127) / (255 * 255),
+                    ((int)p[0].a + (int)p[1].a + (int)p[2].a + (int)p[3].a) * (127 * 127) / (255 * 255));
 
         }
     }
