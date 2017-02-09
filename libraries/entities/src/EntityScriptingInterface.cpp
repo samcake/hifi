@@ -25,6 +25,8 @@
 #include "QVariantGLM.h"
 #include "SimulationOwner.h"
 #include "ZoneEntityItem.h"
+#include "WebEntityItem.h"
+#include <EntityScriptClient.h>
 
 
 EntityScriptingInterface::EntityScriptingInterface(bool bidOnSimulationOwnership) :
@@ -35,6 +37,7 @@ EntityScriptingInterface::EntityScriptingInterface(bool bidOnSimulationOwnership
     connect(nodeList.data(), &NodeList::isAllowedEditorChanged, this, &EntityScriptingInterface::canAdjustLocksChanged);
     connect(nodeList.data(), &NodeList::canRezChanged, this, &EntityScriptingInterface::canRezChanged);
     connect(nodeList.data(), &NodeList::canRezTmpChanged, this, &EntityScriptingInterface::canRezTmpChanged);
+    connect(nodeList.data(), &NodeList::canWriteAssetsChanged, this, &EntityScriptingInterface::canWriteAssetsChanged);
 }
 
 void EntityScriptingInterface::queueEntityMessage(PacketType packetType,
@@ -61,6 +64,11 @@ bool EntityScriptingInterface::canRez() {
 bool EntityScriptingInterface::canRezTmp() {
     auto nodeList = DependencyManager::get<NodeList>();
     return nodeList->getThisNodeCanRezTmp();
+}
+
+bool EntityScriptingInterface::canWriteAssets() {
+    auto nodeList = DependencyManager::get<NodeList>();
+    return nodeList->getThisNodeCanWriteAssets();
 }
 
 void EntityScriptingInterface::setEntityTree(EntityTreePointer elementTree) {
@@ -182,11 +190,6 @@ QUuid EntityScriptingInterface::addEntity(const EntityItemProperties& properties
         propertiesWithSimID.setOwningAvatarID(myNodeID);
     }
 
-    if (propertiesWithSimID.getParentID() == AVATAR_SELF_ID) {
-        qDebug() << "ERROR: Cannot set entity parent ID to the local-only MyAvatar ID";
-        propertiesWithSimID.setParentID(QUuid());
-    }
-
     auto dimensions = propertiesWithSimID.getDimensions();
     float volume = dimensions.x * dimensions.y * dimensions.z;
     auto density = propertiesWithSimID.getDensity();
@@ -213,16 +216,6 @@ QUuid EntityScriptingInterface::addEntity(const EntityItemProperties& properties
                     if (success) {
                         propertiesWithSimID.setQueryAACube(queryAACube);
                     }
-                }
-
-                if (_bidOnSimulationOwnership) {
-                    // This Node is creating a new object.  If it's in motion, set this Node as the simulator.
-                    auto nodeList = DependencyManager::get<NodeList>();
-                    const QUuid myNodeID = nodeList->getSessionUUID();
-
-                    // and make note of it now, so we can act on it right away.
-                    propertiesWithSimID.setSimulationOwner(myNodeID, SCRIPT_POKE_SIMULATION_PRIORITY);
-                    entity->setSimulationOwner(myNodeID, SCRIPT_POKE_SIMULATION_PRIORITY);
                 }
 
                 entity->setLastBroadcast(usecTimestampNow());
@@ -363,9 +356,6 @@ QUuid EntityScriptingInterface::editEntity(QUuid id, const EntityItemProperties&
 
             if (!scriptSideProperties.parentIDChanged()) {
                 properties.setParentID(entity->getParentID());
-            } else if (scriptSideProperties.getParentID() == AVATAR_SELF_ID) {
-                qDebug() << "ERROR: Cannot set entity parent ID to the local-only MyAvatar ID";
-                properties.setParentID(QUuid());
             }
             if (!scriptSideProperties.parentJointIndexChanged()) {
                 properties.setParentJointIndex(entity->getParentJointIndex());
@@ -436,6 +426,7 @@ QUuid EntityScriptingInterface::editEntity(QUuid id, const EntityItemProperties&
                     // we make a bid for simulation ownership
                     properties.setSimulationOwner(myNodeID, SCRIPT_POKE_SIMULATION_PRIORITY);
                     entity->pokeSimulationOwnership();
+                    entity->rememberHasSimulationOwnershipBid();
                 }
             }
             if (properties.parentRelatedPropertyChanged() && entity->computePuffedQueryAACube()) {
@@ -662,6 +653,38 @@ RayToEntityIntersectionResult EntityScriptingInterface::findRayIntersectionWorke
         }
     }
     return result;
+}
+
+bool EntityScriptingInterface::reloadServerScripts(QUuid entityID) {
+    auto client = DependencyManager::get<EntityScriptClient>();
+    return client->reloadServerScript(entityID);
+}
+
+bool EntityScriptingInterface::getServerScriptStatus(QUuid entityID, QScriptValue callback) {
+    auto client = DependencyManager::get<EntityScriptClient>();
+    auto request = client->createScriptStatusRequest(entityID);
+    connect(request, &GetScriptStatusRequest::finished, callback.engine(), [callback](GetScriptStatusRequest* request) mutable {
+        QString statusString;
+        switch (request->getStatus()) {
+            case RUNNING:
+                statusString = "running";
+                break;
+            case ERROR_LOADING_SCRIPT:
+                statusString = "error_loading_script";
+                break;
+            case ERROR_RUNNING_SCRIPT:
+                statusString = "error_running_script";
+                break;
+            default:
+                statusString = "";
+                break;
+        }
+        QScriptValueList args { request->getResponseReceived(), request->getIsRunning(), statusString, request->getErrorInfo() };
+        callback.call(QScriptValue(), args);
+        request->deleteLater();
+    });
+    request->start();
+    return true;
 }
 
 void EntityScriptingInterface::setLightsArePickable(bool value) {
@@ -925,12 +948,12 @@ bool EntityScriptingInterface::actionWorker(const QUuid& entityID,
         EntitySimulationPointer simulation = _entityTree->getSimulation();
         entity = _entityTree->findEntityByEntityItemID(entityID);
         if (!entity) {
-            qDebug() << "actionWorker -- unknown entity" << entityID;
+            qCDebug(entities) << "actionWorker -- unknown entity" << entityID;
             return;
         }
 
         if (!simulation) {
-            qDebug() << "actionWorker -- no simulation" << entityID;
+            qCDebug(entities) << "actionWorker -- no simulation" << entityID;
             return;
         }
 
@@ -1045,7 +1068,7 @@ EntityItemPointer EntityScriptingInterface::checkForTreeEntityAndTypeMatch(const
     
     EntityItemPointer entity = _entityTree->findEntityByEntityItemID(entityID);
     if (!entity) {
-        qDebug() << "EntityScriptingInterface::checkForTreeEntityAndTypeMatch - no entity with ID" << entityID;
+        qCDebug(entities) << "EntityScriptingInterface::checkForTreeEntityAndTypeMatch - no entity with ID" << entityID;
         return entity;
     }
     
@@ -1305,7 +1328,7 @@ QVector<QUuid> EntityScriptingInterface::getChildrenIDs(const QUuid& parentID) {
 
     EntityItemPointer entity = _entityTree->findEntityByEntityItemID(parentID);
     if (!entity) {
-        qDebug() << "EntityScriptingInterface::getChildrenIDs - no entity with ID" << parentID;
+        qCDebug(entities) << "EntityScriptingInterface::getChildrenIDs - no entity with ID" << parentID;
         return result;
     }
 
@@ -1327,14 +1350,16 @@ bool EntityScriptingInterface::isChildOfParent(QUuid childID, QUuid parentID) {
 
     _entityTree->withReadLock([&] {
         EntityItemPointer parent = _entityTree->findEntityByEntityItemID(parentID);
-        parent->forEachDescendant([&](SpatiallyNestablePointer descendant) {
-            if(descendant->getID() == childID) {
-                isChild = true;
-                return; 
-            }
-        });
+        if (parent) {
+            parent->forEachDescendant([&](SpatiallyNestablePointer descendant) {
+                if (descendant->getID() == childID) {
+                    isChild = true;
+                    return;
+                }
+            });
+        }
     });
-    
+
     return isChild;
 }
 
@@ -1358,7 +1383,8 @@ QVector<QUuid> EntityScriptingInterface::getChildrenIDsOfJoint(const QUuid& pare
             return;
         }
         parent->forEachChild([&](SpatiallyNestablePointer child) {
-            if (child->getParentJointIndex() == jointIndex) {
+            if (child->getParentJointIndex() == jointIndex &&
+                child->getNestableType() != NestableType::Overlay) {
                 result.push_back(child->getID());
             }
         });
@@ -1453,3 +1479,12 @@ void EntityScriptingInterface::setCostMultiplier(float value) {
     costMultiplier = value;
 }
 
+QObject* EntityScriptingInterface::getWebViewRoot(const QUuid& entityID) {
+    if (auto entity = checkForTreeEntityAndTypeMatch(entityID, EntityTypes::Web)) {
+        auto webEntity = std::dynamic_pointer_cast<WebEntityItem>(entity);
+        QObject* root = webEntity->getRootItem();
+        return root;
+    } else {
+        return nullptr;
+    }
+}

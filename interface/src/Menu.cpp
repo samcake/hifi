@@ -160,7 +160,7 @@ Menu::Menu() {
         audioIO.data(), SLOT(toggleMute()));
 
     // Audio > Show Level Meter
-    addCheckableActionToQMenuAndActionHash(audioMenu, MenuOption::AudioTools, 0, true);
+    addCheckableActionToQMenuAndActionHash(audioMenu, MenuOption::AudioTools, 0, false);
 
 
     // Avatar menu ----------------------------------
@@ -703,6 +703,15 @@ Menu::Menu() {
     // Developer > Log...
     addActionToQMenuAndActionHash(developerMenu, MenuOption::Log, Qt::CTRL | Qt::SHIFT | Qt::Key_L,
          qApp, SLOT(toggleLogDialog()));
+
+    action = addActionToQMenuAndActionHash(developerMenu, "Script Log (HMD friendly)...");
+    connect(action, &QAction::triggered, [] {
+        auto scriptEngines = DependencyManager::get<ScriptEngines>();
+        QUrl defaultScriptsLoc = defaultScriptsLocation();
+        defaultScriptsLoc.setPath(defaultScriptsLoc.path() + "developer/debugging/debugWindow.js");
+        scriptEngines->loadScript(defaultScriptsLoc.toString());
+    });
+
 
     // Developer > Stats
     addCheckableActionToQMenuAndActionHash(developerMenu, MenuOption::Stats);

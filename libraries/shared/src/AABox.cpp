@@ -360,7 +360,7 @@ glm::vec3 AABox::getClosestPointOnFace(const glm::vec3& point, BoxFace face) con
 
         case MIN_Z_FACE:
             return glm::clamp(point, glm::vec3(_corner.x, _corner.y, _corner.z),
-                glm::vec3(_corner.x + _scale.z, _corner.y + _scale.y, _corner.z));
+                glm::vec3(_corner.x + _scale.x, _corner.y + _scale.y, _corner.z));
 
         default: //quiet windows warnings
         case MAX_Z_FACE:
@@ -575,18 +575,18 @@ void AABox::transform(const Transform& transform) {
 
 // Logic based on http://clb.demon.fi/MathGeoLib/nightly/docs/AABB.cpp_code.html#471
 void AABox::transform(const glm::mat4& matrix) {
+    // FIXME use simd operations
     auto halfSize = _scale * 0.5f;
     auto center = _corner + halfSize;
     halfSize = abs(halfSize);
-    auto newCenter = transformPoint(matrix, center);
-
     auto mm = glm::transpose(glm::mat3(matrix));
     vec3 newDir = vec3(
-        glm::dot(glm::abs(vec3(mm[0])), halfSize),
-        glm::dot(glm::abs(vec3(mm[1])), halfSize),
-        glm::dot(glm::abs(vec3(mm[2])), halfSize)
+        glm::dot(glm::abs(mm[0]), halfSize),
+        glm::dot(glm::abs(mm[1]), halfSize),
+        glm::dot(glm::abs(mm[2]), halfSize)
     );
 
+    auto newCenter = transformPoint(matrix, center);
     _corner = newCenter - newDir;
     _scale = newDir * 2.0f;
 }

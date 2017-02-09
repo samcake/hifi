@@ -38,6 +38,9 @@
 #include "GLLogging.h"
 #include "Context.h"
 
+Q_LOGGING_CATEGORY(trace_render_qml, "trace.render.qml")
+Q_LOGGING_CATEGORY(trace_render_qml_gl, "trace.render.qml.gl")
+
 struct TextureSet {
     // The number of surfaces with this size
     size_t count { 0 };
@@ -100,11 +103,14 @@ public:
     }
 
     void report() {
-        uint64_t now = usecTimestampNow();
-        if ((now - _lastReport) > USECS_PER_SECOND * 5) {
-            _lastReport = now;
-            qCDebug(glLogging) << "Current offscreen texture count " << _allTextureCount;
-            qCDebug(glLogging) << "Current offscreen active texture count " << _activeTextureCount;
+        if (randFloat() < 0.01f) {
+            PROFILE_COUNTER(render_qml_gl, "offscreenTextures", {
+                { "total", QVariant::fromValue(_allTextureCount.load()) },
+                { "active", QVariant::fromValue(_activeTextureCount.load()) },
+            });
+            PROFILE_COUNTER(render_qml_gl, "offscreenTextureMemory", {
+                { "value", QVariant::fromValue(_totalTextureUsage) }
+            });
         }
     }
 
@@ -186,7 +192,6 @@ private:
     std::unordered_map<GLuint, uvec2> _textureSizes;
     Mutex _mutex;
     std::list<OffscreenQmlSurface::TextureAndFence> _returnedTextures;
-    uint64_t _lastReport { 0 };
     size_t _totalTextureUsage { 0 };
 
 
@@ -279,6 +284,7 @@ void OffscreenQmlSurface::render() {
         return;
     }
 
+    PROFILE_RANGE(render_qml_gl, __FUNCTION__)
     _canvas->makeCurrent();
 
     _renderControl->sync();
@@ -287,7 +293,6 @@ void OffscreenQmlSurface::render() {
     GLuint texture = offscreenTextures.getNextTexture(_size);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _fbo);
     glFramebufferTexture(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, texture, 0);
-    PROFILE_RANGE("qml_render->rendercontrol")
     _renderControl->render();
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
     glBindTexture(GL_TEXTURE_2D, texture);
@@ -440,7 +445,8 @@ void OffscreenQmlSurface::create(QOpenGLContext* shareContext) {
     // a timer with a small interval is used to get better performance.
     QObject::connect(&_updateTimer, &QTimer::timeout, this, &OffscreenQmlSurface::updateQuick);
     QObject::connect(qApp, &QCoreApplication::aboutToQuit, this, &OffscreenQmlSurface::onAboutToQuit);
-    _updateTimer.setInterval(MIN_TIMER_MS);
+    _updateTimer.setTimerType(Qt::PreciseTimer);
+    _updateTimer.setInterval(MIN_TIMER_MS); // 5ms, Qt::PreciseTimer required
     _updateTimer.start();
 
     auto rootContext = getRootContext();
@@ -617,6 +623,9 @@ QObject* OffscreenQmlSurface::finishQmlLoad(std::function<void(QQmlContext*, QOb
         qFatal("Could not load object as root item");
         return nullptr;
     }
+
+    connect(newItem, SIGNAL(sendToScript(QVariant)), this, SIGNAL(fromQml(QVariant)));
+
     // The root item is ready. Associate it with the window.
     _rootItem = newItem;
     _rootItem->setParentItem(_quickWindow->contentItem());
@@ -636,12 +645,12 @@ void OffscreenQmlSurface::updateQuick() {
     }
 
     if (_polish) {
+        PROFILE_RANGE(render_qml, "OffscreenQML polish")
         _renderControl->polishItems();
         _polish = false;
     }
 
     if (_render) {
-        PROFILE_RANGE(__FUNCTION__);
         render();
         _render = false;
     }
@@ -762,8 +771,12 @@ void OffscreenQmlSurface::resume() {
     _paused = false;
     _render = true;
 
-    getRootItem()->setProperty("eventBridge", QVariant::fromValue(this));
-    getRootContext()->setContextProperty("webEntity", this);
+    if (getRootItem()) {
+        getRootItem()->setProperty("eventBridge", QVariant::fromValue(this));
+    }
+    if (getRootContext()) {
+        getRootContext()->setContextProperty("webEntity", this);
+    }
 }
 
 bool OffscreenQmlSurface::isPaused() const {
@@ -958,6 +971,15 @@ void OffscreenQmlSurface::emitWebEvent(const QVariant& message) {
         } else {
             emit webEventReceived(message);
         }
+    }
+}
+
+void OffscreenQmlSurface::sendToQml(const QVariant& message) {
+    if (QThread::currentThread() != thread()) {
+        QMetaObject::invokeMethod(this, "emitQmlEvent", Qt::QueuedConnection, Q_ARG(QVariant, message));
+    } else if (_rootItem) {
+        // call fromScript method on qml root
+        QMetaObject::invokeMethod(_rootItem, "fromScript", Qt::QueuedConnection, Q_ARG(QVariant, message));
     }
 }
 

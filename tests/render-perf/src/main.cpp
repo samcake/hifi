@@ -14,6 +14,8 @@
 #include <gl/Config.h>
 #include <gl/Context.h>
 
+#include <QProcessEnvironment>
+
 #include <QtCore/QDir>
 #include <QtCore/QElapsedTimer>
 #include <QtCore/QLoggingCategory>
@@ -22,7 +24,6 @@
 #include <QtCore/QTimer>
 #include <QtCore/QThread>
 #include <QtCore/QThreadPool>
-
 
 #include <QtGui/QGuiApplication>
 #include <QtGui/QResizeEvent>
@@ -33,11 +34,11 @@
 #include <QtWidgets/QMessageBox>
 #include <QtWidgets/QApplication>
 
-
 #include <shared/RateCounter.h>
 #include <shared/NetworkUtils.h>
 #include <shared/FileLogger.h>
 #include <shared/FileUtils.h>
+#include <StatTracker.h>
 #include <LogHandler.h>
 #include <AssetClient.h>
 
@@ -59,8 +60,10 @@
 #include <model-networking/ModelCache.h>
 #include <GeometryCache.h>
 #include <DeferredLightingEffect.h>
+#include <render/RenderFetchCullSortTask.h>
 #include <RenderShadowTask.h>
 #include <RenderDeferredTask.h>
+#include <RenderForwardTask.h>
 #include <OctreeConstants.h>
 
 #include <EntityTreeRenderer.h>
@@ -70,6 +73,8 @@
 
 #include "Camera.hpp"
 
+Q_DECLARE_LOGGING_CATEGORY(renderperflogging)
+Q_LOGGING_CATEGORY(renderperflogging, "hifi.render_perf")
 
 static const QString LAST_SCENE_KEY = "lastSceneFile";
 static const QString LAST_LOCATION_KEY = "lastLocation";
@@ -473,6 +478,8 @@ public:
         DependencyManager::registerInheritance<EntityActionFactoryInterface, TestActionFactory>();
         DependencyManager::registerInheritance<LimitedNodeList, NodeList>();
         DependencyManager::registerInheritance<SpatialParentFinder, ParentFinder>();
+        DependencyManager::set<tracing::Tracer>();
+        DependencyManager::set<StatTracker>();
         DependencyManager::set<AddressManager>();
         DependencyManager::set<NodeList>(NodeType::Agent);
         DependencyManager::set<DeferredLightingEffect>();
@@ -532,7 +539,14 @@ public:
         _initContext.makeCurrent();
         // Render engine init
         _renderEngine->addJob<RenderShadowTask>("RenderShadowTask", _cullFunctor);
-        _renderEngine->addJob<RenderDeferredTask>("RenderDeferredTask", _cullFunctor);
+        const auto items = _renderEngine->addJob<RenderFetchCullSortTask>("FetchCullSort", _cullFunctor);
+        assert(items.canCast<RenderFetchCullSortTask::Output>());
+        static const QString RENDER_FORWARD = "HIFI_RENDER_FORWARD";
+        if (QProcessEnvironment::systemEnvironment().contains(RENDER_FORWARD)) {
+            _renderEngine->addJob<RenderForwardTask>("RenderForwardTask", items.get<RenderFetchCullSortTask::Output>());
+        } else {
+            _renderEngine->addJob<RenderDeferredTask>("RenderDeferredTask", items.get<RenderFetchCullSortTask::Output>());
+        }
         _renderEngine->load();
         _renderEngine->registerScene(_main3DScene);
 
@@ -541,7 +555,7 @@ public:
         restorePosition();
 
         QTimer* timer = new QTimer(this);
-        timer->setInterval(0);
+        timer->setInterval(0); // Qt::CoarseTimer acceptable
         connect(timer, &QTimer::timeout, this, [this] {
             draw();
         });
@@ -856,7 +870,6 @@ private:
         EntityUpdateOperator updateOperator(now);
         //getEntities()->getTree()->recurseTreeWithOperator(&updateOperator);
         {
-            PROFILE_RANGE_EX("PreRenderLambdas", 0xffff0000, (uint64_t)0);
             for (auto& iter : _postUpdateLambdas) {
                 iter.second();
             }
@@ -899,7 +912,7 @@ private:
         gpu::doInBatch(gpuContext, [&](gpu::Batch& batch) {
             batch.resetStages();
         });
-        PROFILE_RANGE(__FUNCTION__);
+        PROFILE_RANGE(render, __FUNCTION__);
         PerformanceTimer perfTimer("draw");
         // The pending changes collecting the changes here
         render::PendingChanges pendingChanges;

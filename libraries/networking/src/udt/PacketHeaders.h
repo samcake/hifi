@@ -101,7 +101,17 @@ public:
         NodeKickRequest,
         NodeMuteRequest,
         RadiusIgnoreRequest,
-        LAST_PACKET_TYPE = RadiusIgnoreRequest
+        UsernameFromIDRequest,
+        UsernameFromIDReply,
+        ViewFrustum,
+        RequestsDomainListData,
+        ExitingSpaceBubble,
+        PerAvatarGainSet,
+        EntityScriptGetStatus,
+        EntityScriptGetStatusReply,
+        ReloadEntityServerScript,
+        EntityPhysics,
+        LAST_PACKET_TYPE = EntityPhysics
     };
 };
 
@@ -191,6 +201,12 @@ const PacketVersion VERSION_MODEL_ENTITIES_SUPPORT_SIMPLE_HULLS = 62;
 const PacketVersion VERSION_WEB_ENTITIES_SUPPORT_DPI = 63;
 const PacketVersion VERSION_ENTITIES_ARROW_ACTION = 64;
 const PacketVersion VERSION_ENTITIES_LAST_EDITED_BY = 65;
+const PacketVersion VERSION_ENTITIES_SERVER_SCRIPTS = 66;
+const PacketVersion VERSION_ENTITIES_PHYSICS_PACKET = 67;
+
+enum class EntityQueryPacketVersion: PacketVersion {
+    JsonFilter = 18
+};
 
 enum class AssetServerPacketVersion: PacketVersion {
     VegasCongestionControl = 19
@@ -203,14 +219,19 @@ enum class AvatarMixerPacketVersion : PacketVersion {
     AbsoluteSixByteRotations,
     SensorToWorldMat,
     HandControllerJoints,
-    HasKillAvatarReason
+    HasKillAvatarReason,
+    SessionDisplayName,
+    Unignore,
+    ImmediateSessionDisplayNameUpdates,
+    VariableAvatarData
 };
 
 enum class DomainConnectRequestVersion : PacketVersion {
     NoHostname = 17,
     HasHostname,
     HasProtocolVersions,
-    HasMACAddress
+    HasMACAddress,
+    HasMachineFingerprint
 };
 
 enum class DomainConnectionDeniedVersion : PacketVersion {
@@ -226,7 +247,9 @@ enum class DomainServerAddedNodeVersion : PacketVersion {
 
 enum class DomainListVersion : PacketVersion {
     PrePermissionsGrid = 18,
-    PermissionsGrid
+    PermissionsGrid,
+    GetUsernameFromUUIDSupport,
+    GetMachineFingerprintFromUUIDSupport
 };
 
 enum class AudioVersion : PacketVersion {
@@ -235,6 +258,8 @@ enum class AudioVersion : PacketVersion {
     Exactly10msAudioPackets,
     TerminatingStreamStats,
     SpaceBubbleChanges,
+    HasPersonalMute,
+    HighDynamicRangeVolume,
 };
 
 #endif // hifi_PacketHeaders_h
