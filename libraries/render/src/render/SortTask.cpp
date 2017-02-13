@@ -10,9 +10,12 @@
 //
 
 #include "SortTask.h"
-#include "ShapePipeline.h"
 
 #include <assert.h>
+#include <queue>
+
+#include "ShapePipeline.h"
+
 #include <ViewFrustum.h>
 #include <Profile.h>
 
@@ -46,7 +49,6 @@ void render::depthSortItems(const SceneContextPointer& sceneContext, const Rende
     assert(renderContext->args);
     assert(renderContext->args->hasViewFrustum());
 
-    auto& scene = sceneContext->_scene;
     RenderArgs* args = renderContext->args;
 
     // Allocate and simply copy
@@ -116,4 +118,42 @@ void DepthSortShapes::run(const SceneContextPointer& sceneContext, const RenderC
 
 void DepthSortItems::run(const SceneContextPointer& sceneContext, const RenderContextPointer& renderContext, const ItemBounds& inItems, ItemBounds& outItems) {
     depthSortItems(sceneContext, renderContext, _frontToBack, inItems, outItems);
+}
+
+
+void PrioritySortItems::run(const SceneContextPointer& sceneContext, const RenderContextPointer& renderContext, const ItemBounds& inItems, ItemBounds& outItems) {
+    PROFILE_RANGE(render, "prioritySort");
+    RenderArgs* args = renderContext->args;
+    assert(args);
+    assert(args->hasViewFrustum());
+
+    // allocate
+    outItems.clear();
+    outItems.reserve(inItems.size());
+
+    // build priority queue
+    class ItemPriority {
+    public:
+        ItemPriority(const ItemID& i, const AABox& b, float p) : id(i), bound(b), priority(p) {}
+        bool operator<(const ItemPriority& other) const { return priority < other.priority; }
+        ItemID id;
+        AABox bound;
+        float priority;
+    };
+    std::priority_queue<ItemPriority> sortedItems;
+
+    glm::vec3 eye = args->getViewFrustum().getPosition();
+    const float PROXIMITY_BIAS_SQUARED = 150.0f * 150.0f;
+    for (const auto& itemDetails : inItems) {
+        float distance2 = glm::distance2(eye, itemDetails.bound.calcCenter()) + 0.001f; // add 1mm to avoid divide by zero
+        float priority = expf(- distance2 / PROXIMITY_BIAS_SQUARED) * glm::length2(itemDetails.bound.getScale()) / distance2;
+        sortedItems.emplace(ItemPriority(itemDetails.id, itemDetails.bound, priority));
+    }
+
+    // transfer queue to list
+    while (!sortedItems.empty()) {
+        const ItemPriority& item = sortedItems.top();
+        outItems.emplace_back(ItemBound(item.id, item.bound));
+        sortedItems.pop();
+    }
 }
