@@ -14,6 +14,7 @@
 
 #include <assert.h>
 #include <ViewFrustum.h>
+#include <Profile.h>
 
 using namespace render;
 
@@ -41,28 +42,26 @@ struct BackToFrontSort {
 };
 
 void render::depthSortItems(const SceneContextPointer& sceneContext, const RenderContextPointer& renderContext, bool frontToBack, const ItemBounds& inItems, ItemBounds& outItems) {
+    PROFILE_RANGE(render, "depthSort");
     assert(renderContext->args);
     assert(renderContext->args->hasViewFrustum());
 
     auto& scene = sceneContext->_scene;
     RenderArgs* args = renderContext->args;
 
-
     // Allocate and simply copy
     outItems.clear();
     outItems.reserve(inItems.size());
-
 
     // Make a local dataset of the center distance and closest point distance
     std::vector<ItemBoundSort> itemBoundSorts;
     itemBoundSorts.reserve(outItems.size());
 
-    for (auto itemDetails : inItems) {
-        auto item = scene->getItem(itemDetails.id);
-        auto bound = itemDetails.bound; // item.getBound();
-        float distance = args->getViewFrustum().distanceToCamera(bound.calcCenter());
-
-        itemBoundSorts.emplace_back(ItemBoundSort(distance, distance, distance, itemDetails.id, bound));
+    glm::vec3 eye = args->getViewFrustum().getPosition();
+    for (const auto& itemDetails : inItems) {
+        // use "distance squared" for speed: sorts the same as 'distance' but avoids a sqrt
+        float distance2 = glm::distance2(eye, itemDetails.bound.calcCenter());
+        itemBoundSorts.emplace_back(ItemBoundSort(distance2, distance2, distance2, itemDetails.id, itemDetails.bound));
     }
 
     // sort against Z
