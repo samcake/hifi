@@ -142,14 +142,28 @@ void PrioritySortItems::run(const SceneContextPointer& sceneContext, const Rende
     };
     std::priority_queue<ItemPriority> sortedItems;
 
-    // build priority queue
+    // assemble priority queue
     glm::vec3 eye = args->getViewFrustum().getPosition();
-    const float PROXIMITY_BIAS_SQUARED = 150.0f * 150.0f;
-    for (const auto& itemDetails : inItems) {
-        float distance2 = glm::distance2(eye, itemDetails.bound.calcCenter()) + 0.0001f; // add 1cm^2 avoids divide by zero
-        // the exponential envelope prefers nearby objects over distant ones with same apparent size
-        float priority = expf(- distance2 / PROXIMITY_BIAS_SQUARED) * glm::length2(itemDetails.bound.getScale()) / distance2;
-        sortedItems.emplace(ItemPriority(itemDetails.id, itemDetails.bound, priority));
+    if (_strategy == (int)PrioritySortConfig::INV_DISTANCE) {
+        for (const auto& itemDetails : inItems) {
+            float distance = glm::distance(eye, itemDetails.bound.calcCenter()) - 0.5f * glm::length(itemDetails.bound.getScale());
+            const float MIN_DISTANCE = 0.01f;
+            sortedItems.emplace(ItemPriority(itemDetails.id, itemDetails.bound, 1.0f / glm::max(distance, MIN_DISTANCE)));
+        }
+    } else if (_strategy == (int)PrioritySortConfig::SOLID_ANGLE) {
+        for (const auto& itemDetails : inItems) {
+            float distance2 = glm::distance2(eye, itemDetails.bound.calcCenter()) + 0.0001f; // add 1cm^2 avoids divide by zero
+            float priority = glm::length2(itemDetails.bound.getScale()) / distance2;
+            sortedItems.emplace(ItemPriority(itemDetails.id, itemDetails.bound, priority));
+        }
+    } else { // WEIGHTED_SOLID_ANGLE
+        const float PROXIMITY_BIAS_SQUARED = 150.0f * 150.0f;
+        for (const auto& itemDetails : inItems) {
+            float distance2 = glm::distance2(eye, itemDetails.bound.calcCenter()) + 0.0001f; // add 1cm^2 avoids divide by zero
+            // the exponential envelope prefers nearby objects over distant ones (with same apparent size)
+            float priority = expf(- distance2 / PROXIMITY_BIAS_SQUARED) * glm::length2(itemDetails.bound.getScale()) / distance2;
+            sortedItems.emplace(ItemPriority(itemDetails.id, itemDetails.bound, priority));
+        }
     }
 
     // transfer queue to list

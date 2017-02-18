@@ -43,12 +43,34 @@ namespace render {
         void run(const SceneContextPointer& sceneContext, const RenderContextPointer& renderContext, const ItemBounds& inItems, ItemBounds& outItems);
     };
 
+	class PrioritySortConfig : public Job::Config {
+	    Q_OBJECT
+	    Q_PROPERTY(int sortStrategy READ getSortStrategy() WRITE setSortStrategy NOTIFY strategyChanged)
+	public:
+		enum SortStrategy {
+			INV_DISTANCE,
+			SOLID_ANGLE,
+			WEIGHTED_SOLID_ANGLE
+		};
+	    int getSortStrategy() const { return (int)strategy; }
+        void setSortStrategy(int s) { strategy = s; }
+		int strategy { (int)INV_DISTANCE };
+	signals:
+	    void strategyChanged();
+	};
+
     class PrioritySortItems {
     public:
-        using JobModel = Job::ModelIO<PrioritySortItems, ItemBounds, ItemBounds>;
+		using Config = PrioritySortConfig;
+        using JobModel = Job::ModelIO<PrioritySortItems, ItemBounds, ItemBounds, Config>;
+        //using JobModel = Job::ModelIO<PrioritySortItems, ItemBounds, ItemBounds>;
 
         PrioritySortItems() {}
+
+		void configure(const Config& config) { _strategy = config.strategy; }
         void run(const SceneContextPointer& sceneContext, const RenderContextPointer& renderContext, const ItemBounds& inItems, ItemBounds& outItems);
+	protected:
+		int _strategy;
     };
 }
 
