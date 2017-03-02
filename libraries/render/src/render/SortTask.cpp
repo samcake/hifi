@@ -173,3 +173,58 @@ void PrioritySortItems::run(const SceneContextPointer& sceneContext, const Rende
         sortedItems.pop();
     }
 }
+
+void TruncateItems::configure(const Config& config) {
+    _numToKeep = config.numToKeep;
+    const float MIN_BOUNDARY_WIDTH_FRACTION = 0.0f;
+    const float MAX_BOUNDARY_WIDTH_FRACTION = 0.5f;
+    float fraction = glm::clamp(config.boundaryWidthFraction, MIN_BOUNDARY_WIDTH_FRACTION, MAX_BOUNDARY_WIDTH_FRACTION);
+    _boundaryWidth = (int)(fraction * (float) _numToKeep);
+}
+
+void TruncateItems::run(const SceneContextPointer& sceneContext, const RenderContextPointer& renderContext, const ItemBounds& inItems, ItemBounds& outItems) {
+    int32_t numItems = (int32_t)inItems.size();
+
+    if (_numToKeep > -1 && _numToKeep < numItems - _boundaryWidth) {
+        ItemBounds::const_iterator first = inItems.begin();
+        ItemBounds::const_iterator last = first + _numToKeep;
+        outItems.assign(first, last);
+
+        if (_boundaryWidth > 0) {
+            // scan far side of boundary
+            ItemIDSet::const_iterator notFound = _boundaryItems.end();
+            _salvageIndices.clear();
+            for (int32_t i = 0; i < _boundaryWidth; ++i) {
+                if (_boundaryItems.find(inItems[_numToKeep + i].id) != notFound) {
+                    // this item was visible last frame
+                    // we'd like to keep it visible this frame if possible
+                    _salvageIndices.push_back(_numToKeep + i);
+                }
+            }
+            if (!_salvageIndices.empty()) {
+                // scan near side of boundary
+                int32_t j = 0;
+                for (int32_t i = 0; i < _boundaryWidth / 2 && j < (int32_t)_salvageIndices.size(); ++i) {
+                    int32_t k = _numToKeep - (i + 1);
+                    if (_boundaryItems.find(outItems[k].id) == notFound) {
+                        // this item was not visible at the boundary at last frame
+                        // so we replace it with one we want to remain visible
+                        outItems[k] = inItems[_salvageIndices[j]];
+                        ++j;
+                    }
+                }
+                for (; j < (int32_t)_salvageIndices.size(); ++j) {
+                    // keep this object even though we're over budget
+                    outItems.push_back(inItems[_salvageIndices[j]]);
+                }
+            }
+            // remember the ids of items near the boundary that we will keep
+            _boundaryItems.clear();
+            for (int32_t i = _numToKeep - _boundaryWidth; i < (int32_t)outItems.size(); ++i) {
+                _boundaryItems.insert(outItems[i].id);
+            }
+        }
+    } else {
+        outItems = inItems;
+    }
+}

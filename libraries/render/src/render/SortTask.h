@@ -45,7 +45,7 @@ namespace render {
 
 	class PrioritySortConfig : public Job::Config {
 	    Q_OBJECT
-	    Q_PROPERTY(int sortStrategy READ getSortStrategy() WRITE setSortStrategy NOTIFY strategyChanged)
+	    Q_PROPERTY(int sortStrategy READ getSortStrategy WRITE setSortStrategy)
 	public:
 		enum SortStrategy {
 			INV_DISTANCE,
@@ -55,15 +55,12 @@ namespace render {
 	    int getSortStrategy() const { return (int)strategy; }
         void setSortStrategy(int s) { strategy = s; }
 		int strategy { (int)INV_DISTANCE };
-	signals:
-	    void strategyChanged();
 	};
 
     class PrioritySortItems {
     public:
 		using Config = PrioritySortConfig;
         using JobModel = Job::ModelIO<PrioritySortItems, ItemBounds, ItemBounds, Config>;
-        //using JobModel = Job::ModelIO<PrioritySortItems, ItemBounds, ItemBounds>;
 
         PrioritySortItems() {}
 
@@ -71,6 +68,32 @@ namespace render {
         void run(const SceneContextPointer& sceneContext, const RenderContextPointer& renderContext, const ItemBounds& inItems, ItemBounds& outItems);
 	protected:
 		int _strategy;
+    };
+
+	class TruncateConfig : public Job::Config {
+	    Q_OBJECT
+	    Q_PROPERTY(float numToKeep READ getNumToKeep WRITE setNumToKeep)
+	public:
+	    float getNumToKeep() const { return numToKeep; }
+        void setNumToKeep(int keep) { numToKeep = keep; }
+        int numToKeep { -1 };
+        float boundaryWidthFraction { 0.1f };
+	signals:
+	    void configChanged();
+	};
+
+    class TruncateItems {
+    public:
+		using Config = TruncateConfig;
+        using JobModel = Job::ModelIO<TruncateItems, ItemBounds, ItemBounds, Config>;
+
+		void configure(const Config& config);
+        void run(const SceneContextPointer& sceneContext, const RenderContextPointer& renderContext, const ItemBounds& inItems, ItemBounds& outItems);
+	protected:
+        ItemIDSet _boundaryItems;
+        std::vector<int> _salvageIndices;
+		int _numToKeep { -1 };
+        int _boundaryWidth { 0 };
     };
 }
 
