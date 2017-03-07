@@ -33,13 +33,13 @@ namespace render {
         Q_PROPERTY(int numItems READ getNumItems)
         Q_PROPERTY(bool freezeFrustum MEMBER freezeFrustum WRITE setFreezeFrustum)
         Q_PROPERTY(float LODAngle MEMBER lodAngle NOTIFY dirty)
-    
+
     public:
         int numItems{ 0 };
         int getNumItems() { return numItems; }
 
         bool freezeFrustum{ false };
-    
+
         float lodAngle{ 2.0 };
     public slots:
         void setFreezeFrustum(bool enabled) { freezeFrustum = enabled; emit dirty(); }
@@ -109,29 +109,6 @@ namespace render {
         void run(const SceneContextPointer& sceneContext, const RenderContextPointer& renderContext, const ItemSpatialTree::ItemSelection& inSelection, ItemBounds& outItems);
     };
 
-    class FilterItemSelectionConfig : public Job::Config {
-        Q_OBJECT
-            Q_PROPERTY(int numItems READ getNumItems)
-    public:
-        int numItems{ 0 };
-        int getNumItems() { return numItems; }
-    };
-
-    class FilterItemSelection {
-    public:
-        using Config = FilterItemSelectionConfig;
-        using JobModel = Job::ModelIO<FilterItemSelection, ItemBounds, ItemBounds, Config>;
-
-        FilterItemSelection() {}
-        FilterItemSelection(const ItemFilter& filter) :
-            _filter(filter) {}
-
-        ItemFilter _filter{ ItemFilter::Builder::opaqueShape().withoutLayered() };
-
-        void configure(const Config& config);
-        void run(const SceneContextPointer& sceneContext, const RenderContextPointer& renderContext, const ItemBounds& inItems, ItemBounds& outItems);
-    };
-
     class MultiFilterItemConfig : public Job::Config {
         Q_OBJECT
             Q_PROPERTY(int numItems READ getNumItems)
@@ -157,7 +134,7 @@ namespace render {
         void configure(const Config& config) {}
         void run(const SceneContextPointer& sceneContext, const RenderContextPointer& renderContext, const ItemBounds& inItems, ItemBoundsArray& outItems) {
             auto& scene = sceneContext->_scene;
-            
+
             // Clear previous values
             for (size_t i = 0; i < NUM_FILTERS; i++) {
                 outItems[i].template edit<ItemBounds>().clear();

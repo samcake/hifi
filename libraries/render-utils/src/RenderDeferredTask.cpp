@@ -275,8 +275,30 @@ void DrawStateSortDeferred::run(const SceneContextPointer& sceneContext, const R
     const auto& inItems = inputs.get0();
     const auto& lightingModel = inputs.get1();
 
-    RenderArgs* args = renderContext->args;
+    { // TODO: move this into a different job, and let the _budget state arrive via config (or something)
+        // compute _targetBudget
+        const float DONT_DIVIDE_BY_ZERO = 0.001f;
+        float lastTimeSpent = (float)config->getCPURunTime() + DONT_DIVIDE_BY_ZERO; // msec
+        const float MIN_IDEAL_BUDGET = 10.0f;
+        float bestGuessBudget = MIN_IDEAL_BUDGET + (float)_numDrawn * _maxTimeBudget / (float)lastTimeSpent;
+        const float BLEND = 0.08f;
+        _targetBudget = (1.0f - BLEND) * _targetBudget + BLEND * bestGuessBudget; // running avg of bestGuess
 
+        // adjust real budget if too far away
+        const float CLOSE_ENOUGH = 0.12f;
+        if (fabsf(_budget - _targetBudget) > CLOSE_ENOUGH * _targetBudget) {
+            // move halfway toward ideal
+            _budget += 0.5f * (_targetBudget - _budget);
+        }
+
+        // clamp the number we'll actually draw
+        _numDrawn = glm::min((int)(_budget), (int)inItems.size());
+        if (_maxDrawn != -1) {
+            _numDrawn = glm::min(_numDrawn, _maxDrawn);
+        }
+    }
+
+    RenderArgs* args = renderContext->args;
     gpu::doInBatch(args->_context, [&](gpu::Batch& batch) {
         args->_batch = &batch;
 
@@ -296,9 +318,9 @@ void DrawStateSortDeferred::run(const SceneContextPointer& sceneContext, const R
         batch.setUniformBuffer(render::ShapePipeline::Slot::LIGHTING_MODEL, lightingModel->getParametersBuffer());
 
         if (_stateSort) {
-            renderStateSortShapes(sceneContext, renderContext, _shapePlumber, inItems, _maxDrawn);
+            renderStateSortShapes(sceneContext, renderContext, _shapePlumber, inItems, _numDrawn);
         } else {
-            renderShapes(sceneContext, renderContext, _shapePlumber, inItems, _maxDrawn);
+            renderShapes(sceneContext, renderContext, _shapePlumber, inItems, _numDrawn);
         }
         args->_batch = nullptr;
     });

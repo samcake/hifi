@@ -85,6 +85,7 @@ class DrawStateSortConfig : public render::Job::Config {
     Q_OBJECT
         Q_PROPERTY(int numDrawn READ getNumDrawn NOTIFY numDrawnChanged)
         Q_PROPERTY(int maxDrawn MEMBER maxDrawn NOTIFY dirty)
+        Q_PROPERTY(float maxTimeBudget MEMBER maxTimeBudget NOTIFY dirty)
         Q_PROPERTY(bool stateSort MEMBER stateSort NOTIFY dirty)
 public:
 
@@ -92,6 +93,7 @@ public:
     void setNumDrawn(int num) { numDrawn = num; emit numDrawnChanged(); }
 
     int maxDrawn{ -1 };
+    float maxTimeBudget { 8.0f }; // 8ms maximum
     bool stateSort{ true };
 
 signals:
@@ -111,12 +113,16 @@ public:
 
     DrawStateSortDeferred(render::ShapePlumberPointer shapePlumber) : _shapePlumber{ shapePlumber } {}
 
-    void configure(const Config& config) { _maxDrawn = config.maxDrawn; _stateSort = config.stateSort; }
+    void configure(const Config& config) { _maxDrawn = config.maxDrawn; _maxTimeBudget = config.maxTimeBudget; _stateSort = config.stateSort; }
     void run(const render::SceneContextPointer& sceneContext, const render::RenderContextPointer& renderContext, const Inputs& inputs);
 
 protected:
     render::ShapePlumberPointer _shapePlumber;
     int _maxDrawn; // initialized by Config
+    int _numDrawn { 0 };
+    float _targetBudget { 0.0f };
+    float _budget { 0.0f };
+    float _maxTimeBudget; //ms time budget
     bool _stateSort;
 };
 
