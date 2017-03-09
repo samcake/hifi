@@ -148,13 +148,22 @@ MyAvatar::MyAvatar(RigPointer rig) :
     auto player = DependencyManager::get<Deck>();
     auto recorder = DependencyManager::get<Recorder>();
     connect(player.data(), &Deck::playbackStateChanged, [=] {
-        if (player->isPlaying()) {
+        bool isPlaying = player->isPlaying();
+        if (isPlaying) {
             auto recordingInterface = DependencyManager::get<RecordingScriptingInterface>();
             if (recordingInterface->getPlayFromCurrentLocation()) {
                 setRecordingBasis();
             }
         } else {
             clearRecordingBasis();
+            useFullAvatarURL(_fullAvatarURLFromPreferences, _fullAvatarModelName);
+        }
+
+        auto audioIO = DependencyManager::get<AudioClient>();
+        audioIO->setIsPlayingBackRecording(isPlaying);
+
+        if (_rig) {
+            _rig->setEnableAnimations(!isPlaying);
         }
     });
 
@@ -180,8 +189,8 @@ MyAvatar::MyAvatar(RigPointer rig) :
 
         if (recordingInterface->getPlayerUseSkeletonModel() && dummyAvatar.getSkeletonModelURL().isValid() &&
             (dummyAvatar.getSkeletonModelURL() != getSkeletonModelURL())) {
-            // FIXME
-            //myAvatar->useFullAvatarURL()
+
+            setSkeletonModelURL(dummyAvatar.getSkeletonModelURL());
         }
 
         if (recordingInterface->getPlayerUseDisplayName() && dummyAvatar.getDisplayName() != getDisplayName()) {
@@ -203,6 +212,11 @@ MyAvatar::MyAvatar(RigPointer rig) :
             }
             // head orientation
             _headData->setLookAtPosition(headData->getLookAtPosition());
+        }
+
+        auto jointData = dummyAvatar.getRawJointData();
+        if (jointData.length() > 0 && _rig) {
+            _rig->copyJointsFromJointData(jointData);
         }
     });
 
@@ -227,8 +241,7 @@ void MyAvatar::simulateAttachments(float deltaTime) {
     // don't update attachments here, do it in harvestResultsFromPhysicsSimulation()
 }
 
-QByteArray MyAvatar::toByteArray(AvatarDataDetail dataDetail, quint64 lastSentTime, const QVector<JointData>& lastSentJointData,
-                        bool distanceAdjust, glm::vec3 viewerPosition, QVector<JointData>* sentJointDataOut) {
+QByteArray MyAvatar::toByteArrayStateful(AvatarDataDetail dataDetail) {
     CameraMode mode = qApp->getCamera()->getMode();
     _globalPosition = getPosition();
     _globalBoundingBoxDimensions.x = _characterController.getCapsuleRadius();
@@ -239,12 +252,17 @@ QByteArray MyAvatar::toByteArray(AvatarDataDetail dataDetail, quint64 lastSentTi
         // fake the avatar position that is sent up to the AvatarMixer
         glm::vec3 oldPosition = getPosition();
         setPosition(getSkeletonPosition());
-        QByteArray array = AvatarData::toByteArray(dataDetail, lastSentTime, lastSentJointData, distanceAdjust, viewerPosition, sentJointDataOut);
+        QByteArray array = AvatarData::toByteArrayStateful(dataDetail);
         // copy the correct position back
         setPosition(oldPosition);
         return array;
     }
-    return AvatarData::toByteArray(dataDetail, lastSentTime, lastSentJointData, distanceAdjust, viewerPosition, sentJointDataOut);
+    return AvatarData::toByteArrayStateful(dataDetail);
+}
+
+void MyAvatar::resetSensorsAndBody() {
+    qApp->getActiveDisplayPlugin()->resetSensors();
+    reset(true, false, true);
 }
 
 void MyAvatar::centerBody() {
@@ -472,7 +490,9 @@ void MyAvatar::simulate(float deltaTime) {
     {
         PerformanceTimer perfTimer("joints");
         // copy out the skeleton joints from the model
-        _rig->copyJointsIntoJointData(_jointData);
+        if (_rigEnabled) {
+            _rig->copyJointsIntoJointData(_jointData);
+        }
     }
 
     {
@@ -808,7 +828,7 @@ void MyAvatar::saveData() {
     auto hmdInterface = DependencyManager::get<HMDScriptingInterface>();
     _avatarEntitiesLock.withReadLock([&] {
         for (auto entityID : _avatarEntityData.keys()) {
-            if (hmdInterface->getCurrentTableUIID() == entityID) {
+            if (hmdInterface->getCurrentTabletFrameID() == entityID) {
                 // don't persist the tablet between domains / sessions
                 continue;
             }
@@ -2395,6 +2415,10 @@ glm::mat4 MyAvatar::computeCameraRelativeHandControllerMatrix(const glm::mat4& c
 }
 
 glm::quat MyAvatar::getAbsoluteJointRotationInObjectFrame(int index) const {
+    if (index < 0) {
+        index += numeric_limits<unsigned short>::max() + 1; // 65536
+    }
+
     switch (index) {
         case CONTROLLER_LEFTHAND_INDEX: {
             return getLeftHandControllerPoseInAvatarFrame().getRotation();
@@ -2428,6 +2452,10 @@ glm::quat MyAvatar::getAbsoluteJointRotationInObjectFrame(int index) const {
 }
 
 glm::vec3 MyAvatar::getAbsoluteJointTranslationInObjectFrame(int index) const {
+    if (index < 0) {
+        index += numeric_limits<unsigned short>::max() + 1; // 65536
+    }
+
     switch (index) {
         case CONTROLLER_LEFTHAND_INDEX: {
             return getLeftHandControllerPoseInAvatarFrame().getTranslation();
@@ -2458,6 +2486,45 @@ glm::vec3 MyAvatar::getAbsoluteJointTranslationInObjectFrame(int index) const {
             return Avatar::getAbsoluteJointTranslationInObjectFrame(index);
         }
     }
+}
+
+bool MyAvatar::pinJoint(int index, const glm::vec3& position, const glm::quat& orientation) {
+    auto hipsIndex = getJointIndex("Hips");
+    if (index != hipsIndex) {
+        qWarning() << "Pinning is only supported for the hips joint at the moment.";
+        return false;
+    }
+
+    setPosition(position);
+    setOrientation(orientation);
+
+    _rig->setMaxHipsOffsetLength(0.05f);
+
+    auto it = std::find(_pinnedJoints.begin(), _pinnedJoints.end(), index);
+    if (it == _pinnedJoints.end()) {
+        _pinnedJoints.push_back(index);
+    }
+
+    return true;
+}
+
+bool MyAvatar::clearPinOnJoint(int index) {
+    auto it = std::find(_pinnedJoints.begin(), _pinnedJoints.end(), index);
+    if (it != _pinnedJoints.end()) {
+        _pinnedJoints.erase(it);
+
+        auto hipsIndex = getJointIndex("Hips");
+        if (index == hipsIndex) {
+            _rig->setMaxHipsOffsetLength(FLT_MAX);
+        }
+
+        return true;
+    }
+    return false;
+}
+
+float MyAvatar::getIKErrorOnLastSolve() const {
+    return _rig->getIKErrorOnLastSolve();
 }
 
 // thread-safe

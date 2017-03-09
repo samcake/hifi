@@ -170,6 +170,7 @@
 #include "ui/StandAloneJSConsole.h"
 #include "ui/Stats.h"
 #include "ui/UpdateDialog.h"
+#include "ui/overlays/Overlays.h"
 #include "Util.h"
 #include "InterfaceParentFinder.h"
 
@@ -528,7 +529,7 @@ bool setupEssentials(int& argc, char** argv) {
 // to take care of highlighting keyboard focused items, rather than
 // continuing to overburden Application.cpp
 std::shared_ptr<Cube3DOverlay> _keyboardFocusHighlight{ nullptr };
-int _keyboardFocusHighlightID{ -1 };
+OverlayID _keyboardFocusHighlightID{ UNKNOWN_OVERLAY_ID };
 
 
 // FIXME hack access to the internal share context for the Chromium helper
@@ -545,6 +546,10 @@ Setting::Handle<int> sessionRunTime{ "sessionRunTime", 0 };
 
 const float DEFAULT_HMD_TABLET_SCALE_PERCENT = 100.0f;
 const float DEFAULT_DESKTOP_TABLET_SCALE_PERCENT = 75.0f;
+const bool DEFAULT_DESKTOP_TABLET_BECOMES_TOOLBAR = true;
+const bool DEFAULT_HMD_TABLET_BECOMES_TOOLBAR = false;
+const bool DEFAULT_TABLET_VISIBLE_TO_OTHERS = false;
+const bool DEFAULT_PREFER_AVATAR_FINGER_OVER_STYLUS = false;
 
 Application::Application(int& argc, char** argv, QElapsedTimer& startupTimer, bool runServer, QString runServerPathOption) :
     QApplication(argc, argv),
@@ -565,6 +570,10 @@ Application::Application(int& argc, char** argv, QElapsedTimer& startupTimer, bo
     _fieldOfView("fieldOfView", DEFAULT_FIELD_OF_VIEW_DEGREES),
     _hmdTabletScale("hmdTabletScale", DEFAULT_HMD_TABLET_SCALE_PERCENT),
     _desktopTabletScale("desktopTabletScale", DEFAULT_DESKTOP_TABLET_SCALE_PERCENT),
+    _desktopTabletBecomesToolbarSetting("desktopTabletBecomesToolbar", DEFAULT_DESKTOP_TABLET_BECOMES_TOOLBAR),
+    _hmdTabletBecomesToolbarSetting("hmdTabletBecomesToolbar", DEFAULT_HMD_TABLET_BECOMES_TOOLBAR),
+    _tabletVisibleToOthersSetting("tabletVisibleToOthers", DEFAULT_TABLET_VISIBLE_TO_OTHERS),
+    _preferAvatarFingerOverStylusSetting("preferAvatarFingerOverStylus", DEFAULT_PREFER_AVATAR_FINGER_OVER_STYLUS),
     _constrainToolbarPosition("toolbar/constrainToolbarToCenterX", true),
     _scaleMirror(1.0f),
     _rotateMirror(0.0f),
@@ -776,6 +785,11 @@ Application::Application(int& argc, char** argv, QElapsedTimer& startupTimer, bo
     connect(&domainHandler, SIGNAL(connectedToDomain(const QString&)), SLOT(updateWindowTitle()));
     connect(&domainHandler, SIGNAL(disconnectedFromDomain()), SLOT(updateWindowTitle()));
     connect(&domainHandler, SIGNAL(disconnectedFromDomain()), SLOT(clearDomainOctreeDetails()));
+    connect(&domainHandler, &DomainHandler::disconnectedFromDomain, this, [this]() {
+        getOverlays().deleteOverlay(getTabletScreenID());
+        getOverlays().deleteOverlay(getTabletHomeButtonID());
+        getOverlays().deleteOverlay(getTabletFrameID());
+    });
     connect(&domainHandler, &DomainHandler::domainConnectionRefused, this, &Application::domainConnectionRefused);
 
     // We could clear ATP assets only when changing domains, but it's possible that the domain you are connected
@@ -831,6 +845,7 @@ Application::Application(int& argc, char** argv, QElapsedTimer& startupTimer, bo
     connect(this, &QCoreApplication::aboutToQuit, addressManager.data(), &AddressManager::storeCurrentAddress);
 
     connect(this, &Application::activeDisplayPluginChanged, this, &Application::updateThreadPoolCount);
+    connect(this, &Application::activeDisplayPluginChanged, this, &Application::updateSystemTabletMode);
 
     // Save avatar location immediately after a teleport.
     connect(myAvatar.get(), &MyAvatar::positionGoneTo,
@@ -1210,6 +1225,8 @@ Application::Application(int& argc, char** argv, QElapsedTimer& startupTimer, bo
         if (entity && entity->wantsKeyboardFocus()) {
             setKeyboardFocusOverlay(UNKNOWN_OVERLAY_ID);
             setKeyboardFocusEntity(entityItemID);
+        } else {
+            setKeyboardFocusEntity(UNKNOWN_ENTITY_ID);
         }
     });
 
@@ -1227,12 +1244,12 @@ Application::Application(int& argc, char** argv, QElapsedTimer& startupTimer, bo
     // Keyboard focus handling for Web overlays.
     auto overlays = &(qApp->getOverlays());
 
-    connect(overlays, &Overlays::mousePressOnOverlay, [=](unsigned int overlayID, const PointerEvent& event) {
+    connect(overlays, &Overlays::mousePressOnOverlay, [=](OverlayID overlayID, const PointerEvent& event) {
         setKeyboardFocusEntity(UNKNOWN_ENTITY_ID);
         setKeyboardFocusOverlay(overlayID);
     });
 
-    connect(overlays, &Overlays::overlayDeleted, [=](unsigned int overlayID) {
+    connect(overlays, &Overlays::overlayDeleted, [=](OverlayID overlayID) {
         if (overlayID == _keyboardFocusedOverlay.get()) {
             setKeyboardFocusOverlay(UNKNOWN_OVERLAY_ID);
         }
@@ -1537,6 +1554,8 @@ Application::Application(int& argc, char** argv, QElapsedTimer& startupTimer, bo
 
     connect(this, &QCoreApplication::aboutToQuit, this, &Application::addAssetToWorldMessageClose);
     connect(&domainHandler, &DomainHandler::hostnameChanged, this, &Application::addAssetToWorldMessageClose);
+
+    updateSystemTabletMode();
 }
 
 void Application::domainConnectionRefused(const QString& reasonMessage, int reasonCodeInt, const QString& extraInfo) {
@@ -1682,9 +1701,9 @@ void Application::cleanupBeforeQuit() {
     _applicationStateDevice.reset();
 
     {
-        if (_keyboardFocusHighlightID > 0) {
+        if (_keyboardFocusHighlightID != UNKNOWN_OVERLAY_ID) {
             getOverlays().deleteOverlay(_keyboardFocusHighlightID);
-            _keyboardFocusHighlightID = -1;
+            _keyboardFocusHighlightID = UNKNOWN_OVERLAY_ID;
         }
         _keyboardFocusHighlight = nullptr;
     }
@@ -2330,6 +2349,25 @@ void Application::setDesktopTabletScale(float desktopTabletScale) {
     _desktopTabletScale.set(desktopTabletScale);
 }
 
+void Application::setDesktopTabletBecomesToolbarSetting(bool value) {
+    _desktopTabletBecomesToolbarSetting.set(value);
+    updateSystemTabletMode();
+}
+
+void Application::setHmdTabletBecomesToolbarSetting(bool value) {
+    _hmdTabletBecomesToolbarSetting.set(value);
+    updateSystemTabletMode();
+}
+
+void Application::setTabletVisibleToOthersSetting(bool value) {
+    _tabletVisibleToOthersSetting.set(value);
+    updateSystemTabletMode();
+}
+
+void Application::setPreferAvatarFingerOverStylus(bool value) {
+    _preferAvatarFingerOverStylusSetting.set(value);
+}
+
 void Application::setSettingConstrainToolbarPosition(bool setting) {
     _constrainToolbarPosition.set(setting);
     DependencyManager::get<OffscreenUi>()->setConstrainToolbarToCenterX(setting);
@@ -2886,10 +2924,12 @@ void Application::keyPressEvent(QKeyEvent* event) {
                 }
                 break;
             case Qt::Key_P: {
-                bool isFirstPersonChecked = Menu::getInstance()->isOptionChecked(MenuOption::FirstPerson);
-                Menu::getInstance()->setIsOptionChecked(MenuOption::FirstPerson, !isFirstPersonChecked);
-                Menu::getInstance()->setIsOptionChecked(MenuOption::ThirdPerson, isFirstPersonChecked);
-                cameraMenuChanged();
+                if (!(isShifted || isMeta || isOption)) {
+                    bool isFirstPersonChecked = Menu::getInstance()->isOptionChecked(MenuOption::FirstPerson);
+                    Menu::getInstance()->setIsOptionChecked(MenuOption::FirstPerson, !isFirstPersonChecked);
+                    Menu::getInstance()->setIsOptionChecked(MenuOption::ThirdPerson, isFirstPersonChecked);
+                    cameraMenuChanged();
+                }
                 break;
             }
 
@@ -3071,10 +3111,11 @@ void Application::mouseMoveEvent(QMouseEvent* event) {
         buttons, event->modifiers());
 
     if (compositor.getReticleVisible() || !isHMDMode() || !compositor.getReticleOverDesktop() ||
-        getOverlays().getOverlayAtPoint(glm::vec2(transformedPos.x(), transformedPos.y()))) {
+        getOverlays().getOverlayAtPoint(glm::vec2(transformedPos.x(), transformedPos.y())) != UNKNOWN_OVERLAY_ID) {
         getOverlays().mouseMoveEvent(&mappedEvent);
         getEntities()->mouseMoveEvent(&mappedEvent);
     }
+
     _controllerScriptingInterface->emitMouseMoveEvent(&mappedEvent); // send events to any registered scripts
 
     // if one of our scripts have asked to capture this event, then stop processing it
@@ -3107,7 +3148,6 @@ void Application::mousePressEvent(QMouseEvent* event) {
 
     if (!_aboutToQuit) {
         getOverlays().mousePressEvent(&mappedEvent);
-
         if (!_controllerScriptingInterface->areEntityClicksCaptured()) {
             getEntities()->mousePressEvent(&mappedEvent);
         }
@@ -3411,7 +3451,7 @@ void Application::idle(float nsecsElapsed) {
 #ifdef Q_OS_WIN
     static std::once_flag once;
     std::call_once(once, [] {
-        initCpuUsage(); 
+        initCpuUsage();
     });
 
     vec3 kernelUserAndSystem;
@@ -4090,7 +4130,7 @@ void Application::rotationModeChanged() const {
 
 void Application::setKeyboardFocusHighlight(const glm::vec3& position, const glm::quat& rotation, const glm::vec3& dimensions) {
     // Create focus
-    if (_keyboardFocusHighlightID < 0 || !getOverlays().isAddedOverlay(_keyboardFocusHighlightID)) {
+    if (_keyboardFocusHighlightID == UNKNOWN_OVERLAY_ID || !getOverlays().isAddedOverlay(_keyboardFocusHighlightID)) {
         _keyboardFocusHighlight = std::make_shared<Cube3DOverlay>();
         _keyboardFocusHighlight->setAlpha(1.0f);
         _keyboardFocusHighlight->setBorderSize(1.0f);
@@ -4152,11 +4192,11 @@ void Application::setKeyboardFocusEntity(EntityItemID entityItemID) {
     }
 }
 
-unsigned int Application::getKeyboardFocusOverlay() {
+OverlayID Application::getKeyboardFocusOverlay() {
     return _keyboardFocusedOverlay.get();
 }
 
-void Application::setKeyboardFocusOverlay(unsigned int overlayID) {
+void Application::setKeyboardFocusOverlay(OverlayID overlayID) {
     if (overlayID != _keyboardFocusedOverlay.get()) {
         _keyboardFocusedOverlay.set(overlayID);
 
@@ -4195,12 +4235,6 @@ void Application::updateDialogs(float deltaTime) const {
     bool showWarnings = Menu::getInstance()->isOptionChecked(MenuOption::PipelineWarnings);
     PerformanceWarning warn(showWarnings, "Application::updateDialogs()");
     auto dialogsManager = DependencyManager::get<DialogsManager>();
-
-    // Update bandwidth dialog, if any
-    BandwidthDialog* bandwidthDialog = dialogsManager->getBandwidthDialog();
-    if (bandwidthDialog) {
-        bandwidthDialog->update();
-    }
 
     QPointer<OctreeStatsDialog> octreeStatsDialog = dialogsManager->getOctreeStatsDialog();
     if (octreeStatsDialog) {
@@ -5152,6 +5186,7 @@ void Application::updateWindowTitle() const {
 #endif
     _window->setWindowTitle(title);
 }
+
 void Application::clearDomainOctreeDetails() {
 
     // if we're about to quit, we really don't need to do any of these things...
@@ -5181,6 +5216,12 @@ void Application::clearDomainOctreeDetails() {
     skyStage->setBackgroundMode(model::SunSkyStage::SKY_DEFAULT);
 
     _recentlyClearedDomain = true;
+
+    DependencyManager::get<AvatarManager>()->clearOtherAvatars();
+    DependencyManager::get<AnimationCache>()->clearUnusedResources();
+    DependencyManager::get<ModelCache>()->clearUnusedResources();
+    DependencyManager::get<SoundCache>()->clearUnusedResources();
+    DependencyManager::get<TextureCache>()->clearUnusedResources();
 }
 
 void Application::domainChanged(const QString& domainHostname) {
@@ -5462,6 +5503,8 @@ void Application::registerScriptEngineWithApplicationServices(ScriptEngine* scri
     scriptEngine->registerGlobalObject("Desktop", DependencyManager::get<DesktopScriptingInterface>().data());
     scriptEngine->registerGlobalObject("Toolbars", DependencyManager::get<ToolbarScriptingInterface>().data());
 
+    DependencyManager::get<TabletScriptingInterface>().data()->setToolbarScriptingInterface(DependencyManager::get<ToolbarScriptingInterface>().data());
+
     scriptEngine->registerGlobalObject("Window", DependencyManager::get<WindowScriptingInterface>().data());
     qScriptRegisterMetaType(scriptEngine, CustomPromptResultToScriptValue, CustomPromptResultFromScriptValue);
     scriptEngine->registerGetterSetter("location", LocationScriptingInterface::locationGetter,
@@ -5526,6 +5569,8 @@ void Application::registerScriptEngineWithApplicationServices(ScriptEngine* scri
 
     auto entityScriptServerLog = DependencyManager::get<EntityScriptServerLogClient>();
     scriptEngine->registerGlobalObject("EntityScriptServerLog", entityScriptServerLog.data());
+
+    qScriptRegisterMetaType(scriptEngine, OverlayIDtoScriptValue, OverlayIDfromScriptValue);
 
     // connect this script engines printedMessage signal to the global ScriptEngines these various messages
     connect(scriptEngine, &ScriptEngine::printedMessage, DependencyManager::get<ScriptEngines>().data(), &ScriptEngines::onPrintedMessage);
@@ -6679,6 +6724,12 @@ void Application::updateDisplayMode() {
     }
 
     emit activeDisplayPluginChanged();
+    
+    if (_displayPlugin->isHmd()) {
+        qCDebug(interfaceapp) << "Entering into HMD Mode";
+    } else {
+        qCDebug(interfaceapp) << "Entering into Desktop Mode";
+    }
 
     // reset the avatar, to set head and hand palms back to a reasonable default pose.
     getMyAvatar()->reset(false);
@@ -6854,7 +6905,30 @@ void Application::updateThreadPoolCount() const {
     QThreadPool::globalInstance()->setMaxThreadCount(threadPoolSize);
 }
 
+void Application::updateSystemTabletMode() {
+    if (isHMDMode()) {
+        DependencyManager::get<TabletScriptingInterface>()->setToolbarMode(getHmdTabletBecomesToolbarSetting());
+    } else {
+        DependencyManager::get<TabletScriptingInterface>()->setToolbarMode(getDesktopTabletBecomesToolbarSetting());
+    }
+}
+
 void Application::toggleMuteAudio() {
     auto menu = Menu::getInstance();
     menu->setIsOptionChecked(MenuOption::MuteAudio, !menu->isOptionChecked(MenuOption::MuteAudio));
+}
+
+OverlayID Application::getTabletScreenID() const {
+    auto HMD = DependencyManager::get<HMDScriptingInterface>();
+    return HMD->getCurrentTabletScreenID();
+}
+
+OverlayID Application::getTabletHomeButtonID() const {
+    auto HMD = DependencyManager::get<HMDScriptingInterface>();
+    return HMD->getCurrentHomeButtonID();
+}
+
+QUuid Application::getTabletFrameID() const {
+    auto HMD = DependencyManager::get<HMDScriptingInterface>();
+    return HMD->getCurrentTabletFrameID();
 }

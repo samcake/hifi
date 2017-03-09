@@ -101,7 +101,7 @@ void EntityTreeRenderer::resetEntitiesScriptEngine() {
     // Keep a ref to oldEngine until newEngine is ready so EntityScriptingInterface has something to use
     auto oldEngine = _entitiesScriptEngine;
 
-    auto newEngine = new ScriptEngine(ScriptEngine::ENTITY_CLIENT_SCRIPT, NO_SCRIPT, QString("Entities %1").arg(++_entitiesScriptEngineCount));
+    auto newEngine = new ScriptEngine(ScriptEngine::ENTITY_CLIENT_SCRIPT, NO_SCRIPT, QString("about:Entities %1").arg(++_entitiesScriptEngineCount));
     _entitiesScriptEngine = QSharedPointer<ScriptEngine>(newEngine, entitiesScriptEngineDeleter);
 
     _scriptingServices->registerScriptEngineWithApplicationServices(_entitiesScriptEngine.data());
@@ -148,7 +148,7 @@ void EntityTreeRenderer::reloadEntityScripts() {
     _entitiesScriptEngine->unloadAllEntityScripts();
     foreach(auto entity, _entitiesInScene) {
         if (!entity->getScript().isEmpty()) {
-            ScriptEngine::loadEntityScript(_entitiesScriptEngine, entity->getEntityItemID(), entity->getScript(), true);
+            _entitiesScriptEngine->loadEntityScript(entity->getEntityItemID(), entity->getScript(), true);
         }
     }
 }
@@ -944,7 +944,10 @@ void EntityTreeRenderer::entityScriptChanging(const EntityItemID& entityID, cons
 void EntityTreeRenderer::checkAndCallPreload(const EntityItemID& entityID, const bool reload, const bool unloadFirst) {
     if (_tree && !_shuttingDown) {
         EntityItemPointer entity = getTree()->findEntityByEntityItemID(entityID);
-        bool shouldLoad = entity && entity->shouldPreloadScript() && _entitiesScriptEngine;
+        if (!entity) {
+            return;
+        }
+        bool shouldLoad = entity->shouldPreloadScript() && _entitiesScriptEngine;
         QString scriptUrl = entity->getScript();
         if ((unloadFirst && shouldLoad) || scriptUrl.isEmpty()) {
             _entitiesScriptEngine->unloadEntityScript(entityID);
@@ -952,7 +955,7 @@ void EntityTreeRenderer::checkAndCallPreload(const EntityItemID& entityID, const
         }
         if (shouldLoad && !scriptUrl.isEmpty()) {
             scriptUrl = ResourceManager::normalizeURL(scriptUrl);
-            ScriptEngine::loadEntityScript(_entitiesScriptEngine, entityID, scriptUrl, reload);
+            _entitiesScriptEngine->loadEntityScript(entityID, scriptUrl, reload);
             entity->scriptHasPreloaded();
         }
     }
