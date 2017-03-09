@@ -274,7 +274,7 @@ gpu::Texture* TextureUsage::process2DTextureColorFromImage(const QImage& srcImag
                     surface.downsample(mips, numMips);
                 }
                 
-                for (uint16 level = 1; level < numMips && (mips.size() <= level); ++level) {
+                for (uint16 level = 1; (level < numMips) && (level <= mips.size()); ++level) {
                 
                     const auto& m = mips[level - 1];
                     theTexture->assignStoredMip(level, formatMip, m._pixels.byteSize(), (const Byte *) m._pixels.readBytes(0));

@@ -143,7 +143,7 @@ namespace image {
         template <> const RGB32 mix(const RGB32 p0, const RGB32 p1, const Byte alpha);
         template <> const RGB16_565 mix(const RGB16_565 p0, const RGB16_565 p1, const Byte alpha);
 
-        template <typename F> F filterQuadBox(const F quad[4]) { return p[0]; }
+        template <typename F> F filterQuadBox(const F quad[4]) { return quad[0]; }
         template <> RGB32 filterQuadBox(const RGB32 quad[4]);
         template <> RGBA32 filterQuadBox(const RGBA32 quad[4]);
         template <> SRGB32 filterQuadBox(const SRGB32 quad[4]);
@@ -287,15 +287,21 @@ namespace image {
         using Pixel = P;
         using Storage = typename P::Storage;
 
+        static uint32_t evalPadding(size_t rowSize) {
+            const int rowAlignementMinusOne = rowAlignement - 1;
+            return (uint32_t) (rowAlignementMinusOne - (rowSize + rowAlignementMinusOne) % rowAlignement);
+        }
+        
         static size_t evalRowByteSize(int numPixels) {
             size_t netSize = numPixels * Pixel::SIZE;
-            return netSize + (netSize % rowAlignement);
+            return netSize + evalPadding(netSize);
         };
+        
         static Coord evalNumPixelsPerRow(size_t rowSize) {
             size_t rowNumPixels = rowSize / Pixel::SIZE;
-            if (byteSize > rowNumPixels * Pixel::SIZE) {
-                rowNumPixels++;
-            }
+         //   if (byteSize > rowNumPixels * Pixel::SIZE) {
+         //       rowNumPixels++;
+         //   }
             return (Coord)rowNumPixels;
         };
         static size_t evalByteSize(Coord width, Coord height) {
