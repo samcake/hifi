@@ -51,6 +51,7 @@
 #include <RunningMarker.h>
 
 #include "avatar/MyAvatar.h"
+#include "BandwidthRecorder.h"
 #include "Bookmarks.h"
 #include "Camera.h"
 #include "ConnectionMonitor.h"
@@ -61,7 +62,6 @@
 #include "scripting/ControllerScriptingInterface.h"
 #include "scripting/DialogsManagerScriptingInterface.h"
 #include "ui/ApplicationOverlay.h"
-#include "ui/BandwidthDialog.h"
 #include "ui/EntityScriptServerLogDialog.h"
 #include "ui/LodToolsDialog.h"
 #include "ui/LogDialog.h"
@@ -494,7 +494,7 @@ private:
 
     void mouseMoveEvent(QMouseEvent* event);
     void mousePressEvent(QMouseEvent* event);
-    void mouseDoublePressEvent(QMouseEvent* event) const;
+    void mouseDoublePressEvent(QMouseEvent* event);
     void mouseReleaseEvent(QMouseEvent* event);
 
     void touchBeginEvent(QTouchEvent* event);
