@@ -30,7 +30,7 @@
     } else {
         // default to friends if it can't be determined
         myVisibility = "friends";
-        GlobalServices.findableBy = myVisibilty;
+        GlobalServices.findableBy = myVisibility;
     }
 
     var tablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
@@ -115,6 +115,9 @@
     tablet.screenChanged.connect(onScreenChanged);
 
     function cleanup() {
+        if (onUsersScreen) {
+            tablet.gotoHomeScreen();
+        }
         button.clicked.disconnect(onClicked);
         tablet.removeButton(button);
     }

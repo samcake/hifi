@@ -146,6 +146,7 @@ void EntityTreeRenderer::clear() {
 
 void EntityTreeRenderer::reloadEntityScripts() {
     _entitiesScriptEngine->unloadAllEntityScripts();
+    _entitiesScriptEngine->resetModuleCache();
     foreach(auto entity, _entitiesInScene) {
         if (!entity->getScript().isEmpty()) {
             _entitiesScriptEngine->loadEntityScript(entity->getEntityItemID(), entity->getScript(), true);
@@ -607,7 +608,6 @@ RayToEntityIntersectionResult EntityTreeRenderer::findRayIntersectionWorker(cons
             (void**)&intersectedEntity, lockType, &result.accurate);
         if (result.intersects && intersectedEntity) {
             result.entityID = intersectedEntity->getEntityItemID();
-            result.properties = intersectedEntity->getProperties();
             result.intersection = ray.origin + (ray.direction * result.distance);
             result.entity = intersectedEntity;
         }
@@ -703,7 +703,9 @@ void EntityTreeRenderer::mousePressEvent(QMouseEvent* event) {
     if (rayPickResult.intersects) {
         //qCDebug(entitiesrenderer) << "mousePressEvent over entity:" << rayPickResult.entityID;
 
-        QString urlString = rayPickResult.properties.getHref();
+        auto entity = getTree()->findEntityByEntityItemID(rayPickResult.entityID);
+        auto properties = entity->getProperties();
+        QString urlString = properties.getHref();
         QUrl url = QUrl(urlString, QUrl::StrictMode);
         if (url.isValid() && !url.isEmpty()){
             DependencyManager::get<AddressManager>()->handleLookupString(urlString);
@@ -732,6 +734,46 @@ void EntityTreeRenderer::mousePressEvent(QMouseEvent* event) {
 
     } else {
         emit mousePressOffEntity();
+    }
+}
+
+void EntityTreeRenderer::mouseDoublePressEvent(QMouseEvent* event) {
+    // If we don't have a tree, or we're in the process of shutting down, then don't
+    // process these events.
+    if (!_tree || _shuttingDown) {
+        return;
+    }
+    PerformanceTimer perfTimer("EntityTreeRenderer::mouseDoublePressEvent");
+    PickRay ray = _viewState->computePickRay(event->x(), event->y());
+
+    bool precisionPicking = !_dontDoPrecisionPicking;
+    RayToEntityIntersectionResult rayPickResult = findRayIntersectionWorker(ray, Octree::Lock, precisionPicking);
+    if (rayPickResult.intersects) {
+        //qCDebug(entitiesrenderer) << "mouseDoublePressEvent over entity:" << rayPickResult.entityID;
+
+        glm::vec2 pos2D = projectOntoEntityXYPlane(rayPickResult.entity, ray, rayPickResult);
+        PointerEvent pointerEvent(PointerEvent::Press, MOUSE_POINTER_ID,
+            pos2D, rayPickResult.intersection,
+            rayPickResult.surfaceNormal, ray.direction,
+            toPointerButton(*event), toPointerButtons(*event));
+
+        emit mouseDoublePressOnEntity(rayPickResult.entityID, pointerEvent);
+
+        if (_entitiesScriptEngine) {
+            _entitiesScriptEngine->callEntityScriptMethod(rayPickResult.entityID, "mouseDoublePressOnEntity", pointerEvent);
+        }
+
+        _currentClickingOnEntityID = rayPickResult.entityID;
+        emit clickDownOnEntity(_currentClickingOnEntityID, pointerEvent);
+        if (_entitiesScriptEngine) {
+            _entitiesScriptEngine->callEntityScriptMethod(_currentClickingOnEntityID, "doubleclickOnEntity", pointerEvent);
+        }
+
+        _lastPointerEvent = pointerEvent;
+        _lastPointerEventValid = true;
+
+    } else {
+        emit mouseDoublePressOffEntity();
     }
 }
 
@@ -894,7 +936,7 @@ void EntityTreeRenderer::mouseMoveEvent(QMouseEvent* event) {
 
 void EntityTreeRenderer::deletingEntity(const EntityItemID& entityID) {
     if (_tree && !_shuttingDown && _entitiesScriptEngine) {
-        _entitiesScriptEngine->unloadEntityScript(entityID);
+        _entitiesScriptEngine->unloadEntityScript(entityID, true);
     }
 
     forceRecheckEntities(); // reset our state to force checking our inside/outsideness of entities
@@ -949,7 +991,7 @@ void EntityTreeRenderer::checkAndCallPreload(const EntityItemID& entityID, const
         }
         bool shouldLoad = entity->shouldPreloadScript() && _entitiesScriptEngine;
         QString scriptUrl = entity->getScript();
-        if ((unloadFirst && shouldLoad) || scriptUrl.isEmpty()) {
+        if (shouldLoad && (unloadFirst || scriptUrl.isEmpty())) {
             _entitiesScriptEngine->unloadEntityScript(entityID);
             entity->scriptHasUnloaded();
         }
