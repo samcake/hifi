@@ -4,3 +4,5 @@ setup_hifi_library(Widgets Network Script)
 link_hifi_libraries(shared gpu model animation physics model-networking script-engine render render-utils)
 
 target_bullet()
+
+GroupSources("src/crowd")
