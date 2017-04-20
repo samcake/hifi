@@ -87,13 +87,18 @@ public:
     }
 
     template <typename T>
-    Size setSubData(Size index, const std::vector<T>& t) {
-        if (t.empty()) {
+    Size setSubData(Size index, Size numElements, const T* t) {
+        if (!numElements || (t == nullptr)) {
             return 0;
         }
         Size offset = index * sizeof(T);
-        Size size = t.size() * sizeof(T);
-        return setSubData(offset, size, reinterpret_cast<const Byte*>(&t[0]));
+        Size size = numElements * sizeof(T);
+        return setSubData(offset, size, reinterpret_cast<const Byte*>(t));
+    }
+
+    template <typename T>
+    Size setSubData(Size index, const std::vector<T>& t) {
+        return setSubData(index, t.size(), t.data());
     }
 
     // Append new data at the end of the current buffer
