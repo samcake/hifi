@@ -12,34 +12,9 @@
 #ifndef hifi_crowd_Crowd_h
 #define hifi_crowd_Crowd_h
 
-#include <AvatarData.h>
-
-#include <memory>
-#include <assert.h>
-#include <render/IndexedContainer.h>
-
-
-class AABox;
+#include "Flock.h"
 
 namespace crowd {
-
-    using Bound = AABox;
-
-    // the avatar in a crowd
-    struct AvatarDesc {
-        // a few attributes there
-        AvatarSharedPointer _avatar;
-    };
-
-    using AvatarDescs = render::indexed_container::IndexedVector<AvatarDesc>;
-    using Index = render::indexed_container::Index;
-
-    template <class T> class AvatarElementBuffer;
-    template <class T> class JointElementBuffer;
-
-
-    class Flock;
-    using FlockPointer = std::shared_ptr<Flock>;
 
     class Engine;
     using EnginePointer = std::shared_ptr<Engine>;

@@ -26,7 +26,7 @@ namespace crowd {
         using reference = T&;
         using const_reference = const T&;
 
-        template <class U> static BufferPointer makeBuffer(Index numElements = 0, const U* elements = nullptr) {
+        template <class U> static gpu::BufferPointer makeBuffer(size_type numElements = 0, const U* elements = nullptr) {
             return std::make_shared<gpu::Buffer>(sizeof(U) * numElements, (const gpu::Byte*) elements, sizeof(U));
         }
         virtual ~ElementBuffer<T>() {};
@@ -41,7 +41,7 @@ namespace crowd {
         void resize(size_type n, value_type val = value_type()) {
             auto newByteSize = _buffer->resize(n * _stride);
             _numElements = n;
-            assert(newByteSize / (_stride) <= n));
+            assert((newByteSize / _stride) <= n);
         }
 
         size_type capacity() const {

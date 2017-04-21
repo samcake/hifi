@@ -13,6 +13,8 @@
 #define hifi_render_IndexedContainer_h
 
 #include <vector>
+#include <assert.h>
+#include <memory>
 
 namespace render {
 namespace indexed_container {
