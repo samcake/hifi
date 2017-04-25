@@ -12,13 +12,7 @@
 #ifndef hifi_crowd_Crowd_h
 #define hifi_crowd_Crowd_h
 
+#include "Engine.h"
 #include "Flock.h"
-
-namespace crowd {
-
-    class Engine;
-    using EnginePointer = std::shared_ptr<Engine>;
-
-}
 
 #endif // hifi_crowd_Crowd_h

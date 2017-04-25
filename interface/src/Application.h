@@ -58,6 +58,7 @@
 #include "Menu.h"
 #include "octree/OctreePacketProcessor.h"
 #include "render/Engine.h"
+#include "crowd/Crowd.h"
 #include "scripting/ControllerScriptingInterface.h"
 #include "scripting/DialogsManagerScriptingInterface.h"
 #include "ui/ApplicationOverlay.h"
@@ -615,6 +616,9 @@ private:
     int _maxOctreePPS = DEFAULT_MAX_OCTREE_PPS;
 
     quint64 _lastFaceTrackerUpdate;
+
+    crowd::FlockPointer _crowdFlock{ new crowd::Flock() };
+    crowd::EnginePointer _crowdEngine{ new crowd::Engine() };
 
     render::ScenePointer _main3DScene{ new render::Scene(glm::vec3(-0.5f * (float)TREE_SCALE), (float)TREE_SCALE) };
     render::EnginePointer _renderEngine{ new render::Engine() };

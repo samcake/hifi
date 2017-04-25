@@ -1809,6 +1809,9 @@ Application::~Application() {
     _physicsEngine->setCharacterController(nullptr);
 
     // shutdown render engine
+    _crowdFlock = nullptr;
+    _crowdEngine = nullptr;
+
     _main3DScene = nullptr;
     _renderEngine = nullptr;
 
@@ -1891,6 +1894,9 @@ void Application::initializeGL() {
 
     initDisplay();
     qCDebug(interfaceapp, "Initialized Display.");
+
+    _crowdEngine->load();
+    _crowdEngine->registerFlock(_crowdFlock);
 
     // Set up the render engine
     render::CullFunctor cullFunctor = LODManager::shouldRender;
@@ -2043,6 +2049,7 @@ void Application::initializeUi() {
     rootContext->setContextProperty("HMD", DependencyManager::get<HMDScriptingInterface>().data());
     rootContext->setContextProperty("Scene", DependencyManager::get<SceneScriptingInterface>().data());
     rootContext->setContextProperty("Render", _renderEngine->getConfiguration().get());
+    rootContext->setContextProperty("Crowd", _crowdEngine->getConfiguration().get());
     rootContext->setContextProperty("Reticle", getApplicationCompositor().getReticleInterface());
 
     rootContext->setContextProperty("ApplicationCompositor", &getApplicationCompositor());
@@ -5524,6 +5531,7 @@ void Application::registerScriptEngineWithApplicationServices(ScriptEngine* scri
 
     scriptEngine->registerGlobalObject("Scene", DependencyManager::get<SceneScriptingInterface>().data());
     scriptEngine->registerGlobalObject("Render", _renderEngine->getConfiguration().get());
+    scriptEngine->registerGlobalObject("Crowd", _crowdEngine->getConfiguration().get());
 
     scriptEngine->registerGlobalObject("ScriptDiscoveryService", DependencyManager::get<ScriptEngines>().data());
     scriptEngine->registerGlobalObject("Reticle", getApplicationCompositor().getReticleInterface());
