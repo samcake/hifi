@@ -18,6 +18,9 @@
 
 #include "../AvatarsRendererLogging.h"
 
+
+#include "Prototype.h"
+
 using namespace crowd;
 
 class EngineTask {
@@ -33,6 +36,8 @@ public:
 Engine::Engine() : Task("CrowdEngine", EngineTask::JobModel::create()),
     _context(std::make_shared<CrowdContext>())
 {
+    addJob<proto::InjectAvatars>("InjectAvatars");
+
 }
 
 void Engine::load() {

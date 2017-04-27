@@ -4530,6 +4530,11 @@ void Application::update(float deltaTime) {
     }
 
     {
+        PerformanceTimer perfTimer("CrowdEngine");
+        _crowdEngine->run();
+    }
+
+    {
         PROFILE_RANGE_EX(app, "Overlays", 0xffff0000, (uint64_t)getActiveDisplayPlugin()->presentCount());
         PerformanceTimer perfTimer("overlays");
         _overlays.update(deltaTime);
