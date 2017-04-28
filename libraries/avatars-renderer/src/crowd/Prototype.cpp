@@ -20,7 +20,7 @@ void InjectAvatars::run(const CrowdContextPointer& context) {
     auto numAvatars = flock->getNumAvatars();
     int numInjected = 10 - numAvatars;
     if (numInjected > 0) {
-        for (int i = 0; i < numInjected; numInjected++) {
+        for (int i = 0; i < numInjected; i++) {
             AvatarDesc newAvatar;
 
             auto id = flock->addAvatar(newAvatar);

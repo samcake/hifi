@@ -57,7 +57,9 @@ void Flock::resizeAvatarData(const Index numAvatars) {
 }
 
 void Flock::resetAvatarData(Index id, const AvatarDesc& avatar) {
-    avatar._avatar->getPosition();
-    avatar._avatar->getOrientation();
-    avatar._avatar->getScale();
+    if (avatar._avatar) {
+        avatar._avatar->getPosition();
+        avatar._avatar->getOrientation();
+        avatar._avatar->getScale();
+    }
 }
