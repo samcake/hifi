@@ -118,6 +118,7 @@ Texture::Size Texture::getAllowedGPUMemoryUsage() {
     return _allowedCPUMemoryUsage;
 }
 
+
 void Texture::setAllowedGPUMemoryUsage(Size size) {
     qCDebug(gpulogging) << "New MAX texture memory " << BYTES_TO_MB(size) << " MB";
     _allowedCPUMemoryUsage = size;
@@ -215,6 +216,7 @@ void Texture::MemoryStorage::assignMipFaceData(uint16 level, uint8 face, const s
 TexturePointer Texture::createExternal(const ExternalRecycler& recycler, const Sampler& sampler) {
     TexturePointer tex = std::make_shared<Texture>(TextureUsageType::EXTERNAL);
     tex->_type = TEX_2D;
+    tex->_texelFormat = Element::COLOR_RGBA_32;
     tex->_maxMipLevel = 0;
     tex->_sampler = sampler;
     tex->setExternalRecycler(recycler);
@@ -406,11 +408,16 @@ void Texture::setStoredMipFormat(const Element& format) {
     _storage->setFormat(format);
 }
 
-const Element& Texture::getStoredMipFormat() const {
-    return _storage->getFormat();
+Element Texture::getStoredMipFormat() const {
+    if (_storage) {
+        return _storage->getFormat();
+    } else {
+        return Element();
+    }
 }
 
 void Texture::assignStoredMip(uint16 level, Size size, const Byte* bytes) {
+    // TODO Skip the extra allocation here
     storage::StoragePointer storage = std::make_shared<storage::MemoryStorage>(size, bytes);
     assignStoredMip(level, storage);
 }
@@ -474,6 +481,10 @@ void Texture::assignStoredMipFace(uint16 level, uint8 face, storage::StoragePoin
     }
 }
 
+bool Texture::isStoredMipFaceAvailable(uint16 level, uint8 face) const {
+    return _storage->isMipAvailable(level, face);
+}
+
 void Texture::setAutoGenerateMips(bool enable) {
     bool changed = false;
     if (!_autoGenerateMips) {
@@ -487,12 +498,11 @@ void Texture::setAutoGenerateMips(bool enable) {
 }
 
 Size Texture::getStoredMipSize(uint16 level) const {
-    PixelsPointer mipFace = accessStoredMipFace(level);
     Size size = 0;
-    if (mipFace && mipFace->getSize()) {
-        for (int face = 0; face < getNumFaces(); face++) {
+    for (int face = 0; face < getNumFaces(); face++) {
+        if (isStoredMipFaceAvailable(level, face)) {
             size += getStoredMipFaceSize(level, face);
-         }
+        }
     }
     return size;
 }

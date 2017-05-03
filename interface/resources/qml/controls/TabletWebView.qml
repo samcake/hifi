@@ -23,6 +23,13 @@ Item {
     property bool keyboardRaised: false
     property bool punctuationMode: false
     property bool isDesktop: false
+    property string initialPage: ""
+    property bool startingUp: true
+    property alias webView: webview
+    property alias profile: webview.profile
+    property bool remove: false
+    property var urlList: []
+    property var forwardList: []
 
     
     property int currentPage: -1 // used as a model for repeater
@@ -74,10 +81,20 @@ Item {
             id: displayUrl
             color: hifi.colors.baseGray
             font.pixelSize: 12
+            verticalAlignment: Text.AlignLeft
             anchors {
                 top: nav.bottom
                 horizontalCenter: parent.horizontalCenter;
+                left: parent.left
+                leftMargin: 20
             }
+        }
+
+
+        MouseArea {
+            anchors.fill: parent
+            preventStealing: true
+            propagateComposedEvents: true
         }
     }
 
@@ -95,15 +112,23 @@ Item {
         
     function goBack() {
         if (webview.canGoBack) {
-            pagesModel.remove(currentPage);
+            forwardList.push(webview.url);
             webview.goBack();
-        } else if (currentPage > 0) {
-            pagesModel.remove(currentPage);
+        } else if (web.urlList.length > 0) {
+            var url = web.urlList.pop();
+            loadUrl(url);
+        } else if (web.forwardList.length > 0) {
+            var url = web.forwardList.pop();
+            loadUrl(url);
+            web.forwardList = [];
         }
     }
 
-
     function closeWebEngine() {
+        if (remove) {
+            web.destroy();
+            return;
+        }
         if (parentStackItem) {
             parentStackItem.pop();
         } else {
@@ -121,33 +146,52 @@ Item {
         urlAppend(url)
     }
 
+    function isUrlLoaded(url) {
+        return (pagesModel.get(currentPage).webUrl === url);
+    }
+    
     function reloadPage() {
         view.reloadAndBypassCache()
         view.setActiveFocusOnPress(true);
         view.setEnabled(true);
     }
 
+    function loadUrl(url) {
+        webview.url = url
+        web.url = webview.url;
+        web.address = webview.url;
+    }
+
+    function onInitialPage(url) {
+        return (url === webview.url);
+    }
+        
+    
     function urlAppend(url) {
         var lurl = decodeURIComponent(url)
         if (lurl[lurl.length - 1] !== "/") {
             lurl = lurl + "/"
         }
-        if (currentPage === -1 || (pagesModel.get(currentPage).webUrl !== lurl && !timer.running)) {
-            timer.start();
-            pagesModel.append({webUrl: lurl});
-        }
+        web.urlList.push(url);
+        setBackButtonStatus();
     }
 
-    onCurrentPageChanged: {
-        if (currentPage >= 0 && currentPage < pagesModel.count) {
-            webview.url = pagesModel.get(currentPage).webUrl;
-            web.url = webview.url;
-            web.address = webview.url;
+    function setBackButtonStatus() {
+        if (web.urlList.length > 0 || webview.canGoBack) {
+            back.enabledColor = hifi.colors.darkGray;
+            back.enabled = true;
+        } else {
+            back.enabledColor = hifi.colors.baseGray;
+            back.enabled = false;
         }
     }
 
     onUrlChanged: {
-        gotoPage(url)
+        loadUrl(url);
+        if (startingUp) {
+            web.initialPage = webview.url;
+            startingUp = false;
+        }
     }
 
     QtObject {
@@ -155,18 +199,7 @@ Item {
         WebChannel.id: "eventBridgeWrapper"
         property var eventBridge;
     }
-
-    Timer {
-        id: timer
-        interval: 100
-        running: false
-        repeat: false
-        onTriggered: timer.stop();
-    }
-
-        
-
-
+    
     WebEngineView {
         id: webview
         objectName: "webEngineView"
@@ -206,6 +239,7 @@ Item {
             worldId: WebEngineScript.MainWorld
         }
 
+	property string urlTag: "noDownload=false";
         userScripts: [ createGlobalEventBridge, raiseAndLowerKeyboard, userScript ]
 
         property string newUrl: ""
@@ -230,21 +264,44 @@ Item {
             keyboardRaised = false;
             punctuationMode = false;
             keyboard.resetShiftMode(false);
-
             // Required to support clicking on "hifi://" links
             if (WebEngineView.LoadStartedStatus == loadRequest.status) {
-                urlAppend(loadRequest.url.toString())
-                var url = loadRequest.url.toString();
+		var url = loadRequest.url.toString();
                 if (urlHandler.canHandleUrl(url)) {
                     if (urlHandler.handleUrl(url)) {
                         root.stop();
                     }
                 }
             }
-        }
 
+            if (WebEngineView.LoadFailedStatus == loadRequest.status) {
+                console.log(" Tablet WebEngineView failed to laod url: " + loadRequest.url.toString());
+            }
+
+            if (WebEngineView.LoadSucceededStatus == loadRequest.status) {
+                web.address = webview.url;
+                if (startingUp) {
+                    web.initialPage = webview.url;
+                    startingUp = false;
+                }
+            }
+        }
+        
         onNewViewRequested: {
+            var currentUrl = webview.url;
+            urlAppend(currentUrl);
             request.openIn(webview);
+        }
+    }
+
+    HiFiControls.Keyboard {
+        id: keyboard
+        raised: parent.keyboardEnabled && parent.keyboardRaised
+
+        anchors {
+            left: parent.left
+            right: parent.right
+            bottom: parent.bottom
         }
     }
     

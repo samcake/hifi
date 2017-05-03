@@ -28,9 +28,16 @@ namespace ktx {
     struct KTXDescriptor;
     using KTXDescriptorPointer = std::unique_ptr<KTXDescriptor>;
     struct Header;
+    struct KeyValue;
+    using KeyValues = std::list<KeyValue>;
 }
 
 namespace gpu {
+
+
+const std::string SOURCE_HASH_KEY { "hifi.sourceHash" };
+
+const uint8 SOURCE_HASH_BYTES = 16;
 
 // THe spherical harmonics is a nice tool for cubemap, so if required, the irradiance SH can be automatically generated
 // with the cube texture
@@ -150,7 +157,7 @@ protected:
     Desc _desc;
 };
 
-enum class TextureUsageType {
+enum class TextureUsageType : uint8 {
     RENDERBUFFER,       // Used as attachments to a framebuffer
     RESOURCE,           // Resource textures, like materials... subject to memory manipulation
     STRICT_RESOURCE,    // Resource textures not subject to manipulation, like the normal fitting texture
@@ -271,13 +278,14 @@ public:
         virtual void assignMipData(uint16 level, const storage::StoragePointer& storage) = 0;
         virtual void assignMipFaceData(uint16 level, uint8 face, const storage::StoragePointer& storage) = 0;
         virtual bool isMipAvailable(uint16 level, uint8 face = 0) const = 0;
+        virtual uint16 minAvailableMipLevel() const { return 0; }
         Texture::Type getType() const { return _type; }
 
         Stamp getStamp() const { return _stamp; }
         Stamp bumpStamp() { return ++_stamp; }
 
         void setFormat(const Element& format) { _format = format; }
-        const Element& getFormat() const { return _format; }
+        Element getFormat() const { return _format; }
 
     private:
         Stamp _stamp { 0 };
@@ -308,23 +316,29 @@ public:
         KtxStorage(const std::string& filename);
         PixelsPointer getMipFace(uint16 level, uint8 face = 0) const override;
         Size getMipFaceSize(uint16 level, uint8 face = 0) const override;
-        // By convention, all mip levels and faces MUST be populated when using KTX backing
-        bool isMipAvailable(uint16 level, uint8 face = 0) const override { return true; }
+        bool isMipAvailable(uint16 level, uint8 face = 0) const override;
+        void assignMipData(uint16 level, const storage::StoragePointer& storage) override;
+        void assignMipFaceData(uint16 level, uint8 face, const storage::StoragePointer& storage) override;
+        uint16 minAvailableMipLevel() const override;
 
-        void assignMipData(uint16 level, const storage::StoragePointer& storage) override {
-            throw std::runtime_error("Invalid call");
-        }
-
-        void assignMipFaceData(uint16 level, uint8 face, const storage::StoragePointer& storage) override {
-            throw std::runtime_error("Invalid call");
-        }
         void reset() override { }
 
     protected:
+        std::shared_ptr<storage::FileStorage> maybeOpenFile() const;
+
+        mutable std::mutex _cacheFileCreateMutex;
+        mutable std::mutex _cacheFileWriteMutex;
+        mutable std::weak_ptr<storage::FileStorage> _cacheFile;
+
         std::string _filename;
+        std::atomic<uint8_t> _minMipLevelAvailable;
+        size_t _offsetToMinMipKV;
+
         ktx::KTXDescriptorPointer _ktxDescriptor;
         friend class Texture;
     };
+
+    uint16 minAvailableMipLevel() const { return _storage->minAvailableMipLevel(); };
 
     static const uint16 MAX_NUM_MIPS = 0;
     static const uint16 SINGLE_MIP = 1;
@@ -358,7 +372,7 @@ public:
     bool isColorRenderTarget() const;
     bool isDepthStencilRenderTarget() const;
 
-    const Element& getTexelFormat() const { return _texelFormat; }
+    Element getTexelFormat() const { return _texelFormat; }
 
     Vec3u getDimensions() const { return Vec3u(_width, _height, _depth); }
     uint16 getWidth() const { return _width; }
@@ -454,7 +468,7 @@ public:
 
     // Mip storage format is constant across all mips
     void setStoredMipFormat(const Element& format);
-    const Element& getStoredMipFormat() const;
+    Element getStoredMipFormat() const;
 
     // Manually allocate the mips down until the specified maxMip
     // this is just allocating the sysmem version of it
@@ -469,7 +483,7 @@ public:
 
     // Access the stored mips and faces
     const PixelsPointer accessStoredMipFace(uint16 level, uint8 face = 0) const { return _storage->getMipFace(level, face); }
-    bool isStoredMipFaceAvailable(uint16 level, uint8 face = 0) const { return _storage->isMipAvailable(level, face); }
+    bool isStoredMipFaceAvailable(uint16 level, uint8 face = 0) const;
     Size getStoredMipFaceSize(uint16 level, uint8 face = 0) const { return _storage->getMipFaceSize(level, face); }
     Size getStoredMipSize(uint16 level) const;
     Size getStoredSize() const;
@@ -503,9 +517,12 @@ public:
 
     ExternalUpdates getUpdates() const;
 
-    // Textures can be serialized directly to ktx data file, here is how
+    // Serialize a texture into a KTX file
     static ktx::KTXUniquePointer serialize(const Texture& texture);
-    static TexturePointer unserialize(const std::string& ktxFile, TextureUsageType usageType = TextureUsageType::RESOURCE, Usage usage = Usage(), const Sampler::Desc& sampler = Sampler::Desc());
+
+    static TexturePointer unserialize(const std::string& ktxFile);
+    static TexturePointer unserialize(const std::string& ktxFile, const ktx::KTXDescriptor& descriptor);
+
     static bool evalKTXFormat(const Element& mipFormat, const Element& texelFormat, ktx::Header& header);
     static bool evalTextureFormat(const ktx::Header& header, Element& mipFormat, Element& texelFormat);
 
