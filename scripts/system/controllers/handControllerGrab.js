@@ -31,6 +31,8 @@ var WANT_DEBUG = false;
 var WANT_DEBUG_STATE = false;
 var WANT_DEBUG_SEARCH_NAME = null;
 
+var UPDATE_SLEEP_MS = 16; // how many milliseconds to wait between "update" calls
+
 var FORCE_IGNORE_IK = false;
 var SHOW_GRAB_POINT_SPHERE = false;
 
@@ -1333,6 +1335,7 @@ function MyController(hand) {
         var stylusProperties = {
             name: "stylus",
             url: Script.resourcesPath() + "meshes/tablet-stylus-fat.fbx",
+            loadPriority: 10.0,
             localPosition: Vec3.sum({ x: 0.0,
                                       y: WEB_TOUCH_Y_OFFSET,
                                       z: 0.0 },
@@ -1373,7 +1376,9 @@ function MyController(hand) {
                 visible: true,
                 alpha: 1,
                 parentID: AVATAR_SELF_ID,
-                parentJointIndex: this.controllerJointIndex,
+                parentJointIndex: MyAvatar.getJointIndex(this.hand === RIGHT_HAND ?
+                                                         "_CAMERA_RELATIVE_CONTROLLER_RIGHTHAND" :
+                                                         "_CAMERA_RELATIVE_CONTROLLER_LEFTHAND"),
                 endParentID: farParentID
             };
             this.overlayLine = Overlays.addOverlay("line3d", lineProperties);
@@ -3878,6 +3883,7 @@ function MyController(hand) {
                 // we appear to be holding something and this script isn't in a state that would be holding something.
                 // unhook it.  if we previously took note of this entity's parent, put it back where it was.  This
                 // works around some problems that happen when more than one hand or avatar is passing something around.
+                var childType = Entities.getNestableType(childID);
                 if (_this.previousParentID[childID]) {
                     var previousParentID = _this.previousParentID[childID];
                     var previousParentJointIndex = _this.previousParentJointIndex[childID];
@@ -3895,7 +3901,7 @@ function MyController(hand) {
                     }
                     _this.previouslyUnhooked[childID] = now;
 
-                    if (Overlays.getProperty(childID, "grabbable")) {
+                    if (childType == "overlay" && Overlays.getProperty(childID, "grabbable")) {
                         // only auto-unhook overlays that were flagged as grabbable.  this avoids unhooking overlays
                         // used in tutorial.
                         Overlays.editOverlay(childID, {
@@ -3903,12 +3909,20 @@ function MyController(hand) {
                             parentJointIndex: previousParentJointIndex
                         });
                     }
-                    Entities.editEntity(childID, { parentID: previousParentID, parentJointIndex: previousParentJointIndex });
+                    if (childType == "entity") {
+                        Entities.editEntity(childID, {
+                            parentID: previousParentID,
+                            parentJointIndex: previousParentJointIndex
+                        });
+                    }
 
                 } else {
-                    Entities.editEntity(childID, { parentID: NULL_UUID });
-                    if (Overlays.getProperty(childID, "grabbable")) {
-                        Overlays.editOverlay(childID, { parentID: NULL_UUID });
+                    if (childType == "entity") {
+                        Entities.editEntity(childID, { parentID: NULL_UUID });
+                    } else if (childType == "overlay") {
+                        if (Overlays.getProperty(childID, "grabbable")) {
+                            Overlays.editOverlay(childID, { parentID: NULL_UUID });
+                        }
                     }
                 }
             }
@@ -4091,7 +4105,7 @@ var updateTotalWork = 0;
 
 var UPDATE_PERFORMANCE_DEBUGGING = false;
 
-function updateWrapper(){
+var updateWrapper = function () {
 
     intervalCount++;
     var thisInterval = Date.now();
@@ -4139,12 +4153,12 @@ function updateWrapper(){
         updateTotalWork = 0;
     }
 
+    Script.setTimeout(updateWrapper, UPDATE_SLEEP_MS);
 }
 
-Script.update.connect(updateWrapper);
+Script.setTimeout(updateWrapper, UPDATE_SLEEP_MS);
 function cleanup() {
     Menu.removeMenuItem("Developer", "Show Grab Sphere");
-    Script.update.disconnect(updateWrapper);
     rightController.cleanup();
     leftController.cleanup();
     Controller.disableMapping(MAPPING_NAME);

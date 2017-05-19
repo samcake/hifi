@@ -156,10 +156,8 @@ Column {
     function makeFilteredStoryProcessor() { // answer a function(storyData) that adds it to suggestions if it matches
         var words = filter.toUpperCase().split(/\s+/).filter(identity);
         function suggestable(story) {
-            if (story.action === 'snapshot') {
-                return true;
-            }
-            return story.place_name !== AddressManager.placename; // Not our entry, but do show other entry points to current domain.
+            // We could filter out places we don't want to suggest, such as those where (story.place_name === AddressManager.placename) or (story.username === Account.username).
+            return true;
         }
         function matches(story) {
             if (!words.length) {
@@ -240,8 +238,25 @@ Column {
             stackShadowNarrowing: root.stackShadowNarrowing;
             shadowHeight: root.stackedCardShadowHeight;
 
-            hoverThunk: function () { scroll.currentIndex = index; }
-            unhoverThunk: function () { scroll.currentIndex = -1; }
+            hoverThunk: function () { scrollToIndex(index); }
+            unhoverThunk: function () { scrollToIndex(-1); }
         }
+    }
+    NumberAnimation {
+        id: anim;
+        target: scroll;
+        property: "contentX";
+        duration: 250;
+    }
+    function scrollToIndex(index) {
+        anim.running = false;
+        var pos = scroll.contentX;
+        var destPos;
+        scroll.positionViewAtIndex(index, ListView.Contain);
+        destPos = scroll.contentX;
+        anim.from = pos;
+        anim.to = destPos;
+        scroll.currentIndex = index;
+        anim.running = true;
     }
 }

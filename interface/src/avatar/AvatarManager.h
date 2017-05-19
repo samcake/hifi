@@ -21,13 +21,11 @@
 #include <PIDController.h>
 #include <SimpleMovingAverage.h>
 #include <shared/RateCounter.h>
+#include <avatars-renderer/ScriptAvatar.h>
 
-#include "Avatar.h"
-#include "MyAvatar.h"
 #include "AvatarMotionState.h"
-#include "ScriptAvatar.h"
+#include "MyAvatar.h"
 
-class MyAvatar;
 class AudioInjector;
 
 class AvatarManager : public AvatarHashMap {

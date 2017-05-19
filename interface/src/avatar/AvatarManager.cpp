@@ -32,9 +32,9 @@
 #include <SettingHandle.h>
 #include <UsersScriptingInterface.h>
 #include <UUID.h>
+#include <avatars-renderer/OtherAvatar.h>
 
 #include "Application.h"
-#include "Avatar.h"
 #include "AvatarManager.h"
 #include "InterfaceLogging.h"
 #include "Menu.h"
@@ -189,6 +189,7 @@ void AvatarManager::updateOtherAvatars(float deltaTime) {
             btCollisionShape* shape = const_cast<btCollisionShape*>(ObjectMotionState::getShapeManager()->getShape(shapeInfo));
             if (shape) {
                 AvatarMotionState* motionState = new AvatarMotionState(avatar, shape);
+                motionState->setMass(avatar->computeMass());
                 avatar->setPhysicsCallback([=] (uint32_t flags) { motionState->addDirtyFlags(flags); });
                 _motionStates.insert(avatar.get(), motionState);
                 _motionStatesToAddToPhysics.insert(motionState);
@@ -299,7 +300,7 @@ void AvatarManager::simulateAvatarFades(float deltaTime) {
 }
 
 AvatarSharedPointer AvatarManager::newSharedAvatar() {
-    return std::make_shared<Avatar>(qApp->thread(), std::make_shared<Rig>());
+    return std::make_shared<OtherAvatar>(qApp->thread(), std::make_shared<Rig>());
 }
 
 void AvatarManager::handleRemovedAvatar(const AvatarSharedPointer& removedAvatar, KillAvatarReason removalReason) {
