@@ -30,8 +30,8 @@ namespace crowd {
             return std::make_shared<gpu::Buffer>(sizeof(U) * numElements, (const gpu::Byte*) elements, sizeof(U));
         }
         virtual ~ElementBuffer<T>() {};
-        ElementBuffer<T>() : gpu::BufferView(makeBuffer<T>()) {}
-        ElementBuffer<T>(size_type capacity) : gpu::BufferView(makeBuffer<T>(capacity)) {}
+        ElementBuffer<T>() : gpu::BufferView(makeBuffer<T>(), 0, 0, sizeof(T)) {}
+        ElementBuffer<T>(size_type capacity) : gpu::BufferView(makeBuffer<T>(capacity), 0, 0, sizeof(T)) {}
 
         // std::vector Capacity:
         size_type size() const {
