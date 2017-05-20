@@ -58,8 +58,8 @@ void Flock::resizeAvatarData(const Index numAvatars) {
 
 void Flock::resetAvatarData(Index id, const AvatarDesc& avatar) {
     if (avatar._avatar) {
-        avatar._avatar->getPosition();
-        avatar._avatar->getOrientation();
-        avatar._avatar->getScale();
+        auto pos = avatar._avatar->getPosition();
+
+        (*_rootBuffer.get())[id]._bound.setBox(pos, glm::vec3(0.7, 1.8, 0.7));
     }
 }

@@ -14,6 +14,11 @@
 
 #include <task/Task.h>
 
+namespace render {
+    class Scene;
+    using ScenePointer = std::shared_ptr<Scene>;
+}
+
 namespace crowd {
    class Flock;
    using FlockPointer = std::shared_ptr<Flock>;
@@ -23,6 +28,7 @@ namespace crowd {
         virtual ~CrowdContext() {}
 
         FlockPointer _flock;
+        render::ScenePointer _scene;
     };
     using CrowdContextPointer = std::shared_ptr<CrowdContext>;
 

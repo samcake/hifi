@@ -42,8 +42,8 @@ namespace crowd {
     using Bound = AABox;
     struct RootData {
         Xform _transform;
+        float spare1; // padd here so bound is accessed more easily in the shader
         Bound _bound;
-        float spare1;
         float spare2; // padd to be a multiple of 16 bytes
     };
     using RootBuffer = AvatarElementBuffer<RootData>;

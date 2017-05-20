@@ -16,8 +16,11 @@
 
 #include <PathUtils.h>
 
-#include "../AvatarsRendererLogging.h"
+#include "../avatars-renderer/Logging.h"
 
+
+
+#include "FlockRenderer.h"
 
 #include "Prototype.h"
 
@@ -37,6 +40,8 @@ Engine::Engine() : Task("CrowdEngine", EngineTask::JobModel::create()),
     _context(std::make_shared<CrowdContext>())
 {
     addJob<proto::InjectAvatars>("InjectAvatars");
+
+    addJob<FlockSceneUpdate>("SceneUpdate");
 
 }
 

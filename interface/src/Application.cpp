@@ -4544,6 +4544,7 @@ void Application::update(float deltaTime) {
 
     {
         PerformanceTimer perfTimer("CrowdEngine");
+        _crowdEngine->getContext()->_scene = _main3DScene;
         _crowdEngine->run();
     }
 
