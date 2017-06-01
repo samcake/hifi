@@ -29,9 +29,15 @@ public:
     // methods for getting/setting all properties of an entity
     virtual EntityItemProperties getProperties(EntityPropertyFlags desiredProperties = EntityPropertyFlags()) const override;
     virtual bool setProperties(const EntityItemProperties& properties) override;
+    virtual bool setSubClassProperties(const EntityItemProperties& properties) override;
 
-    // TODO: eventually only include properties changed since the params.lastQuerySent time
+    // TODO: eventually only include properties changed since the params.nodeData->getLastTimeBagEmpty() time
     virtual EntityPropertyFlags getEntityProperties(EncodeBitstreamParams& params) const override;
+
+    /// Override this in your derived class if you'd like to be informed when something about the state of the entity
+    /// has changed. This will be called with properties change or when new data is loaded from a stream
+    /// Overriding this function to capture the information that a keylight / Ambient / skybox  properties has changed
+    virtual void somethingChangedNotification() override;
 
     virtual void appendSubclassData(OctreePacketData* packetData, EncodeBitstreamParams& params,
                                     EntityTreeElementExtraEncodeDataPointer modelTreeElementExtraEncodeData,
@@ -58,13 +64,13 @@ public:
     void setShapeType(ShapeType type) override { _shapeType = type; }
     virtual ShapeType getShapeType() const override;
 
-    virtual bool hasCompoundShapeURL() const { return !_compoundShapeURL.isEmpty(); }
-    const QString getCompoundShapeURL() const { return _compoundShapeURL; }
+    virtual bool hasCompoundShapeURL() const;
+    QString getCompoundShapeURL() const;
     virtual void setCompoundShapeURL(const QString& url);
 
     const KeyLightPropertyGroup& getKeyLightProperties() const { return _keyLightProperties; }
 
-    void setBackgroundMode(BackgroundMode value) { _backgroundMode = value; }
+    void setBackgroundMode(BackgroundMode value) { _backgroundMode = value; _backgroundPropertiesChanged = true; }
     BackgroundMode getBackgroundMode() const { return _backgroundMode; }
 
     const SkyboxPropertyGroup& getSkyboxProperties() const { return _skyboxProperties; }
@@ -74,7 +80,7 @@ public:
     void setFlyingAllowed(bool value) { _flyingAllowed = value; }
     bool getGhostingAllowed() const { return _ghostingAllowed; }
     void setGhostingAllowed(bool value) { _ghostingAllowed = value; }
-    QString getFilterURL() const { return _filterURL; }
+    QString getFilterURL() const;
     void setFilterURL(const QString url); 
 
     virtual bool supportsDetailedRayIntersection() const override { return true; }
@@ -105,6 +111,14 @@ protected:
     bool _flyingAllowed { DEFAULT_FLYING_ALLOWED };
     bool _ghostingAllowed { DEFAULT_GHOSTING_ALLOWED };
     QString _filterURL { DEFAULT_FILTER_URL };
+
+    // Dirty flags turn true when either keylight properties is changing values.
+    // This gets back to false in the somethingChangedNotification() call
+    // Which is called after a setProperties() or a readEntitySubClassFromBUfferCall on the entity.
+    bool _keyLightPropertiesChanged { false };
+    bool _backgroundPropertiesChanged { false };
+    bool _skyboxPropertiesChanged { false };
+    bool _stagePropertiesChanged { false };
 
     static bool _drawZoneBoundaries;
     static bool _zonesArePickable;

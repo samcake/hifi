@@ -65,7 +65,11 @@ Item {
         });
 
         // pass a reference to the tabletRoot object to the button.
-        button.tabletRoot = parent.parent;
+        if (tabletRoot) {
+            button.tabletRoot = tabletRoot;
+        } else {
+            button.tabletRoot = parent.parent;
+        }
 
         sortButtons();
 
@@ -202,7 +206,7 @@ Item {
 
         RalewaySemiBold {
             id: usernameText
-            text: tablet.parent.parent.username
+            text: tabletRoot.username
             anchors.verticalCenter: parent.verticalCenter
             anchors.right: parent.right
             anchors.rightMargin: 20

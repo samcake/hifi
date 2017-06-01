@@ -40,7 +40,6 @@ public:
 
     void loadScripts();
     void saveScripts();
-    void clearScripts();
 
     QString getScriptsLocation() const;
     void loadDefaultScripts();
@@ -79,13 +78,13 @@ signals:
     void errorMessage(const QString& message, const QString& engineName);
     void warningMessage(const QString& message, const QString& engineName);
     void infoMessage(const QString& message, const QString& engineName);
-    void errorLoadingScript(const QString& url, const QString& engineName);
+    void errorLoadingScript(const QString& url);
 
 public slots:
-    void onPrintedMessage(const QString& message);
-    void onErrorMessage(const QString& message);
-    void onWarningMessage(const QString& message);
-    void onInfoMessage(const QString& message);
+    void onPrintedMessage(const QString& message, const QString& scriptName);
+    void onErrorMessage(const QString& message, const QString& scriptName);
+    void onWarningMessage(const QString& message, const QString& scriptName);
+    void onInfoMessage(const QString& message, const QString& scriptName);
     void onErrorLoadingScript(const QString& url);
 
 protected slots:

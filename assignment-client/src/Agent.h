@@ -29,7 +29,7 @@
 
 #include <plugins/CodecPlugin.h>
 
-#include "AudioNoiseGate.h"
+#include "AudioGate.h"
 #include "MixedAudioStream.h"
 #include "avatars/ScriptableAvatar.h"
 
@@ -45,9 +45,6 @@ class Agent : public ThreadedAssignment {
 
 public:
     Agent(ReceivedMessage& message);
-
-    void setIsAvatar(bool isAvatar);
-    bool isAvatar() const { return _isAvatar; }
 
     bool isPlayingAvatarSound() const { return _avatarSound != NULL; }
 
@@ -65,6 +62,9 @@ public:
 public slots:
     void run() override;
     void playAvatarSound(SharedSoundPointer avatarSound);
+    
+    void setIsAvatar(bool isAvatar);
+    bool isAvatar() const { return _isAvatar; }
 
 private slots:
     void requestScript();
@@ -111,7 +111,8 @@ private:
     QTimer* _avatarIdentityTimer = nullptr;
     QHash<QUuid, quint16> _outgoingScriptAudioSequenceNumbers;
 
-    AudioNoiseGate _noiseGate;
+    AudioGate _audioGate;
+    bool _audioGateOpen { false };
     bool _isNoiseGateEnabled { false };
 
     CodecPluginPointer _codec;

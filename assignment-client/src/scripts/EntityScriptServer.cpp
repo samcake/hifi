@@ -58,6 +58,8 @@ EntityScriptServer::EntityScriptServer(ReceivedMessage& message) : ThreadedAssig
 
     DependencyManager::registerInheritance<SpatialParentFinder, AssignmentParentFinder>();
 
+    DependencyManager::set<AudioScriptingInterface>();
+
     DependencyManager::set<ResourceCacheSharedItems>();
     DependencyManager::set<SoundCache>();
     DependencyManager::set<AudioInjectorManager>();
@@ -324,7 +326,26 @@ void EntityScriptServer::nodeActivated(SharedNodePointer activatedNode) {
 void EntityScriptServer::nodeKilled(SharedNodePointer killedNode) {
     switch (killedNode->getType()) {
         case NodeType::EntityServer: {
-            clear();
+            // Before we clear, make sure this was our only entity server.
+            // Otherwise we're assuming that we have "trading" entity servers
+            // (an old one going away and a new one coming onboard)
+            // and that we shouldn't clear here because we're still doing work.
+            bool hasAnotherEntityServer = false;
+            auto nodeList = DependencyManager::get<NodeList>();
+
+            nodeList->eachNodeBreakable([&hasAnotherEntityServer, &killedNode](const SharedNodePointer& node){
+                if (node->getType() == NodeType::EntityServer && node->getUUID() != killedNode->getUUID()) {
+                    // we're talking to > 1 entity servers, we know we won't clear
+                    hasAnotherEntityServer = true;
+                    return false;
+                }
+
+                return true;
+            });
+
+            if (!hasAnotherEntityServer) {
+                clear();
+            }
             
             break;
         }
@@ -395,7 +416,8 @@ void EntityScriptServer::selectAudioFormat(const QString& selectedCodecName) {
 
 void EntityScriptServer::resetEntitiesScriptEngine() {
     auto engineName = QString("about:Entities %1").arg(++_entitiesScriptEngineCount);
-    auto newEngine = QSharedPointer<ScriptEngine>(new ScriptEngine(ScriptEngine::ENTITY_SERVER_SCRIPT, NO_SCRIPT, engineName));
+    auto newEngine = QSharedPointer<ScriptEngine>(new ScriptEngine(ScriptEngine::ENTITY_SERVER_SCRIPT, NO_SCRIPT, engineName),
+                                                  &ScriptEngine::deleteLater);
 
     auto webSocketServerConstructorValue = newEngine->newFunction(WebSocketServerClass::constructor);
     newEngine->globalObject().setProperty("WebSocketServer", webSocketServerConstructorValue);
@@ -459,14 +481,14 @@ void EntityScriptServer::deletingEntity(const EntityItemID& entityID) {
     }
 }
 
-void EntityScriptServer::entityServerScriptChanging(const EntityItemID& entityID, const bool reload) {
+void EntityScriptServer::entityServerScriptChanging(const EntityItemID& entityID, bool reload) {
     if (_entityViewer.getTree() && !_shuttingDown) {
         _entitiesScriptEngine->unloadEntityScript(entityID, true);
         checkAndCallPreload(entityID, reload);
     }
 }
 
-void EntityScriptServer::checkAndCallPreload(const EntityItemID& entityID, const bool reload) {
+void EntityScriptServer::checkAndCallPreload(const EntityItemID& entityID, bool reload) {
     if (_entityViewer.getTree() && !_shuttingDown && _entitiesScriptEngine) {
 
         EntityItemPointer entity = _entityViewer.getTree()->findEntityByEntityItemID(entityID);

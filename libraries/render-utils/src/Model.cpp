@@ -78,7 +78,7 @@ void initCollisionMaterials() {
     }
 }
 
-Model::Model(RigPointer rig, QObject* parent, SpatiallyNestable* spatiallyNestableOverride) :
+Model::Model(QObject* parent, SpatiallyNestable* spatiallyNestableOverride) :
     QObject(parent),
     _renderGeometry(),
     _collisionGeometry(),
@@ -96,8 +96,7 @@ Model::Model(RigPointer rig, QObject* parent, SpatiallyNestable* spatiallyNestab
     _isVisible(true),
     _blendNumber(0),
     _appliedBlendNumber(0),
-    _isWireframe(false),
-    _rig(rig)
+    _isWireframe(false)
 {
     // we may have been created in the network thread, but we live in the main thread
     if (_viewState) {
@@ -176,11 +175,11 @@ void Model::setOffset(const glm::vec3& offset) {
 }
 
 void Model::calculateTextureInfo() {
-    if (!_hasCalculatedTextureInfo && isLoaded() && getGeometry()->areTexturesLoaded() && !_modelMeshRenderItems.isEmpty()) {
+    if (!_hasCalculatedTextureInfo && isLoaded() && getGeometry()->areTexturesLoaded() && !_modelMeshRenderItemsMap.isEmpty()) {
         size_t textureSize = 0;
         int textureCount = 0;
         bool allTexturesLoaded = true;
-        foreach(auto renderItem, _modelMeshRenderItemsSet) {
+        foreach(auto renderItem, _modelMeshRenderItems) {
             auto meshPart = renderItem.get();
             textureSize += meshPart->getMaterialTextureSize();
             textureCount += meshPart->getMaterialTextureCount();
@@ -231,20 +230,19 @@ void Model::updateRenderItems() {
         // We need to update them here so we can correctly update the bounding box.
         self->updateClusterMatrices();
 
-        render::ScenePointer scene = AbstractViewStateInterface::instance()->getMain3DScene();
-
         uint32_t deleteGeometryCounter = self->_deleteGeometryCounter;
 
-        render::PendingChanges pendingChanges;
-        foreach (auto itemID, self->_modelMeshRenderItems.keys()) {
-            pendingChanges.updateItem<ModelMeshPartPayload>(itemID, [deleteGeometryCounter](ModelMeshPartPayload& data) {
-                if (data._model && data._model->isLoaded()) {
+        render::Transaction transaction;
+        foreach (auto itemID, self->_modelMeshRenderItemsMap.keys()) {
+            transaction.updateItem<ModelMeshPartPayload>(itemID, [deleteGeometryCounter](ModelMeshPartPayload& data) {
+                ModelPointer model = data._model.lock();
+                if (model && model->isLoaded()) {
                     // Ensure the model geometry was not reset between frames
-                    if (deleteGeometryCounter == data._model->_deleteGeometryCounter) {
-                        Transform modelTransform = data._model->getTransform();
+                    if (deleteGeometryCounter == model->_deleteGeometryCounter) {
+                        Transform modelTransform = model->getTransform();
                         modelTransform.setScale(glm::vec3(1.0f));
 
-                        const Model::MeshState& state = data._model->getMeshState(data._meshIndex);
+                        const Model::MeshState& state = model->getMeshState(data._meshIndex);
                         Transform renderTransform = modelTransform;
                         if (state.clusterMatrices.size() == 1) {
                             renderTransform = modelTransform.worldTransform(Transform(state.clusterMatrices[0]));
@@ -259,21 +257,21 @@ void Model::updateRenderItems() {
         Transform collisionMeshOffset;
         collisionMeshOffset.setIdentity();
         Transform modelTransform = self->getTransform();
-        foreach (auto itemID, self->_collisionRenderItems.keys()) {
-            pendingChanges.updateItem<MeshPartPayload>(itemID, [modelTransform, collisionMeshOffset](MeshPartPayload& data) {
+        foreach(auto itemID, self->_collisionRenderItemsMap.keys()) {
+            transaction.updateItem<MeshPartPayload>(itemID, [modelTransform, collisionMeshOffset](MeshPartPayload& data) {
                 // update the model transform for this render item.
                 data.updateTransform(modelTransform, collisionMeshOffset);
             });
         }
 
-        scene->enqueuePendingChanges(pendingChanges);
+        AbstractViewStateInterface::instance()->getMain3DScene()->enqueueTransaction(transaction);
     });
 }
 
 void Model::initJointTransforms() {
     if (isLoaded()) {
         glm::mat4 modelOffset = glm::scale(_scale) * glm::translate(_offset);
-        _rig->setModelOffset(modelOffset);
+        _rig.setModelOffset(modelOffset);
     }
 }
 
@@ -283,7 +281,7 @@ void Model::init() {
 void Model::reset() {
     if (isLoaded()) {
         const FBXGeometry& geometry = getFBXGeometry();
-        _rig->reset(geometry);
+        _rig.reset(geometry);
     }
 }
 
@@ -296,7 +294,8 @@ bool Model::updateGeometry() {
 
     _needsReload = false;
 
-    if (_rig->jointStatesEmpty() && getFBXGeometry().joints.size() > 0) {
+    // TODO: should all Models have a valid _rig?
+    if (_rig.jointStatesEmpty() && getFBXGeometry().joints.size() > 0) {
         initJointStates();
         assert(_meshStates.empty());
 
@@ -328,7 +327,7 @@ void Model::initJointStates() {
     const FBXGeometry& geometry = getFBXGeometry();
     glm::mat4 modelOffset = glm::scale(_scale) * glm::translate(_offset);
 
-    _rig->initJointStates(geometry, modelOffset);
+    _rig.initJointStates(geometry, modelOffset);
 }
 
 bool Model::findRayIntersectionAgainstSubMeshes(const glm::vec3& origin, const glm::vec3& direction, float& distance,
@@ -378,7 +377,7 @@ bool Model::findRayIntersectionAgainstSubMeshes(const glm::vec3& origin, const g
         glm::vec3 meshFrameOrigin = glm::vec3(worldToMeshMatrix * glm::vec4(origin, 1.0f));
         glm::vec3 meshFrameDirection = glm::vec3(worldToMeshMatrix * glm::vec4(direction, 0.0f));
 
-        for (const auto& triangleSet : _modelSpaceMeshTriangleSets) {
+        for (auto& triangleSet : _modelSpaceMeshTriangleSets) {
             float triangleSetDistance = 0.0f;
             BoxFace triangleSetFace;
             glm::vec3 triangleSetNormal;
@@ -534,39 +533,39 @@ void Model::calculateTriangleSets() {
     }
 }
 
-void Model::setVisibleInScene(bool newValue, std::shared_ptr<render::Scene> scene) {
+void Model::setVisibleInScene(bool newValue, const render::ScenePointer& scene) {
     if (_isVisible != newValue) {
         _isVisible = newValue;
 
-        render::PendingChanges pendingChanges;
-        foreach (auto item, _modelMeshRenderItems.keys()) {
-            pendingChanges.resetItem(item, _modelMeshRenderItems[item]);
+        render::Transaction transaction;
+        foreach (auto item, _modelMeshRenderItemsMap.keys()) {
+            transaction.resetItem(item, _modelMeshRenderItemsMap[item]);
         }
-        foreach (auto item, _collisionRenderItems.keys()) {
-            pendingChanges.resetItem(item, _collisionRenderItems[item]);
+        foreach(auto item, _collisionRenderItemsMap.keys()) {
+            transaction.resetItem(item, _collisionRenderItemsMap[item]);
         }
-        scene->enqueuePendingChanges(pendingChanges);
+        scene->enqueueTransaction(transaction);
     }
 }
 
 
-void Model::setLayeredInFront(bool layered, std::shared_ptr<render::Scene> scene) {
+void Model::setLayeredInFront(bool layered, const render::ScenePointer& scene) {
     if (_isLayeredInFront != layered) {
         _isLayeredInFront = layered;
 
-        render::PendingChanges pendingChanges;
-        foreach(auto item, _modelMeshRenderItems.keys()) {
-            pendingChanges.resetItem(item, _modelMeshRenderItems[item]);
+        render::Transaction transaction;
+        foreach(auto item, _modelMeshRenderItemsMap.keys()) {
+            transaction.resetItem(item, _modelMeshRenderItemsMap[item]);
         }
-        foreach(auto item, _collisionRenderItems.keys()) {
-            pendingChanges.resetItem(item, _collisionRenderItems[item]);
+        foreach(auto item, _collisionRenderItemsMap.keys()) {
+            transaction.resetItem(item, _collisionRenderItemsMap[item]);
         }
-        scene->enqueuePendingChanges(pendingChanges);
+        scene->enqueueTransaction(transaction);
     }
 }
 
-bool Model::addToScene(std::shared_ptr<render::Scene> scene,
-                       render::PendingChanges& pendingChanges,
+bool Model::addToScene(const render::ScenePointer& scene,
+                       render::Transaction& transaction,
                        render::Item::Status::Getters& statusGetters) {
     bool readyToRender = _collisionGeometry || isLoaded();
     if (!_addedToScene && readyToRender) {
@@ -575,40 +574,40 @@ bool Model::addToScene(std::shared_ptr<render::Scene> scene,
 
     bool somethingAdded = false;
     if (_collisionGeometry) {
-        if (_collisionRenderItems.empty()) {
-            foreach (auto renderItem, _collisionRenderItemsSet) {
+        if (_collisionRenderItemsMap.empty()) {
+            foreach (auto renderItem, _collisionRenderItems) {
                 auto item = scene->allocateID();
                 auto renderPayload = std::make_shared<MeshPartPayload::Payload>(renderItem);
-                if (statusGetters.size()) {
+                if (_collisionRenderItems.empty() && statusGetters.size()) {
                     renderPayload->addStatusGetters(statusGetters);
                 }
-                pendingChanges.resetItem(item, renderPayload);
-                _collisionRenderItems.insert(item, renderPayload);
+                transaction.resetItem(item, renderPayload);
+                _collisionRenderItemsMap.insert(item, renderPayload);
             }
-            somethingAdded = !_collisionRenderItems.empty();
+            somethingAdded = !_collisionRenderItemsMap.empty();
         }
     } else {
-        if (_modelMeshRenderItems.empty()) {
+        if (_modelMeshRenderItemsMap.empty()) {
 
             bool hasTransparent = false;
             size_t verticesCount = 0;
-            foreach(auto renderItem, _modelMeshRenderItemsSet) {
+            foreach(auto renderItem, _modelMeshRenderItems) {
                 auto item = scene->allocateID();
                 auto renderPayload = std::make_shared<ModelMeshPartPayload::Payload>(renderItem);
-                if (statusGetters.size()) {
+                if (_modelMeshRenderItemsMap.empty() && statusGetters.size()) {
                     renderPayload->addStatusGetters(statusGetters);
                 }
-                pendingChanges.resetItem(item, renderPayload);
+                transaction.resetItem(item, renderPayload);
 
                 hasTransparent = hasTransparent || renderItem.get()->getShapeKey().isTranslucent();
                 verticesCount += renderItem.get()->getVerticesCount();
-                _modelMeshRenderItems.insert(item, renderPayload);
+                _modelMeshRenderItemsMap.insert(item, renderPayload);
                 _modelMeshRenderItemIDs.emplace_back(item);
             }
-            somethingAdded = !_modelMeshRenderItems.empty();
+            somethingAdded = !_modelMeshRenderItemsMap.empty();
 
             _renderInfoVertexCount = verticesCount;
-            _renderInfoDrawCalls = _modelMeshRenderItems.count();
+            _renderInfoDrawCalls = _modelMeshRenderItemsMap.count();
             _renderInfoHasTransparent = hasTransparent;
         }
     }
@@ -622,19 +621,19 @@ bool Model::addToScene(std::shared_ptr<render::Scene> scene,
     return somethingAdded;
 }
 
-void Model::removeFromScene(std::shared_ptr<render::Scene> scene, render::PendingChanges& pendingChanges) {
-    foreach (auto item, _modelMeshRenderItems.keys()) {
-        pendingChanges.removeItem(item);
+void Model::removeFromScene(const render::ScenePointer& scene, render::Transaction& transaction) {
+    foreach (auto item, _modelMeshRenderItemsMap.keys()) {
+        transaction.removeItem(item);
     }
     _modelMeshRenderItemIDs.clear();
+    _modelMeshRenderItemsMap.clear();
     _modelMeshRenderItems.clear();
-    _modelMeshRenderItemsSet.clear();
 
-    foreach (auto item, _collisionRenderItems.keys()) {
-        pendingChanges.removeItem(item);
+    foreach(auto item, _collisionRenderItemsMap.keys()) {
+        transaction.removeItem(item);
     }
     _collisionRenderItems.clear();
-    _collisionRenderItemsSet.clear();
+    _collisionRenderItemsMap.clear();
     _addedToScene = false;
 
     _renderInfoVertexCount = 0;
@@ -717,6 +716,11 @@ Extents Model::getBindExtents() const {
     return scaledExtents;
 }
 
+glm::vec3 Model::getNaturalDimensions() const {
+    Extents modelMeshExtents = getUnscaledMeshExtents();
+    return modelMeshExtents.maximum - modelMeshExtents.minimum;
+}
+
 Extents Model::getMeshExtents() const {
     if (!isActive()) {
         return Extents();
@@ -748,19 +752,19 @@ Extents Model::getUnscaledMeshExtents() const {
 }
 
 void Model::clearJointState(int index) {
-    _rig->clearJointState(index);
+    _rig.clearJointState(index);
 }
 
 void Model::setJointState(int index, bool valid, const glm::quat& rotation, const glm::vec3& translation, float priority) {
-    _rig->setJointState(index, valid, rotation, translation, priority);
+    _rig.setJointState(index, valid, rotation, translation, priority);
 }
 
 void Model::setJointRotation(int index, bool valid, const glm::quat& rotation, float priority) {
-    _rig->setJointRotation(index, valid, rotation, priority);
+    _rig.setJointRotation(index, valid, rotation, priority);
 }
 
 void Model::setJointTranslation(int index, bool valid, const glm::vec3& translation, float priority) {
-    _rig->setJointTranslation(index, valid, translation, priority);
+    _rig.setJointTranslation(index, valid, translation, priority);
 }
 
 int Model::getParentJointIndex(int jointIndex) const {
@@ -794,11 +798,11 @@ void Model::setURL(const QUrl& url) {
     _url = url;
 
     {
-        render::PendingChanges pendingChanges;
-        render::ScenePointer scene = AbstractViewStateInterface::instance()->getMain3DScene();
+        render::Transaction transaction;
+        const render::ScenePointer& scene = AbstractViewStateInterface::instance()->getMain3DScene();
         if (scene) {
-            removeFromScene(scene, pendingChanges);
-            scene->enqueuePendingChanges(pendingChanges);
+            removeFromScene(scene, transaction);
+            scene->enqueueTransaction(transaction);
         } else {
             qCWarning(renderutils) << "Model::setURL(), Unexpected null scene, possibly during application shutdown";
         }
@@ -812,8 +816,10 @@ void Model::setURL(const QUrl& url) {
     deleteGeometry();
 
     auto resource = DependencyManager::get<ModelCache>()->getGeometryResource(url);
-    resource->setLoadPriority(this, _loadingPriority);
-    _renderWatcher.setResource(resource);
+    if (resource) {
+        resource->setLoadPriority(this, _loadingPriority);
+        _renderWatcher.setResource(resource);
+    }
     onInvalidate();
 }
 
@@ -825,43 +831,43 @@ void Model::loadURLFinished(bool success) {
 }
 
 bool Model::getJointPositionInWorldFrame(int jointIndex, glm::vec3& position) const {
-    return _rig->getJointPositionInWorldFrame(jointIndex, position, _translation, _rotation);
+    return _rig.getJointPositionInWorldFrame(jointIndex, position, _translation, _rotation);
 }
 
 bool Model::getJointPosition(int jointIndex, glm::vec3& position) const {
-    return _rig->getJointPosition(jointIndex, position);
+    return _rig.getJointPosition(jointIndex, position);
 }
 
 bool Model::getJointRotationInWorldFrame(int jointIndex, glm::quat& rotation) const {
-    return _rig->getJointRotationInWorldFrame(jointIndex, rotation, _rotation);
+    return _rig.getJointRotationInWorldFrame(jointIndex, rotation, _rotation);
 }
 
 bool Model::getJointRotation(int jointIndex, glm::quat& rotation) const {
-    return _rig->getJointRotation(jointIndex, rotation);
+    return _rig.getJointRotation(jointIndex, rotation);
 }
 
 bool Model::getJointTranslation(int jointIndex, glm::vec3& translation) const {
-    return _rig->getJointTranslation(jointIndex, translation);
+    return _rig.getJointTranslation(jointIndex, translation);
 }
 
 bool Model::getAbsoluteJointRotationInRigFrame(int jointIndex, glm::quat& rotationOut) const {
-    return _rig->getAbsoluteJointRotationInRigFrame(jointIndex, rotationOut);
+    return _rig.getAbsoluteJointRotationInRigFrame(jointIndex, rotationOut);
 }
 
 bool Model::getAbsoluteJointTranslationInRigFrame(int jointIndex, glm::vec3& translationOut) const {
-    return _rig->getAbsoluteJointTranslationInRigFrame(jointIndex, translationOut);
+    return _rig.getAbsoluteJointTranslationInRigFrame(jointIndex, translationOut);
 }
 
 bool Model::getRelativeDefaultJointRotation(int jointIndex, glm::quat& rotationOut) const {
-    return _rig->getRelativeDefaultJointRotation(jointIndex, rotationOut);
+    return _rig.getRelativeDefaultJointRotation(jointIndex, rotationOut);
 }
 
 bool Model::getRelativeDefaultJointTranslation(int jointIndex, glm::vec3& translationOut) const {
-    return _rig->getRelativeDefaultJointTranslation(jointIndex, translationOut);
+    return _rig.getRelativeDefaultJointTranslation(jointIndex, translationOut);
 }
 
 bool Model::getJointCombinedRotation(int jointIndex, glm::quat& rotation) const {
-    return _rig->getJointCombinedRotation(jointIndex, rotation, _rotation);
+    return _rig.getJointCombinedRotation(jointIndex, rotation, _rotation);
 }
 
 QStringList Model::getJointNames() const {
@@ -938,8 +944,8 @@ void Blender::run() {
         Q_ARG(const QVector<glm::vec3>&, normals));
 }
 
-void Model::setScaleToFit(bool scaleToFit, const glm::vec3& dimensions) {
-    if (_scaleToFit != scaleToFit || _scaleToFitDimensions != dimensions) {
+void Model::setScaleToFit(bool scaleToFit, const glm::vec3& dimensions, bool forceRescale) {
+    if (forceRescale || _scaleToFit != scaleToFit || _scaleToFitDimensions != dimensions) {
         _scaleToFit = scaleToFit;
         _scaleToFitDimensions = dimensions;
         _scaledToFit = false; // force rescaling
@@ -1048,12 +1054,12 @@ void Model::simulate(float deltaTime, bool fullUpdate) {
 //virtual
 void Model::updateRig(float deltaTime, glm::mat4 parentTransform) {
     _needsUpdateClusterMatrices = true;
-    _rig->updateAnimations(deltaTime, parentTransform);
+    glm::mat4 rigToWorldTransform = createMatFromQuatAndPos(getRotation(), getTranslation());
+    _rig.updateAnimations(deltaTime, parentTransform, rigToWorldTransform);
 }
 
 void Model::computeMeshPartLocalBounds() {
-    for (auto& part : _modelMeshRenderItemsSet) {
-        assert(part->_meshIndex < _modelMeshRenderItemsSet.size());
+    for (auto& part : _modelMeshRenderItems) {
         const Model::MeshState& state = _meshStates.at(part->_meshIndex);
         part->computeAdjustedLocalBound(state.clusterMatrices);
     }
@@ -1073,7 +1079,7 @@ void Model::updateClusterMatrices() {
         const FBXMesh& mesh = geometry.meshes.at(i);
         for (int j = 0; j < mesh.clusters.size(); j++) {
             const FBXCluster& cluster = mesh.clusters.at(j);
-            auto jointMatrix = _rig->getJointTransform(cluster.jointIndex);
+            auto jointMatrix = _rig.getJointTransform(cluster.jointIndex);
             glm_mat4u_mul(jointMatrix, cluster.inverseBindMatrix, state.clusterMatrices[j]);
         }
 
@@ -1100,19 +1106,19 @@ void Model::inverseKinematics(int endIndex, glm::vec3 targetPosition, const glm:
     const FBXGeometry& geometry = getFBXGeometry();
     const QVector<int>& freeLineage = geometry.joints.at(endIndex).freeLineage;
     glm::mat4 parentTransform = glm::scale(_scale) * glm::translate(_offset);
-    _rig->inverseKinematics(endIndex, targetPosition, targetRotation, priority, freeLineage, parentTransform);
+    _rig.inverseKinematics(endIndex, targetPosition, targetRotation, priority, freeLineage, parentTransform);
 }
 
 bool Model::restoreJointPosition(int jointIndex, float fraction, float priority) {
     const FBXGeometry& geometry = getFBXGeometry();
     const QVector<int>& freeLineage = geometry.joints.at(jointIndex).freeLineage;
-    return _rig->restoreJointPosition(jointIndex, fraction, priority, freeLineage);
+    return _rig.restoreJointPosition(jointIndex, fraction, priority, freeLineage);
 }
 
 float Model::getLimbLength(int jointIndex) const {
     const FBXGeometry& geometry = getFBXGeometry();
     const QVector<int>& freeLineage = geometry.joints.at(jointIndex).freeLineage;
-    return _rig->getLimbLength(jointIndex, freeLineage, _scale, geometry.joints);
+    return _rig.getLimbLength(jointIndex, freeLineage, _scale, geometry.joints);
 }
 
 bool Model::maybeStartBlender() {
@@ -1155,7 +1161,7 @@ void Model::deleteGeometry() {
     _deleteGeometryCounter++;
     _blendedVertexBuffers.clear();
     _meshStates.clear();
-    _rig->destroyAnimGraph();
+    _rig.destroyAnimGraph();
     _blendedBlendshapeCoefficients.clear();
     _renderGeometry.reset();
     _collisionGeometry.reset();
@@ -1167,7 +1173,7 @@ AABox Model::getRenderableMeshBound() const {
     } else {
         // Build a bound using the last known bound from all the renderItems.
         AABox totalBound;
-        for (auto& renderItem : _modelMeshRenderItemsSet) {
+        for (auto& renderItem : _modelMeshRenderItems) {
             totalBound += renderItem->getBound();
         }
         return totalBound;
@@ -1180,11 +1186,11 @@ const render::ItemIDs& Model::fetchRenderItemIDs() const {
 
 void Model::createRenderItemSet() {
     if (_collisionGeometry) {
-        if (_collisionRenderItemsSet.empty()) {
+        if (_collisionRenderItems.empty()) {
             createCollisionRenderItemSet();
         }
     } else {
-        if (_modelMeshRenderItemsSet.empty()) {
+        if (_modelMeshRenderItems.empty()) {
             createVisibleRenderItemSet();
         }
     }
@@ -1196,14 +1202,14 @@ void Model::createVisibleRenderItemSet() {
 
     // all of our mesh vectors must match in size
     if ((int)meshes.size() != _meshStates.size()) {
-        qCDebug(renderlogging) << "WARNING!!!! Mesh Sizes don't match! We will not segregate mesh groups yet.";
+        qCDebug(renderutils) << "WARNING!!!! Mesh Sizes don't match! We will not segregate mesh groups yet.";
         return;
     }
 
     // We should not have any existing renderItems if we enter this section of code
-    Q_ASSERT(_modelMeshRenderItemsSet.isEmpty());
+    Q_ASSERT(_modelMeshRenderItems.isEmpty());
 
-    _modelMeshRenderItemsSet.clear();
+    _modelMeshRenderItems.clear();
 
     Transform transform;
     transform.setTranslation(_translation);
@@ -1225,7 +1231,7 @@ void Model::createVisibleRenderItemSet() {
         // Create the render payloads
         int numParts = (int)mesh->getNumParts();
         for (int partIndex = 0; partIndex < numParts; partIndex++) {
-            _modelMeshRenderItemsSet << std::make_shared<ModelMeshPartPayload>(this, i, partIndex, shapeID, transform, offset);
+            _modelMeshRenderItems << std::make_shared<ModelMeshPartPayload>(shared_from_this(), i, partIndex, shapeID, transform, offset);
             shapeID++;
         }
     }
@@ -1241,7 +1247,7 @@ void Model::createCollisionRenderItemSet() {
     const auto& meshes = _collisionGeometry->getMeshes();
 
     // We should not have any existing renderItems if we enter this section of code
-    Q_ASSERT(_collisionRenderItemsSet.isEmpty());
+    Q_ASSERT(_collisionRenderItems.isEmpty());
 
     Transform identity;
     identity.setIdentity();
@@ -1262,7 +1268,7 @@ void Model::createCollisionRenderItemSet() {
             model::MaterialPointer& material = _collisionMaterials[partIndex % NUM_COLLISION_HULL_COLORS];
             auto payload = std::make_shared<MeshPartPayload>(mesh, partIndex, material);
             payload->updateTransform(identity, offset);
-            _collisionRenderItemsSet << payload;
+            _collisionRenderItems << payload;
         }
     }
 }
@@ -1271,7 +1277,7 @@ bool Model::isRenderable() const {
     return !_meshStates.isEmpty() || (isLoaded() && _renderGeometry->getMeshes().empty());
 }
 
-bool Model::initWhenReady(render::ScenePointer scene) {
+bool Model::initWhenReady(const render::ScenePointer& scene) {
     // NOTE: this only called by SkeletonModel
     if (_addedToScene || !isRenderable()) {
         return false;
@@ -1279,38 +1285,38 @@ bool Model::initWhenReady(render::ScenePointer scene) {
 
     createRenderItemSet();
 
-    render::PendingChanges pendingChanges;
+    render::Transaction transaction;
 
-    bool addedPendingChanges = false;
+    bool addedTransaction = false;
     if (_collisionGeometry) {
-        foreach (auto renderItem, _collisionRenderItemsSet) {
+        foreach (auto renderItem, _collisionRenderItems) {
             auto item = scene->allocateID();
             auto renderPayload = std::make_shared<MeshPartPayload::Payload>(renderItem);
-            _collisionRenderItems.insert(item, renderPayload);
-            pendingChanges.resetItem(item, renderPayload);
+            _collisionRenderItemsMap.insert(item, renderPayload);
+            transaction.resetItem(item, renderPayload);
         }
-        addedPendingChanges = !_collisionRenderItems.empty();
+        addedTransaction = !_collisionRenderItems.empty();
     } else {
         bool hasTransparent = false;
         size_t verticesCount = 0;
-        foreach (auto renderItem, _modelMeshRenderItemsSet) {
+        foreach (auto renderItem, _modelMeshRenderItems) {
             auto item = scene->allocateID();
             auto renderPayload = std::make_shared<ModelMeshPartPayload::Payload>(renderItem);
 
             hasTransparent = hasTransparent || renderItem.get()->getShapeKey().isTranslucent();
             verticesCount += renderItem.get()->getVerticesCount();
-            _modelMeshRenderItems.insert(item, renderPayload);
-            pendingChanges.resetItem(item, renderPayload);
+            _modelMeshRenderItemsMap.insert(item, renderPayload);
+            transaction.resetItem(item, renderPayload);
         }
-        addedPendingChanges = !_modelMeshRenderItems.empty();
+        addedTransaction = !_modelMeshRenderItemsMap.empty();
         _renderInfoVertexCount = verticesCount;
-        _renderInfoDrawCalls = _modelMeshRenderItems.count();
+        _renderInfoDrawCalls = _modelMeshRenderItemsMap.count();
         _renderInfoHasTransparent = hasTransparent;
     }
-    _addedToScene = addedPendingChanges;
-    if (addedPendingChanges) {
-        scene->enqueuePendingChanges(pendingChanges);
-        // NOTE: updateRender items enqueues identical pendingChanges (using a lambda)
+    _addedToScene = addedTransaction;
+    if (addedTransaction) {
+        scene->enqueueTransaction(transaction);
+        // NOTE: updateRender items enqueues identical transaction (using a lambda)
         // so it looks like we're doing double work here, but I don't want to remove the call
         // for fear there is some side effect we'll miss. -- Andrew 2016.07.21
         // TODO: figure out if we really need this call to updateRenderItems() or not.

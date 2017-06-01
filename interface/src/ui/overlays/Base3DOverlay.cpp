@@ -81,6 +81,10 @@ QVariantMap convertOverlayLocationFromScriptSemantics(const QVariantMap& propert
 void Base3DOverlay::setProperties(const QVariantMap& originalProperties) {
     QVariantMap properties = originalProperties;
 
+    if (properties["name"].isValid()) {
+        setName(properties["name"].toString());
+    }
+
     // carry over some legacy keys
     if (!properties["position"].isValid() && !properties["localPosition"].isValid()) {
         if (properties["p1"].isValid()) {
@@ -199,14 +203,17 @@ void Base3DOverlay::setProperties(const QVariantMap& originalProperties) {
         auto itemID = getRenderItemID();
         if (render::Item::isValidID(itemID)) {
             render::ScenePointer scene = qApp->getMain3DScene();
-            render::PendingChanges pendingChanges;
-            pendingChanges.updateItem(itemID);
-            scene->enqueuePendingChanges(pendingChanges);
+            render::Transaction transaction;
+            transaction.updateItem(itemID);
+            scene->enqueueTransaction(transaction);
         }
     }
 }
 
 QVariant Base3DOverlay::getProperty(const QString& property) {
+    if (property == "name") {
+        return _name;
+    }
     if (property == "position" || property == "start" || property == "p1" || property == "point") {
         return vec3toVariant(getPosition());
     }
@@ -264,9 +271,9 @@ void Base3DOverlay::locationChanged(bool tellPhysics) {
     auto itemID = getRenderItemID();
     if (render::Item::isValidID(itemID)) {
         render::ScenePointer scene = qApp->getMain3DScene();
-        render::PendingChanges pendingChanges;
-        pendingChanges.updateItem(itemID);
-        scene->enqueuePendingChanges(pendingChanges);
+        render::Transaction transaction;
+        transaction.updateItem(itemID);
+        scene->enqueueTransaction(transaction);
     }
 }
 

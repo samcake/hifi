@@ -21,6 +21,8 @@
 
 #include <model/Geometry.h>
 
+#include "Model.h"
+
 const uint8_t FADE_WAITING_TO_START = 0;
 const uint8_t FADE_IN_PROGRESS = 1;
 const uint8_t FADE_COMPLETE = 2;
@@ -46,11 +48,11 @@ public:
     virtual render::ItemKey getKey() const;
     virtual render::Item::Bound getBound() const;
     virtual render::ShapeKey getShapeKey() const; // shape interface
-    virtual void render(RenderArgs* args) const;
+    virtual void render(RenderArgs* args);
 
     // ModelMeshPartPayload functions to perform render
     void drawCall(gpu::Batch& batch) const;
-    virtual void bindMesh(gpu::Batch& batch) const;
+    virtual void bindMesh(gpu::Batch& batch);
     virtual void bindMaterial(gpu::Batch& batch, const render::ShapePipeline::LocationsPointer locations, bool enableTextures) const;
     virtual void bindTransform(gpu::Batch& batch, const render::ShapePipeline::LocationsPointer locations, RenderArgs::RenderMode renderMode) const;
 
@@ -83,7 +85,7 @@ namespace render {
 
 class ModelMeshPartPayload : public MeshPartPayload {
 public:
-    ModelMeshPartPayload(Model* model, int meshIndex, int partIndex, int shapeIndex, const Transform& transform, const Transform& offsetTransform);
+    ModelMeshPartPayload(ModelPointer model, int meshIndex, int partIndex, int shapeIndex, const Transform& transform, const Transform& offsetTransform);
 
     typedef render::Payload<ModelMeshPartPayload> Payload;
     typedef Payload::DataPointer Pointer;
@@ -93,16 +95,16 @@ public:
             const Transform& boundTransform,
             const gpu::BufferPointer& buffer);
 
-    float computeFadeAlpha() const;
+    float computeFadeAlpha();
 
     // Render Item interface
     render::ItemKey getKey() const override;
     int getLayer() const;
     render::ShapeKey getShapeKey() const override; // shape interface
-    void render(RenderArgs* args) const override;
+    void render(RenderArgs* args) override;
 
     // ModelMeshPartPayload functions to perform render
-    void bindMesh(gpu::Batch& batch) const override;
+    void bindMesh(gpu::Batch& batch) override;
     void bindTransform(gpu::Batch& batch, const render::ShapePipeline::LocationsPointer locations, RenderArgs::RenderMode renderMode) const override;
 
     void initCache();
@@ -110,17 +112,18 @@ public:
     void computeAdjustedLocalBound(const QVector<glm::mat4>& clusterMatrices);
 
     gpu::BufferPointer _clusterBuffer;
-    Model* _model;
+    ModelWeakPointer _model;
 
     int _meshIndex;
     int _shapeID;
 
     bool _isSkinned{ false };
-    bool _isBlendShaped{ false };
+    bool _isBlendShaped { false };
+    bool _materialNeedsUpdate { true };
 
 private:
-    mutable quint64 _fadeStartTime { 0 };
-    mutable uint8_t _fadeState { FADE_WAITING_TO_START };
+    quint64 _fadeStartTime { 0 };
+    uint8_t _fadeState { FADE_WAITING_TO_START };
 };
 
 namespace render {

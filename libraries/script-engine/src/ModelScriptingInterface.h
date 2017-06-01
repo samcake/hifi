@@ -17,9 +17,11 @@
 #include <QScriptValue>
 #include <OBJWriter.h>
 #include <model/Geometry.h>
-#include "MeshProxy.h"
+#include <model-networking/MeshProxy.h>
+#include <model-networking/MeshFace.h>
 
 using MeshPointer = std::shared_ptr<model::Mesh>;
+class ScriptEngine;
 
 class ModelScriptingInterface : public QObject {
     Q_OBJECT
@@ -28,12 +30,14 @@ public:
     ModelScriptingInterface(QObject* parent);
 
     Q_INVOKABLE QString meshToOBJ(MeshProxyList in);
+    Q_INVOKABLE QScriptValue appendMeshes(MeshProxyList in);
+    Q_INVOKABLE QScriptValue transformMesh(glm::mat4 transform, MeshProxy* meshProxy);
+    Q_INVOKABLE QScriptValue newMesh(const QVector<glm::vec3>& vertices,
+                                     const QVector<glm::vec3>& normals,
+                                     const QVector<MeshFace>& faces);
+
+private:
+    ScriptEngine* _modelScriptEngine { nullptr };
 };
-
-QScriptValue meshToScriptValue(QScriptEngine* engine, MeshProxy* const &in);
-void meshFromScriptValue(const QScriptValue& value, MeshProxy* &out);
-
-QScriptValue meshesToScriptValue(QScriptEngine* engine, const MeshProxyList &in);
-void meshesFromScriptValue(const QScriptValue& value, MeshProxyList &out);
 
 #endif // hifi_ModelScriptingInterface_h

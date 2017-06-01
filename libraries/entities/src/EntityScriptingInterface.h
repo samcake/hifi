@@ -58,7 +58,6 @@ public:
     bool intersects;
     bool accurate;
     QUuid entityID;
-    EntityItemProperties properties;
     float distance;
     BoxFace face;
     glm::vec3 intersection;
@@ -213,8 +212,15 @@ public slots:
     /// - orientation
     /// - projection
     /// - centerRadius
-    /// this function will not find any models in script engine contexts which don't have access to models
+    /// this function will not find any models in script engine contexts which don't have access to entities
     Q_INVOKABLE QVector<QUuid> findEntitiesInFrustum(QVariantMap frustum) const;
+
+	/// finds entities of the indicated type within a sphere given by the center point and radius
+	/// @param {QString} string representation of entity type
+	/// @param {vec3} center point
+	/// @param {float} radius to search
+	/// this function will not find any entities in script engine contexts which don't have access to entities
+	Q_INVOKABLE QVector<QUuid> findEntitiesByType(const QString entityType, const glm::vec3& center, float radius) const;
 
     /// If the scripting context has visible entities, this will determine a ray intersection, the results
     /// may be inaccurate if the engine is unable to access the visible entities, in which case result.accurate
@@ -266,7 +272,6 @@ public slots:
     Q_INVOKABLE bool setAllVoxels(QUuid entityID, int value);
     Q_INVOKABLE bool setVoxelsInCuboid(QUuid entityID, const glm::vec3& lowPosition,
                                        const glm::vec3& cuboidSize, int value);
-    Q_INVOKABLE void voxelsToMesh(QUuid entityID, QScriptValue callback);
 
     Q_INVOKABLE bool setAllPoints(QUuid entityID, const QVector<glm::vec3>& points);
     Q_INVOKABLE bool appendPoint(QUuid entityID, const glm::vec3& point);
@@ -306,6 +311,8 @@ public slots:
     Q_INVOKABLE QVector<QUuid> getChildrenIDsOfJoint(const QUuid& parentID, int jointIndex);
     Q_INVOKABLE bool isChildOfParent(QUuid childID, QUuid parentID);
 
+    Q_INVOKABLE QString getNestableType(QUuid id);
+
     Q_INVOKABLE QUuid getKeyboardFocusEntity() const;
     Q_INVOKABLE void setKeyboardFocusEntity(QUuid id);
 
@@ -330,6 +337,27 @@ public slots:
     Q_INVOKABLE bool AABoxIntersectsCapsule(const glm::vec3& low, const glm::vec3& dimensions,
                                             const glm::vec3& start, const glm::vec3& end, float radius);
 
+
+    Q_INVOKABLE void getMeshes(QUuid entityID, QScriptValue callback);
+
+    /**jsdoc
+     * Returns object to world transform, excluding scale
+     *
+     * @function Entities.getEntityTransform
+     * @param {EntityID} entityID The ID of the entity whose transform is to be returned
+     * @return {Mat4} Entity's object to world transform, excluding scale
+     */
+    Q_INVOKABLE glm::mat4 getEntityTransform(const QUuid& entityID);
+
+
+    /**jsdoc
+     * Returns object to world transform, excluding scale
+     *
+     * @function Entities.getEntityLocalTransform
+     * @param {EntityID} entityID The ID of the entity whose local transform is to be returned
+     * @return {Mat4} Entity's object to parent transform, excluding scale
+     */
+    Q_INVOKABLE glm::mat4 getEntityLocalTransform(const QUuid& entityID);
 
 signals:
     void collisionWithEntity(const EntityItemID& idA, const EntityItemID& idB, const Collision& collision);

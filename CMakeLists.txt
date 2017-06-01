@@ -30,6 +30,8 @@ project(hifi)
 add_definitions(-DGLM_FORCE_RADIANS)
 set(CMAKE_CXX_FLAGS_DEBUG  "${CMAKE_CXX_FLAGS_DEBUG} -DDEBUG")
 
+find_package( Threads )
+
 if (WIN32)
   add_definitions(-DNOMINMAX -D_CRT_SECURE_NO_WARNINGS)
 
@@ -206,8 +208,10 @@ foreach(CUSTOM_MACRO ${HIFI_CUSTOM_MACROS})
   include(${CUSTOM_MACRO})
 endforeach()
 
-file(GLOB_RECURSE JS_SRC scripts/*.js)
+file(GLOB_RECURSE JS_SRC scripts/*.js unpublishedScripts/*.js)
 add_custom_target(js SOURCES ${JS_SRC})
+GroupSources("scripts")
+GroupSources("unpublishedScripts")
 
 if (UNIX)
    install(

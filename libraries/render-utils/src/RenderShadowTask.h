@@ -24,7 +24,7 @@ public:
     using JobModel = render::Job::ModelI<RenderShadowMap, render::ShapeBounds>;
 
     RenderShadowMap(render::ShapePlumberPointer shapePlumber) : _shapePlumber{ shapePlumber } {}
-    void run(const render::SceneContextPointer& sceneContext, const render::RenderContextPointer& renderContext,
+    void run(const render::RenderContextPointer& renderContext,
              const render::ShapeBounds& inShapes);
 
 protected:
@@ -35,18 +35,19 @@ class RenderShadowTaskConfig : public render::Task::Config::Persistent {
     Q_OBJECT
     Q_PROPERTY(bool enabled MEMBER enabled NOTIFY dirty)
 public:
-    RenderShadowTaskConfig() : render::Task::Config::Persistent("Shadows", false) {}
+    RenderShadowTaskConfig() : render::Task::Config::Persistent(QStringList() << "Render" << "Engine" << "Shadows", false) {}
 
 signals:
     void dirty();
 };
 
-class RenderShadowTask : public render::Task {
+class RenderShadowTask {
 public:
     using Config = RenderShadowTaskConfig;
-    using JobModel = Model<RenderShadowTask, Config>;
+    using JobModel = render::Task::Model<RenderShadowTask, Config>;
 
-    RenderShadowTask(render::CullFunctor shouldRender);
+    RenderShadowTask() {}
+    void build(JobModel& task, const render::Varying& inputs, render::Varying& outputs, render::CullFunctor shouldRender);
 
     void configure(const Config& configuration);
 };
@@ -55,14 +56,14 @@ class RenderShadowSetup {
 public:
     using Output = RenderArgs::RenderMode;
     using JobModel = render::Job::ModelO<RenderShadowSetup, Output>;
-    void run(const render::SceneContextPointer& sceneContext, const render::RenderContextPointer& renderContext, Output& output);
+    void run(const render::RenderContextPointer& renderContext, Output& output);
 };
 
 class RenderShadowTeardown {
 public:
     using Input = RenderArgs::RenderMode;
     using JobModel = render::Job::ModelI<RenderShadowTeardown, Input>;
-    void run(const render::SceneContextPointer& sceneContext, const render::RenderContextPointer& renderContext, const Input& input);
+    void run(const render::RenderContextPointer& renderContext, const Input& input);
 };
 
 #endif // hifi_RenderShadowTask_h

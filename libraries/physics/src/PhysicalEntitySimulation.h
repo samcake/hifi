@@ -1,6 +1,6 @@
 //
 //  PhysicalEntitySimulation.h
-//  libraries/physcis/src
+//  libraries/physics/src
 //
 //  Created by Andrew Meadows 2015.04.27
 //  Copyright 2015 High Fidelity, Inc.
@@ -34,8 +34,8 @@ public:
 
     void init(EntityTreePointer tree, PhysicsEnginePointer engine, EntityEditPacketSender* packetSender);
 
-    virtual void addAction(EntityActionPointer action) override;
-    virtual void applyActionChanges() override;
+    virtual void addDynamic(EntityDynamicPointer dynamic) override;
+    virtual void applyDynamicChanges() override;
 
     virtual void takeEntitiesToDelete(VectorOfEntities& entitiesToDelete) override;
 

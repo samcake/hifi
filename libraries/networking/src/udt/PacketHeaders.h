@@ -113,7 +113,9 @@ public:
         EntityPhysics,
         EntityServerScriptLog,
         AdjustAvatarSorting,
-        LAST_PACKET_TYPE = AdjustAvatarSorting
+        OctreeFileReplacement,
+        CollisionEventChanges,
+        LAST_PACKET_TYPE = CollisionEventChanges
     };
 };
 
@@ -206,6 +208,8 @@ const PacketVersion VERSION_ENTITIES_LAST_EDITED_BY = 65;
 const PacketVersion VERSION_ENTITIES_SERVER_SCRIPTS = 66;
 const PacketVersion VERSION_ENTITIES_PHYSICS_PACKET = 67;
 const PacketVersion VERSION_ENTITIES_ZONE_FILTERS = 68;
+const PacketVersion VERSION_ENTITIES_HINGE_CONSTRAINT = 69;
+const PacketVersion VERSION_ENTITIES_BULLET_DYNAMICS = 70;
 
 enum class EntityQueryPacketVersion: PacketVersion {
     JSONFilter = 18,
@@ -213,7 +217,8 @@ enum class EntityQueryPacketVersion: PacketVersion {
 };
 
 enum class AssetServerPacketVersion: PacketVersion {
-    VegasCongestionControl = 19
+    VegasCongestionControl = 19,
+    RangeRequestSupport
 };
 
 enum class AvatarMixerPacketVersion : PacketVersion {
@@ -228,7 +233,10 @@ enum class AvatarMixerPacketVersion : PacketVersion {
     Unignore,
     ImmediateSessionDisplayNameUpdates,
     VariableAvatarData,
-    AvatarAsChildFixes
+    AvatarAsChildFixes,
+    StickAndBallDefaultAvatar,
+    IdentityPacketsIncludeUpdateTime,
+    AvatarIdentitySequenceId
 };
 
 enum class DomainConnectRequestVersion : PacketVersion {

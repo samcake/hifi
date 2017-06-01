@@ -24,9 +24,6 @@
 #include <ScriptEngine.h>
 #include <ThreadedAssignment.h>
 
-static const int DEFAULT_MAX_ENTITY_PPS = 9000;
-static const int DEFAULT_ENTITY_PPS_PER_SCRIPT = 900;
-
 class EntityScriptServer : public ThreadedAssignment {
     Q_OBJECT
 
@@ -67,8 +64,8 @@ private:
 
     void addingEntity(const EntityItemID& entityID);
     void deletingEntity(const EntityItemID& entityID);
-    void entityServerScriptChanging(const EntityItemID& entityID, const bool reload);
-    void checkAndCallPreload(const EntityItemID& entityID, const bool reload = false);
+    void entityServerScriptChanging(const EntityItemID& entityID, bool reload);
+    void checkAndCallPreload(const EntityItemID& entityID, bool reload = false);
 
     void cleanupOldKilledListeners();
 

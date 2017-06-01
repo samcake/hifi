@@ -21,11 +21,11 @@
 #include <PIDController.h>
 #include <SimpleMovingAverage.h>
 #include <shared/RateCounter.h>
+#include <avatars-renderer/ScriptAvatar.h>
 
-#include "Avatar.h"
 #include "AvatarMotionState.h"
+#include "MyAvatar.h"
 
-class MyAvatar;
 class AudioInjector;
 
 class AvatarManager : public AvatarHashMap {
@@ -41,6 +41,11 @@ public:
     void init();
 
     std::shared_ptr<MyAvatar> getMyAvatar() { return _myAvatar; }
+    glm::vec3 getMyAvatarPosition() const { return _myAvatar->getPosition(); }
+
+    // Null/Default-constructed QUuids will return MyAvatar
+    Q_INVOKABLE virtual ScriptAvatarData* getAvatar(QUuid avatarID) override { return new ScriptAvatar(getAvatarBySessionID(avatarID)); }
+
     AvatarSharedPointer getAvatarBySessionID(const QUuid& sessionID) const override;
 
     int getNumAvatarsUpdated() const { return _numAvatarsUpdated; }
@@ -53,19 +58,7 @@ public:
     void postUpdate(float deltaTime);
 
     void clearOtherAvatars();
-    void clearAllAvatars();
-
-    bool shouldShowReceiveStats() const { return _shouldShowReceiveStats; }
-
-    class LocalLight {
-    public:
-        glm::vec3 color;
-        glm::vec3 direction;
-    };
-
-    Q_INVOKABLE void setLocalLights(const QVector<AvatarManager::LocalLight>& localLights);
-    Q_INVOKABLE QVector<AvatarManager::LocalLight> getLocalLights() const;
-
+    void deleteAllAvatars();
 
     void getObjectsToRemoveFromPhysics(VectorOfMotionStates& motionStates);
     void getObjectsToAddToPhysics(VectorOfMotionStates& motionStates);
@@ -88,11 +81,7 @@ public:
     float getMyAvatarSendRate() const { return _myAvatarSendRate.rate(); }
 
 public slots:
-    void setShouldShowReceiveStats(bool shouldShowReceiveStats) { _shouldShowReceiveStats = shouldShowReceiveStats; }
     void updateAvatarRenderStatus(bool shouldRenderAvatars);
-
-private slots:
-    virtual void removeAvatar(const QUuid& sessionUUID, KillAvatarReason removalReason = KillAvatarReason::NoReason) override;
 
 private:
     explicit AvatarManager(QObject* parent = 0);
@@ -100,32 +89,28 @@ private:
 
     void simulateAvatarFades(float deltaTime);
 
-    // virtual overrides
-    virtual AvatarSharedPointer newSharedAvatar() override;
-    virtual AvatarSharedPointer addAvatar(const QUuid& sessionUUID, const QWeakPointer<Node>& mixerWeakPointer) override;
-    virtual void handleRemovedAvatar(const AvatarSharedPointer& removedAvatar, KillAvatarReason removalReason = KillAvatarReason::NoReason) override;
+    AvatarSharedPointer newSharedAvatar() override;
+    void deleteMotionStates();
+    void handleRemovedAvatar(const AvatarSharedPointer& removedAvatar, KillAvatarReason removalReason = KillAvatarReason::NoReason) override;
 
-    QVector<AvatarSharedPointer> _avatarFades;
+    QVector<AvatarSharedPointer> _avatarsToFade;
+
+    using AvatarMotionStateMap = QMap<Avatar*, AvatarMotionState*>;
+    AvatarMotionStateMap _motionStates;
+    VectorOfMotionStates _motionStatesToRemoveFromPhysics;
+    VectorOfMotionStates _motionStatesToDelete;
+    SetOfMotionStates _motionStatesToAddToPhysics;
+
     std::shared_ptr<MyAvatar> _myAvatar;
     quint64 _lastSendAvatarDataTime = 0; // Controls MyAvatar send data rate.
 
-    QVector<AvatarManager::LocalLight> _localLights;
-
-    bool _shouldShowReceiveStats = false;
-
     std::list<QPointer<AudioInjector>> _collisionInjectors;
-
-    SetOfAvatarMotionStates _motionStatesThatMightUpdate;
-    SetOfMotionStates _motionStatesToAddToPhysics;
-    VectorOfMotionStates _motionStatesToRemoveFromPhysics;
 
     RateCounter<> _myAvatarSendRate;
     int _numAvatarsUpdated { 0 };
     int _numAvatarsNotUpdated { 0 };
     float _avatarSimulationTime { 0.0f };
+    bool _shouldRender { true };
 };
-
-Q_DECLARE_METATYPE(AvatarManager::LocalLight)
-Q_DECLARE_METATYPE(QVector<AvatarManager::LocalLight>)
 
 #endif // hifi_AvatarManager_h

@@ -71,15 +71,10 @@ AvatarMixer::~AvatarMixer() {
 
 void AvatarMixer::sendIdentityPacket(AvatarMixerClientData* nodeData, const SharedNodePointer& destinationNode) {
     QByteArray individualData = nodeData->getAvatar().identityByteArray();
-
-    auto identityPacket = NLPacket::create(PacketType::AvatarIdentity, individualData.size());
-
     individualData.replace(0, NUM_BYTES_RFC4122_UUID, nodeData->getNodeID().toRfc4122());
-
-    identityPacket->write(individualData);
-
-    DependencyManager::get<NodeList>()->sendPacket(std::move(identityPacket), *destinationNode);
-
+    auto identityPackets = NLPacketList::create(PacketType::AvatarIdentity, QByteArray(), true, true);
+    identityPackets->write(individualData);
+    DependencyManager::get<NodeList>()->sendPacketList(std::move(identityPackets), *destinationNode);
     ++_sumIdentityPackets;
 }
 
@@ -187,7 +182,7 @@ void AvatarMixer::start() {
 
 
 // NOTE: nodeData->getAvatar() might be side effected, must be called when access to node/nodeData
-// is guarenteed to not be accessed by other thread
+// is guaranteed to not be accessed by other thread
 void AvatarMixer::manageDisplayName(const SharedNodePointer& node) {
     AvatarMixerClientData* nodeData = reinterpret_cast<AvatarMixerClientData*>(node->getLinkedData());
     if (nodeData && nodeData->getAvatarSessionDisplayNameMustChange()) {
@@ -200,7 +195,7 @@ void AvatarMixer::manageDisplayName(const SharedNodePointer& node) {
         QString baseName = avatar.getDisplayName().trimmed();
         const QRegularExpression curses { "fuck|shit|damn|cock|cunt" }; // POC. We may eventually want something much more elaborate (subscription?).
         baseName = baseName.replace(curses, "*"); // Replace rather than remove, so that people have a clue that the person's a jerk.
-        const QRegularExpression trailingDigits { "\\s*_\\d+$" }; // whitespace "_123"
+        const QRegularExpression trailingDigits { "\\s*(_\\d+\\s*)?(\\s*\\n[^$]*)?$" }; // trailing whitespace "_123" and any subsequent lines
         baseName = baseName.remove(trailingDigits);
         if (baseName.isEmpty()) {
             baseName = "anonymous";
@@ -437,17 +432,20 @@ void AvatarMixer::handleNodeIgnoreRequestPacket(QSharedPointer<ReceivedMessage> 
     while (message->getBytesLeftToRead()) {
         // parse out the UUID being ignored from the packet
         QUuid ignoredUUID = QUuid::fromRfc4122(message->readWithoutCopy(NUM_BYTES_RFC4122_UUID));
-        // Reset the lastBroadcastTime for the ignored avatar to 0
-        // so the AvatarMixer knows it'll have to send identity data about the ignored avatar
-        // to the ignorer if the ignorer unignores.
-        nodeData->setLastBroadcastTime(ignoredUUID, 0);
 
-        // Reset the lastBroadcastTime for the ignorer (FROM THE PERSPECTIVE OF THE IGNORED) to 0
-        // so the AvatarMixer knows it'll have to send identity data about the ignorer
-        // to the ignored if the ignorer unignores.
-        auto ignoredNode = nodeList->nodeWithUUID(ignoredUUID);
-        AvatarMixerClientData* ignoredNodeData = reinterpret_cast<AvatarMixerClientData*>(ignoredNode->getLinkedData());
-        ignoredNodeData->setLastBroadcastTime(senderNode->getUUID(), 0);
+        if (nodeList->nodeWithUUID(ignoredUUID)) {
+            // Reset the lastBroadcastTime for the ignored avatar to 0
+            // so the AvatarMixer knows it'll have to send identity data about the ignored avatar
+            // to the ignorer if the ignorer unignores.
+            nodeData->setLastBroadcastTime(ignoredUUID, 0);
+
+            // Reset the lastBroadcastTime for the ignorer (FROM THE PERSPECTIVE OF THE IGNORED) to 0
+            // so the AvatarMixer knows it'll have to send identity data about the ignorer
+            // to the ignored if the ignorer unignores.
+            auto ignoredNode = nodeList->nodeWithUUID(ignoredUUID);
+            AvatarMixerClientData* ignoredNodeData = reinterpret_cast<AvatarMixerClientData*>(ignoredNode->getLinkedData());
+            ignoredNodeData->setLastBroadcastTime(senderNode->getUUID(), 0);
+        }
 
         if (addToIgnore) {
             senderNode->addIgnoredNode(ignoredUUID);
@@ -667,12 +665,12 @@ void AvatarMixer::sendStatsPacket() {
 
 void AvatarMixer::run() {
     qCDebug(avatars) << "Waiting for connection to domain to request settings from domain-server.";
-    
+
     // wait until we have the domain-server settings, otherwise we bail
     DomainHandler& domainHandler = DependencyManager::get<NodeList>()->getDomainHandler();
     connect(&domainHandler, &DomainHandler::settingsReceived, this, &AvatarMixer::domainSettingsRequestComplete);
     connect(&domainHandler, &DomainHandler::settingsReceiveFail, this, &AvatarMixer::domainSettingsRequestFailed);
-   
+
     ThreadedAssignment::commonInit(AVATAR_MIXER_LOGGING_NAME, NodeType::AvatarMixer);
 
 }
@@ -697,7 +695,7 @@ void AvatarMixer::domainSettingsRequestComplete() {
 
     // parse the settings to pull out the values we need
     parseDomainServerSettings(nodeList->getDomainHandler().getSettingsObject());
-    
+
     // start our tight loop...
     start();
 }
@@ -747,7 +745,7 @@ void AvatarMixer::parseDomainServerSettings(const QJsonObject& domainSettings) {
     } else {
         qCDebug(avatars) << "Avatar mixer will automatically determine number of threads to use. Using:" << _slavePool.numThreads() << "threads.";
     }
-    
+
     const QString AVATARS_SETTINGS_KEY = "avatars";
 
     static const QString MIN_SCALE_OPTION = "min_avatar_scale";

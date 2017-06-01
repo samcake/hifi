@@ -62,8 +62,6 @@ BackendPointer GLBackend::createBackend() {
     INSTANCE = result.get();
     void* voidInstance = &(*result);
     qApp->setProperty(hifi::properties::gl::BACKEND, QVariant::fromValue(voidInstance));
-
-    gl::GLTexture::initTextureTransferHelper();
     return result;
 }
 
@@ -103,6 +101,7 @@ GLBackend::CommandCall GLBackend::_commandCalls[Batch::NUM_COMMANDS] =
     (&::gpu::gl::GLBackend::do_setStateScissorRect),
 
     (&::gpu::gl::GLBackend::do_setUniformBuffer),
+    (&::gpu::gl::GLBackend::do_setResourceBuffer),
     (&::gpu::gl::GLBackend::do_setResourceTexture),
 
     (&::gpu::gl::GLBackend::do_setFramebuffer),
@@ -209,7 +208,7 @@ void GLBackend::renderPassTransfer(const Batch& batch) {
         }
     }
 
-    { // Sync all the buffers
+    { // Sync all the transform states
         PROFILE_RANGE(render_gpu_gl_detail, "syncCPUTransform");
         _transform._cameras.clear();
         _transform._cameraOffsets.clear();
@@ -277,7 +276,7 @@ void GLBackend::renderPassDraw(const Batch& batch) {
                 updateInput();
                 updateTransform(batch);
                 updatePipeline();
-                
+
                 CommandCall call = _commandCalls[(*command)];
                 (this->*(call))(batch, *offset);
                 break;
@@ -623,6 +622,7 @@ void GLBackend::queueLambda(const std::function<void()> lambda) const {
 }
 
 void GLBackend::recycle() const {
+    PROFILE_RANGE(render_gpu_gl, __FUNCTION__)
     {
         std::list<std::function<void()>> lamdbasTrash;
         {
@@ -644,8 +644,6 @@ void GLBackend::recycle() const {
         ids.reserve(buffersTrash.size());
         for (auto pair : buffersTrash) {
             ids.push_back(pair.first);
-            decrementBufferGPUCount();
-            updateBufferGPUMemoryUsage(pair.second, 0);
         }
         if (!ids.empty()) {
             glDeleteBuffers((GLsizei)ids.size(), ids.data());
@@ -678,8 +676,6 @@ void GLBackend::recycle() const {
         ids.reserve(texturesTrash.size());
         for (auto pair : texturesTrash) {
             ids.push_back(pair.first);
-            decrementTextureGPUCount();
-            updateTextureGPUMemoryUsage(pair.second, 0);
         }
         if (!ids.empty()) {
             glDeleteTextures((GLsizei)ids.size(), ids.data());
@@ -746,9 +742,9 @@ void GLBackend::recycle() const {
         }
     }
 
-#ifndef THREADED_TEXTURE_TRANSFER
-    gl::GLTexture::_textureTransferHelper->process();
-#endif
+    GLVariableAllocationSupport::manageMemory();
+    GLVariableAllocationSupport::_frameTexturesCreated = 0;
+
 }
 
 void GLBackend::setCameraCorrection(const Mat4& correction) {

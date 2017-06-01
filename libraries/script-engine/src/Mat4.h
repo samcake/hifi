@@ -16,9 +16,10 @@
 
 #include <QObject>
 #include <QString>
+#include <QtScript/QScriptable>
 
 /// Scriptable Mat4 object.  Used exclusively in the JavaScript API
-class Mat4 : public QObject {
+class Mat4 : public QObject, protected QScriptable {
     Q_OBJECT
 
 public slots:
@@ -37,11 +38,13 @@ public slots:
 
     glm::mat4 inverse(const glm::mat4& m) const;
 
-    glm::vec3 getFront(const glm::mat4& m) const;
+    // redundant, calls getForward which better describes the returned vector as a direction
+    glm::vec3 getFront(const glm::mat4& m) const { return getForward(m); }
+    glm::vec3 getForward(const glm::mat4& m) const;
     glm::vec3 getRight(const glm::mat4& m) const;
     glm::vec3 getUp(const glm::mat4& m) const;
 
-    void print(const QString& label, const glm::mat4& m) const;
+    void print(const QString& label, const glm::mat4& m, bool transpose = false) const;
 };
 
 #endif // hifi_Mat4_h

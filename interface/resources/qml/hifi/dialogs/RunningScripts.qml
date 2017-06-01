@@ -34,9 +34,6 @@ ScrollingWindow {
     property var runningScriptsModel: ListModel { }
     property bool isHMD: false
 
-    onVisibleChanged: console.log("Running scripts visible changed to " + visible)
-    onShownChanged: console.log("Running scripts visible changed to " + visible)
-
     Settings {
         category: "Overlay.RunningScripts"
         property alias x: root.x
@@ -219,41 +216,18 @@ ScrollingWindow {
             Row {
                 spacing: hifi.dimensions.contentSpacing.x
 
-                HifiControls.Button {
+                HifiControls.QueuedButton {
                     text: "from URL"
                     color: hifi.buttons.black
                     height: 26
-                    onClicked: fromUrlTimer.running = true
-
-                    // For some reason trigginer an API that enters
-                    // an internal event loop directly from the button clicked
-                    // trigger below causes the appliction to behave oddly.
-                    // Most likely because the button onClicked handling is never
-                    // completed until the function returns.
-                    // FIXME find a better way of handling the input dialogs that
-                    // doesn't trigger this.
-                    Timer {
-                        id: fromUrlTimer
-                        interval: 5
-                        repeat: false
-                        running: false
-                        onTriggered: ApplicationInterface.loadScriptURLDialog();
-                    }
+                    onClickedQueued: ApplicationInterface.loadScriptURLDialog()
                 }
 
-                HifiControls.Button {
+                HifiControls.QueuedButton {
                     text: "from Disk"
                     color: hifi.buttons.black
                     height: 26
-                    onClicked: fromDiskTimer.running = true
-
-                    Timer {
-                        id: fromDiskTimer
-                        interval: 5
-                        repeat: false
-                        running: false
-                        onTriggered: ApplicationInterface.loadDialog();
-                    }
+                    onClickedQueued: ApplicationInterface.loadDialog()
                 }
 
                 HifiControls.Button {

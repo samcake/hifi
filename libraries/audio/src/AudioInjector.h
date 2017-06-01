@@ -52,6 +52,7 @@ class AudioInjector : public QObject {
 public:
     AudioInjector(const Sound& sound, const AudioInjectorOptions& injectorOptions);
     AudioInjector(const QByteArray& audioData, const AudioInjectorOptions& injectorOptions);
+    ~AudioInjector();
     
     bool isFinished() const { return (stateHas(AudioInjectorState::Finished)); }
     
@@ -99,6 +100,7 @@ private:
     int64_t injectNextFrame();
     bool inject(bool(AudioInjectorManager::*injection)(AudioInjector*));
     bool injectLocally();
+    void deleteLocalBuffer();
     
     static AbstractAudioInterface* _localAudioInterface;
 
@@ -121,5 +123,6 @@ private:
     friend class AudioInjectorManager;
 };
 
+Q_DECLARE_METATYPE(AudioInjector*)
     
 #endif // hifi_AudioInjector_h

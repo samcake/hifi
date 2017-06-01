@@ -223,6 +223,18 @@ QAction* Menu::addCheckableActionToQMenuAndActionHash(MenuWrapper* destinationMe
     return action;
 }
 
+QAction* Menu::addCheckableActionToQMenuAndActionHash(MenuWrapper* destinationMenu,
+                                                    const QString& actionName,
+                                                    const std::function<void(bool)>& handler,
+                                                    const QKeySequence& shortcut,
+                                                    const bool checked,
+                                                    int menuItemLocation,
+                                                    const QString& grouping) { 
+    auto action = addCheckableActionToQMenuAndActionHash(destinationMenu, actionName, shortcut, checked, nullptr, nullptr, menuItemLocation, grouping);
+    connect(action, &QAction::triggered, handler);
+    return action;
+}
+
 void Menu::removeAction(MenuWrapper* menu, const QString& actionName) {
     auto action = _actionHash.value(actionName);
     menu->removeAction(action);
@@ -471,10 +483,10 @@ void Menu::removeSeparator(const QString& menuName, const QString& separatorName
         int textAt = findPositionOfMenuItem(menu, separatorName);
         QList<QAction*> menuActions = menu->actions();
         if (textAt > 0 && textAt < menuActions.size()) {
-            QAction* separatorText = menuActions[textAt];
             QAction* separatorLine = menuActions[textAt - 1];
             if (separatorLine) {
                 if (separatorLine->isSeparator()) {
+                    QAction* separatorText = menuActions[textAt];
                     menu->removeAction(separatorText);
                     menu->removeAction(separatorLine);
                     separatorRemoved = true;

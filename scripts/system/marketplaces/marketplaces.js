@@ -59,6 +59,7 @@ function showMarketplace() {
     UserActivityLogger.openedMarketplace();
 
     shouldActivateButton = true;
+
     tablet.gotoWebScreen(MARKETPLACE_URL_INITIAL, MARKETPLACES_INJECT_SCRIPT_URL);
     onMarketplaceScreen = true;
 

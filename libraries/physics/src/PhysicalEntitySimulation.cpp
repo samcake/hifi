@@ -1,6 +1,6 @@
 //
 //  PhysicalEntitySimulation.cpp
-//  libraries/physcis/src
+//  libraries/physics/src
 //
 //  Created by Andrew Meadows 2015.04.27
 //  Copyright 2015 High Fidelity, Inc.
@@ -208,6 +208,7 @@ void PhysicalEntitySimulation::getObjectsToAddToPhysics(VectorOfMotionStates& re
         assert(!entity->getPhysicsInfo());
         if (entity->isDead()) {
             prepareEntityForDelete(entity);
+            entityItr = _entitiesToAddToPhysics.erase(entityItr);
         } else if (!entity->shouldBePhysical()) {
             // this entity should no longer be on the internal _entitiesToAddToPhysics
             entityItr = _entitiesToAddToPhysics.erase(entityItr);
@@ -329,33 +330,41 @@ void PhysicalEntitySimulation::handleCollisionEvents(const CollisionEvents& coll
 }
 
 
-void PhysicalEntitySimulation::addAction(EntityActionPointer action) {
+void PhysicalEntitySimulation::addDynamic(EntityDynamicPointer dynamic) {
     if (_physicsEngine) {
         // FIXME put fine grain locking into _physicsEngine
         {
             QMutexLocker lock(&_mutex);
-            const QUuid& actionID = action->getID();
-            if (_physicsEngine->getActionByID(actionID)) {
-                qCDebug(physics) << "warning -- PhysicalEntitySimulation::addAction -- adding an "
-                    "action that was already in _physicsEngine";
+            const QUuid& dynamicID = dynamic->getID();
+            if (_physicsEngine->getDynamicByID(dynamicID)) {
+                qCDebug(physics) << "warning -- PhysicalEntitySimulation::addDynamic -- adding an "
+                    "dynamic that was already in _physicsEngine";
             }
         }
-        EntitySimulation::addAction(action);
+        EntitySimulation::addDynamic(dynamic);
     }
 }
 
-void PhysicalEntitySimulation::applyActionChanges() {
+void PhysicalEntitySimulation::applyDynamicChanges() {
+    QList<EntityDynamicPointer> dynamicsFailedToAdd;
     if (_physicsEngine) {
         // FIXME put fine grain locking into _physicsEngine
         QMutexLocker lock(&_mutex);
-        foreach(QUuid actionToRemove, _actionsToRemove) {
-            _physicsEngine->removeAction(actionToRemove);
+        foreach(QUuid dynamicToRemove, _dynamicsToRemove) {
+            _physicsEngine->removeDynamic(dynamicToRemove);
         }
-        foreach (EntityActionPointer actionToAdd, _actionsToAdd) {
-            if (!_actionsToRemove.contains(actionToAdd->getID())) {
-                _physicsEngine->addAction(actionToAdd);
+        foreach (EntityDynamicPointer dynamicToAdd, _dynamicsToAdd) {
+            if (!_dynamicsToRemove.contains(dynamicToAdd->getID())) {
+                if (!_physicsEngine->addDynamic(dynamicToAdd)) {
+                    dynamicsFailedToAdd += dynamicToAdd;
+                }
             }
         }
     }
-    EntitySimulation::applyActionChanges();
+    // applyDynamicChanges will clear _dynamicsToRemove and _dynamicsToAdd
+    EntitySimulation::applyDynamicChanges();
+    // put back the ones that couldn't yet be added
+    foreach (EntityDynamicPointer dynamicFailedToAdd, dynamicsFailedToAdd) {
+        addDynamic(dynamicFailedToAdd);
+    }
 }

@@ -105,9 +105,9 @@ QScriptValue HMDScriptingInterface::getHUDLookAtPosition3D(QScriptContext* conte
 }
 
 bool HMDScriptingInterface::getHUDLookAtPosition3D(glm::vec3& result) const {
-    Camera* camera = qApp->getCamera();
-    glm::vec3 position = camera->getPosition();
-    glm::quat orientation = camera->getOrientation();
+    const Camera& camera = qApp->getCamera();
+    glm::vec3 position = camera.getPosition();
+    glm::quat orientation = camera.getOrientation();
 
     glm::vec3 direction = orientation * glm::vec3(0.0f, 0.0f, -1.0f);
 
@@ -135,7 +135,7 @@ glm::quat HMDScriptingInterface::getOrientation() const {
     return glm::quat();
 }
 
-bool HMDScriptingInterface::isMounted() const{
+bool HMDScriptingInterface::isMounted() const {
     auto displayPlugin = qApp->getActiveDisplayPlugin();
     return (displayPlugin->isHmd() && displayPlugin->isDisplayVisible());
 }

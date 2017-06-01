@@ -81,6 +81,7 @@ class Stats : public QQuickItem {
     STATS_PROPERTY(int, audioSilentOutboundPPS, 0)
     STATS_PROPERTY(int, audioAudioInboundPPS, 0)
     STATS_PROPERTY(int, audioSilentInboundPPS, 0)
+    STATS_PROPERTY(int, audioPacketLoss, 0)
     STATS_PROPERTY(QString, audioCodec, QString())
     STATS_PROPERTY(QString, audioNoiseGate, QString())
 
@@ -88,6 +89,8 @@ class Stats : public QQuickItem {
     STATS_PROPERTY(int, downloadLimit, 0)
     STATS_PROPERTY(int, downloadsPending, 0)
     Q_PROPERTY(QStringList downloadUrls READ downloadUrls NOTIFY downloadUrlsChanged)
+    STATS_PROPERTY(int, processing, 0)
+    STATS_PROPERTY(int, processingPending, 0)
     STATS_PROPERTY(int, triangles, 0)
     STATS_PROPERTY(int, quads, 0)
     STATS_PROPERTY(int, materialSwitches, 0)
@@ -114,17 +117,20 @@ class Stats : public QQuickItem {
     STATS_PROPERTY(int, gpuBuffers, 0)
     STATS_PROPERTY(int, gpuBufferMemory, 0)
     STATS_PROPERTY(int, gpuTextures, 0)
-    STATS_PROPERTY(int, gpuTexturesSparse, 0)
     STATS_PROPERTY(int, glContextSwapchainMemory, 0)
     STATS_PROPERTY(int, qmlTextureMemory, 0)
+    STATS_PROPERTY(int, texturePendingTransfers, 0)
     STATS_PROPERTY(int, gpuTextureMemory, 0)
-    STATS_PROPERTY(int, gpuTextureVirtualMemory, 0)
+    STATS_PROPERTY(int, gpuTextureResidentMemory, 0)
     STATS_PROPERTY(int, gpuTextureFramebufferMemory, 0)
-    STATS_PROPERTY(int, gpuTextureSparseMemory, 0)
-    STATS_PROPERTY(int, gpuSparseTextureEnabled, 0)
+    STATS_PROPERTY(int, gpuTextureResourceMemory, 0)
+    STATS_PROPERTY(int, gpuTextureResourcePopulatedMemory, 0)
+    STATS_PROPERTY(int, gpuTextureExternalMemory, 0)
+    STATS_PROPERTY(QString, gpuTextureMemoryPressureState, QString())
     STATS_PROPERTY(int, gpuFreeMemory, 0)
     STATS_PROPERTY(float, gpuFrameTime, 0)
     STATS_PROPERTY(float, batchFrameTime, 0)
+    STATS_PROPERTY(float, engineFrameTime, 0)
     STATS_PROPERTY(float, avatarSimulationTime, 0)
 
 public:
@@ -202,6 +208,7 @@ signals:
     void audioSilentOutboundPPSChanged();
     void audioAudioInboundPPSChanged();
     void audioSilentInboundPPSChanged();
+    void audioPacketLossChanged();
     void audioCodecChanged();
     void audioNoiseGateChanged();
 
@@ -209,6 +216,8 @@ signals:
     void downloadLimitChanged();
     void downloadsPendingChanged();
     void downloadUrlsChanged();
+    void processingChanged();
+    void processingPendingChanged();
     void trianglesChanged();
     void quadsChanged();
     void materialSwitchesChanged();
@@ -232,18 +241,21 @@ signals:
     void timingStatsChanged();
     void glContextSwapchainMemoryChanged();
     void qmlTextureMemoryChanged();
+    void texturePendingTransfersChanged();
     void gpuBuffersChanged();
     void gpuBufferMemoryChanged();
     void gpuTexturesChanged();
-    void gpuTexturesSparseChanged();
     void gpuTextureMemoryChanged();
-    void gpuTextureVirtualMemoryChanged();
+    void gpuTextureResidentMemoryChanged();
     void gpuTextureFramebufferMemoryChanged();
-    void gpuTextureSparseMemoryChanged();
-    void gpuSparseTextureEnabledChanged();
+    void gpuTextureResourceMemoryChanged();
+    void gpuTextureResourcePopulatedMemoryChanged();
+    void gpuTextureExternalMemoryChanged();
+    void gpuTextureMemoryPressureStateChanged();
     void gpuFreeMemoryChanged();
     void gpuFrameTimeChanged();
     void batchFrameTimeChanged();
+    void engineFrameTimeChanged();
     void avatarSimulationTimeChanged();
     void rectifiedTextureCountChanged();
     void decimatedTextureCountChanged();
@@ -259,4 +271,3 @@ private:
 };
 
 #endif // hifi_Stats_h
-

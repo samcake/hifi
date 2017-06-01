@@ -48,6 +48,8 @@ class QScriptEngineDebugger;
 static const QString NO_SCRIPT("");
 
 static const int SCRIPT_FPS = 60;
+static const int DEFAULT_MAX_ENTITY_PPS = 9000;
+static const int DEFAULT_ENTITY_PPS_PER_SCRIPT = 900;
 
 class CallbackData {
 public:
@@ -144,6 +146,7 @@ public:
     /// to run... NOTE - this is used by Application currently to load the url. We don't really want it to be exposed
     /// to scripts. we may not need this to be invokable
     void loadURL(const QUrl& scriptURL, bool reload);
+    bool hasValidScriptSuffix(const QString& scriptFileName);
 
     Q_INVOKABLE QString getContext() const;
     Q_INVOKABLE bool isClientScript() const { return _context == CLIENT_SCRIPT; }
@@ -221,6 +224,7 @@ public:
     void scriptErrorMessage(const QString& message);
     void scriptWarningMessage(const QString& message);
     void scriptInfoMessage(const QString& message);
+    void scriptPrintedMessage(const QString& message);
 
     int getNumRunningEntityScripts() const;
     bool getEntityScriptDetails(const EntityItemID& entityID, EntityScriptDetails &details) const;
@@ -236,10 +240,10 @@ signals:
     void scriptEnding();
     void finished(const QString& fileNameString, ScriptEngine* engine);
     void cleanupMenuItem(const QString& menuItemString);
-    void printedMessage(const QString& message);
-    void errorMessage(const QString& message);
-    void warningMessage(const QString& message);
-    void infoMessage(const QString& message);
+    void printedMessage(const QString& message, const QString& scriptName);
+    void errorMessage(const QString& message, const QString& scriptName);
+    void warningMessage(const QString& message, const QString& scriptName);
+    void infoMessage(const QString& message, const QString& scriptName);
     void runningStateChanged();
     void loadScript(const QString& scriptName, bool isUserLoaded);
     void reloadScript(const QString& scriptName, bool isUserLoaded);

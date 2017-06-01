@@ -23,6 +23,10 @@
 
 class AABox;
 class OctreeRenderer;
+namespace render {
+    class Scene;
+    using ScenePointer = std::shared_ptr<Scene>;
+}
 
 namespace gpu {
 class Batch;
@@ -126,6 +130,8 @@ public:
     bool _enableTexturing { true };
 
     RenderDetails _details;
+    render::ScenePointer _scene;
+    int8_t _cameraMode { -1 };
 };
 
 #endif // hifi_RenderArgs_h

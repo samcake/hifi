@@ -65,6 +65,7 @@ set(INTERFACE_SRCS ${INTERFACE_SRCS} "${QT_UI_HEADERS}" "${QT_RESOURCES}")
 
 file(GLOB_RECURSE QML_SRC resources/qml/*.qml resources/qml/*.js)
 add_custom_target(qml SOURCES ${QML_SRC})
+GroupSources("resources/qml")
 
 if (UNIX)
   install(
@@ -189,11 +190,11 @@ endif()
 
 # link required hifi libraries
 link_hifi_libraries(
-  shared octree gpu gl gpu-gl procedural model render
-  recording fbx networking model-networking entities avatars
+  shared octree ktx gpu gl gpu-gl procedural model render
+  recording fbx networking model-networking entities avatars trackers
   audio audio-client animation script-engine physics
-  render-utils entities-renderer ui auto-updater
-  controllers plugins
+  render-utils entities-renderer avatars-renderer ui auto-updater
+  controllers plugins image trackers
   ui-plugins display-plugins input-plugins
   ${NON_ANDROID_LIBRARIES}
 )
@@ -201,17 +202,12 @@ link_hifi_libraries(
 # include the binary directory of render-utils for shader includes
 target_include_directories(${TARGET_NAME} PRIVATE "${CMAKE_BINARY_DIR}/libraries/render-utils")
 
-#fixme find a way to express faceshift as a plugin
 target_bullet()
 target_opengl()
 
 if (NOT ANDROID)
   target_glew()
 endif ()
-
-if (WIN32 OR APPLE)
-  target_faceshift()
-endif()
 
 # perform standard include and linking for found externals
 foreach(EXTERNAL ${OPTIONAL_EXTERNALS})
@@ -288,7 +284,7 @@ if (APPLE)
   add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E copy_directory
     "${CMAKE_SOURCE_DIR}/scripts"
-    $<TARGET_FILE_DIR:${TARGET_NAME}>/../Resources/scripts
+    "$<TARGET_FILE_DIR:${TARGET_NAME}>/../Resources/scripts"
   )
 
   # call the fixup_interface macro to add required bundling commands for installation
@@ -299,10 +295,10 @@ else (APPLE)
   add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E copy_directory
     "${PROJECT_SOURCE_DIR}/resources"
-    $<TARGET_FILE_DIR:${TARGET_NAME}>/resources
+    "$<TARGET_FILE_DIR:${TARGET_NAME}>/resources"
     COMMAND "${CMAKE_COMMAND}" -E copy_directory
     "${CMAKE_SOURCE_DIR}/scripts"
-    $<TARGET_FILE_DIR:${TARGET_NAME}>/scripts
+    "$<TARGET_FILE_DIR:${TARGET_NAME}>/scripts"
   )
 
   # link target to external libraries
@@ -337,7 +333,7 @@ endif()
 add_bugsplat()
 
 if (WIN32)
-    set(EXTRA_DEPLOY_OPTIONS "--qmldir  ${PROJECT_SOURCE_DIR}/resources/qml")
+    set(EXTRA_DEPLOY_OPTIONS "--qmldir  \"${PROJECT_SOURCE_DIR}/resources/qml\"")
 
     set(TARGET_INSTALL_DIR ${INTERFACE_INSTALL_DIR})
     set(TARGET_INSTALL_COMPONENT ${CLIENT_COMPONENT})

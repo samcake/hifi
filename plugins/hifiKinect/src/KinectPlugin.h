@@ -23,6 +23,7 @@
 
 // Kinect Header files
 #include <Kinect.h>
+#include <SimpleMovingAverage.h>
 
 // Safe release for interfaces
 template<class Interface> inline void SafeRelease(Interface *& pInterfaceToRelease) {
@@ -58,6 +59,11 @@ public:
     virtual void saveSettings() const override;
     virtual void loadSettings() override;
 
+private:
+    // add variables for moving average
+    ThreadSafeMovingAverage<glm::quat, 2> _LeftHandOrientationAverage;
+    ThreadSafeMovingAverage<glm::quat, 2> _RightHandOrientationAverage;
+
 protected:
 
     struct KinectJoint {
@@ -89,6 +95,7 @@ protected:
     static const char* KINECT_ID_STRING;
 
     bool _enabled { false };
+    bool _debug { false };
     mutable bool _initialized { false };
 
     // copy of data directly from the KinectDataReader SDK

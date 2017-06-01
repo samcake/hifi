@@ -71,22 +71,6 @@ bool ZoneEntityItem::setProperties(const EntityItemProperties& properties) {
     bool somethingChanged = false;
     somethingChanged = EntityItem::setProperties(properties); // set the properties in our base class
 
-    bool somethingChangedInKeyLight = _keyLightProperties.setProperties(properties);
-    
-    bool somethingChangedInStage = _stageProperties.setProperties(properties);
-
-    SET_ENTITY_PROPERTY_FROM_PROPERTIES(shapeType, setShapeType);
-    SET_ENTITY_PROPERTY_FROM_PROPERTIES(compoundShapeURL, setCompoundShapeURL);
-    SET_ENTITY_PROPERTY_FROM_PROPERTIES(backgroundMode, setBackgroundMode);
-
-    SET_ENTITY_PROPERTY_FROM_PROPERTIES(flyingAllowed, setFlyingAllowed);
-    SET_ENTITY_PROPERTY_FROM_PROPERTIES(ghostingAllowed, setGhostingAllowed);
-    SET_ENTITY_PROPERTY_FROM_PROPERTIES(filterURL, setFilterURL);
-
-    bool somethingChangedInSkybox = _skyboxProperties.setProperties(properties);
-
-    somethingChanged = somethingChanged  || somethingChangedInKeyLight || somethingChangedInStage || somethingChangedInSkybox;
-
     if (somethingChanged) {
         bool wantDebug = false;
         if (wantDebug) {
@@ -101,6 +85,30 @@ bool ZoneEntityItem::setProperties(const EntityItemProperties& properties) {
     return somethingChanged;
 }
 
+bool ZoneEntityItem::setSubClassProperties(const EntityItemProperties& properties) {
+    bool somethingChanged = EntityItem::setSubClassProperties(properties); // set the properties in our base class
+
+
+    _keyLightPropertiesChanged = _keyLightProperties.setProperties(properties);
+
+    _stagePropertiesChanged = _stageProperties.setProperties(properties);
+
+    SET_ENTITY_PROPERTY_FROM_PROPERTIES(shapeType, setShapeType);
+    SET_ENTITY_PROPERTY_FROM_PROPERTIES(compoundShapeURL, setCompoundShapeURL);
+    SET_ENTITY_PROPERTY_FROM_PROPERTIES(backgroundMode, setBackgroundMode);
+
+    SET_ENTITY_PROPERTY_FROM_PROPERTIES(flyingAllowed, setFlyingAllowed);
+    SET_ENTITY_PROPERTY_FROM_PROPERTIES(ghostingAllowed, setGhostingAllowed);
+    SET_ENTITY_PROPERTY_FROM_PROPERTIES(filterURL, setFilterURL);
+
+    _skyboxPropertiesChanged = _skyboxProperties.setProperties(properties);
+
+    somethingChanged = somethingChanged || _keyLightPropertiesChanged || _stagePropertiesChanged || _skyboxPropertiesChanged;
+
+
+    return somethingChanged;
+}
+
 int ZoneEntityItem::readEntitySubclassDataFromBuffer(const unsigned char* data, int bytesLeftToRead, 
                                                 ReadBitstreamToTreeParams& args,
                                                 EntityPropertyFlags& propertyFlags, bool overwriteLocalData,
@@ -109,14 +117,14 @@ int ZoneEntityItem::readEntitySubclassDataFromBuffer(const unsigned char* data, 
     const unsigned char* dataAt = data;
 
     int bytesFromKeylight = _keyLightProperties.readEntitySubclassDataFromBuffer(dataAt, (bytesLeftToRead - bytesRead), args,
-                                                                                 propertyFlags, overwriteLocalData, somethingChanged);
-    
+                                                                                 propertyFlags, overwriteLocalData, _keyLightPropertiesChanged);
+    somethingChanged = somethingChanged || _keyLightPropertiesChanged;
     bytesRead += bytesFromKeylight;
     dataAt += bytesFromKeylight;
 
     int bytesFromStage = _stageProperties.readEntitySubclassDataFromBuffer(dataAt, (bytesLeftToRead - bytesRead), args, 
-                                                                               propertyFlags, overwriteLocalData, somethingChanged);
-    
+                                                                               propertyFlags, overwriteLocalData, _stagePropertiesChanged);
+    somethingChanged = somethingChanged || _stagePropertiesChanged;
     bytesRead += bytesFromStage;
     dataAt += bytesFromStage;
 
@@ -125,7 +133,8 @@ int ZoneEntityItem::readEntitySubclassDataFromBuffer(const unsigned char* data, 
     READ_ENTITY_PROPERTY(PROP_BACKGROUND_MODE, BackgroundMode, setBackgroundMode);
 
     int bytesFromSkybox = _skyboxProperties.readEntitySubclassDataFromBuffer(dataAt, (bytesLeftToRead - bytesRead), args, 
-                                                                           propertyFlags, overwriteLocalData, somethingChanged);
+                                                                           propertyFlags, overwriteLocalData, _skyboxPropertiesChanged);
+    somethingChanged = somethingChanged || _skyboxPropertiesChanged;
     bytesRead += bytesFromSkybox;
     dataAt += bytesFromSkybox;
 
@@ -137,7 +146,7 @@ int ZoneEntityItem::readEntitySubclassDataFromBuffer(const unsigned char* data, 
 }
 
 
-// TODO: eventually only include properties changed since the params.lastQuerySent time
+// TODO: eventually only include properties changed since the params.nodeData->getLastTimeBagEmpty() time
 EntityPropertyFlags ZoneEntityItem::getEntityProperties(EncodeBitstreamParams& params) const {
     EntityPropertyFlags requestedProperties = EntityItem::getEntityProperties(params);
 
@@ -185,6 +194,16 @@ void ZoneEntityItem::appendSubclassData(OctreePacketData* packetData, EncodeBits
     APPEND_ENTITY_PROPERTY(PROP_FILTER_URL, getFilterURL());
 }
 
+void ZoneEntityItem::somethingChangedNotification() {
+    EntityItem::somethingChangedNotification();
+    withWriteLock([&] {
+        _keyLightPropertiesChanged = false;
+        _backgroundPropertiesChanged = false;
+        _stagePropertiesChanged = false;
+        _skyboxPropertiesChanged = false;
+    });
+}
+
 void ZoneEntityItem::debugDump() const {
     quint64 now = usecTimestampNow();
     qCDebug(entities) << "   ZoneEntityItem id:" << getEntityItemID() << "---------------------------------------------";
@@ -208,10 +227,12 @@ ShapeType ZoneEntityItem::getShapeType() const {
 }
 
 void ZoneEntityItem::setCompoundShapeURL(const QString& url) {
-    _compoundShapeURL = url;
-    if (_compoundShapeURL.isEmpty() && _shapeType == SHAPE_TYPE_COMPOUND) {
-        _shapeType = DEFAULT_SHAPE_TYPE;
-    }
+    withWriteLock([&] {
+        _compoundShapeURL = url;
+        if (_compoundShapeURL.isEmpty() && _shapeType == SHAPE_TYPE_COMPOUND) {
+            _shapeType = DEFAULT_SHAPE_TYPE;
+        }
+    });
 }
 
 bool ZoneEntityItem::findDetailedRayIntersection(const glm::vec3& origin, const glm::vec3& direction,
@@ -223,7 +244,9 @@ bool ZoneEntityItem::findDetailedRayIntersection(const glm::vec3& origin, const 
 }
 
 void ZoneEntityItem::setFilterURL(QString url) {
-    _filterURL = url;
+    withWriteLock([&] {
+        _filterURL = url;
+    });
     if (DependencyManager::isSet<EntityEditFilters>()) {
         auto entityEditFilters = DependencyManager::get<EntityEditFilters>();
         qCDebug(entities) << "adding filter " << url << "for zone" << getEntityItemID();
@@ -231,3 +254,22 @@ void ZoneEntityItem::setFilterURL(QString url) {
     }
 }
 
+QString ZoneEntityItem::getFilterURL() const { 
+    QString result;
+    withReadLock([&] {
+        result = _filterURL;
+    });
+    return result;
+}
+
+bool ZoneEntityItem::hasCompoundShapeURL() const { 
+    return !getCompoundShapeURL().isEmpty();
+}
+
+QString ZoneEntityItem::getCompoundShapeURL() const { 
+    QString result;
+    withReadLock([&] {
+        result = _compoundShapeURL;
+    });
+    return result;
+}

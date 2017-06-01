@@ -17,7 +17,7 @@
 
 #include <DeferredLightingEffect.h>
 #include <render/ShapePipeline.h>
-#include <render/Context.h>
+#include <render/Engine.h>
 
 #define DEFERRED_LIGHTING
 
@@ -31,7 +31,6 @@ protected:
 #ifdef DEFERRED_LIGHTING
     // Prepare the ShapePipelines
     render::ShapePlumberPointer _shapePlumber { std::make_shared<render::ShapePlumber>() };
-    render::SceneContextPointer _sceneContext{ std::make_shared<render::SceneContext>() };
     render::RenderContextPointer _renderContext{ std::make_shared<render::RenderContext>() };
     gpu::PipelinePointer _opaquePipeline;
     model::LightPointer _light { std::make_shared<model::Light>() };

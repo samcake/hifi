@@ -343,7 +343,8 @@ Grabber.prototype.pressEvent = function(event) {
         return;
     }
 
-    if (!pickResults.properties.dynamic) {
+    var isDynamic = Entities.getEntityProperties(pickResults.entityID, "dynamic").dynamic;
+    if (!isDynamic) {
         // only grab dynamic objects
         return;
     }
@@ -446,6 +447,10 @@ Grabber.prototype.moveEvent = function(event) {
 
     // see if something added/restored gravity
     var entityProperties = Entities.getEntityProperties(this.entityID);
+    if (!entityProperties || !entityProperties.gravity) {
+        return;
+    }
+
     if (Vec3.length(entityProperties.gravity) !== 0.0) {
         this.originalGravity = entityProperties.gravity;
     }
@@ -463,7 +468,7 @@ Grabber.prototype.moveEvent = function(event) {
         var orientation = Camera.getOrientation();
         var dragOffset = Vec3.multiply(drag.x, Quat.getRight(orientation));
         dragOffset = Vec3.sum(dragOffset, Vec3.multiply(-drag.y, Quat.getUp(orientation)));
-        var axis = Vec3.cross(dragOffset, Quat.getFront(orientation));
+        var axis = Vec3.cross(dragOffset, Quat.getForward(orientation));
         axis = Vec3.normalize(axis);
         var ROTATE_STRENGTH = 0.4; // magic number tuned by hand
         var angle = ROTATE_STRENGTH * Math.sqrt((drag.x * drag.x) + (drag.y * drag.y));
@@ -487,7 +492,7 @@ Grabber.prototype.moveEvent = function(event) {
         
         if (this.mode === "verticalCylinder") {
             // for this mode we recompute the plane based on current Camera
-            var planeNormal = Quat.getFront(Camera.getOrientation());
+            var planeNormal = Quat.getForward(Camera.getOrientation());
             planeNormal.y = 0;
             planeNormal = Vec3.normalize(planeNormal);
             var pointOnCylinder = Vec3.multiply(planeNormal, this.xzDistanceToGrab);
@@ -528,7 +533,7 @@ Grabber.prototype.moveEvent = function(event) {
 
     if (!this.actionID) {
         if (!entityIsGrabbedByOther(this.entityID)) {
-            this.actionID = Entities.addAction("spring", this.entityID, actionArgs);
+            this.actionID = Entities.addAction("far-grab", this.entityID, actionArgs);
         }
     } else {
         Entities.updateAction(this.entityID, this.actionID, actionArgs);
