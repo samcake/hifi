@@ -37,14 +37,14 @@ namespace render {
         }
         return render::Item::Bound();
     }
-    template <> void payloadRender(const RenderableEntityItemProxy::Pointer& payload, RenderArgs* args) {
+    template <> void payloadRenderShape(const RenderableEntityItemProxy::Pointer& payload, RenderArgs* args) {
         if (args) {
             if (payload && payload->_entity && payload->_entity->getVisible()) {
                 payload->_entity->getRenderableInterface()->render(args);
             }
         }
     }
-    template <> uint32_t metaFetchMetaSubItems(const RenderableEntityItemProxy::Pointer& payload, ItemIDs& subItems) {
+    template <> uint32_t payloadFetchMetaSubItems(const RenderableEntityItemProxy::Pointer& payload, ItemIDs& subItems) {
         auto metaID = payload->_metaID;
         if (Item::isValidID(metaID)) {
             subItems.emplace_back(metaID);

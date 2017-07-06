@@ -44,7 +44,7 @@ protected:
 namespace render {
     template <> const ItemKey payloadGetKey(const LightPayload::Pointer& payload);
     template <> const Item::Bound payloadGetBound(const LightPayload::Pointer& payload);
-    template <> void payloadRender(const LightPayload::Pointer& payload, RenderArgs* args);
+    template <> void payloadRenderLight(const LightPayload::Pointer& payload, RenderArgs* args);
 }
 
 class KeyLightPayload {
@@ -81,7 +81,7 @@ protected:
 namespace render {
     template <> const ItemKey payloadGetKey(const KeyLightPayload::Pointer& payload);
     template <> const Item::Bound payloadGetBound(const KeyLightPayload::Pointer& payload);
-    template <> void payloadRender(const KeyLightPayload::Pointer& payload, RenderArgs* args);
+    template <> void payloadRenderLight(const KeyLightPayload::Pointer& payload, RenderArgs* args);
 }
 
 #endif

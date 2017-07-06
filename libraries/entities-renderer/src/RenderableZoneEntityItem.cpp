@@ -421,7 +421,7 @@ namespace render {
         }
         return render::Item::Bound();
     }
-    template <> void payloadRender(const RenderableZoneEntityItemMeta::Pointer& payload, RenderArgs* args) {
+    template <> void payloadRenderShape(const RenderableZoneEntityItemMeta::Pointer& payload, RenderArgs* args) {
         payload->render(args);
     }
 }

@@ -167,7 +167,7 @@ protected:
 
 class LightClusteringPass {
 public:
-    using Inputs = render::VaryingSet3<DeferredFrameTransformPointer, LightingModelPointer, LinearDepthFramebufferPointer>;
+    using Inputs = render::VaryingSet2<DeferredFrameTransformPointer, LightingModelPointer>;
     using Outputs = LightClustersPointer;
     using Config = LightClusteringPassConfig;
     using JobModel = render::Job::ModelIO<LightClusteringPass, Inputs, Outputs, Config>;

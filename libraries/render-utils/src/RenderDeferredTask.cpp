@@ -72,6 +72,18 @@ void RenderDeferredTask::build(JobModel& task, const render::Varying& input, ren
     const auto deferredFrameTransform = task.addJob<GenerateDeferredFrameTransform>("DeferredFrameTransform");
     const auto lightingModel = task.addJob<MakeLightingModel>("LightingModel");
 
+    // Zones & Lights 
+    // Filter zones from the general metas bucket
+    const auto zones = task.addJob<ZoneRendererTask>("ZoneRenderer", metas);
+
+    // Draw Lights just add the lights to the current list of lights to deal with. NOt really gpu job for now.
+    task.addJob<DrawLight>("DrawLight", lights);
+    
+    // Light Clustering
+    // Create the cluster grid of lights, cpu job for now
+    const auto lightClusteringPassInputs = LightClusteringPass::Inputs(deferredFrameTransform, lightingModel).hasVarying();
+    const auto lightClusters = task.addJob<LightClusteringPass>("LightClustering", lightClusteringPassInputs);
+
     // GPU jobs: Start preparing the primary, deferred and lighting buffer
     const auto primaryFramebuffer = task.addJob<PreparePrimaryFramebuffer>("PreparePrimaryBuffer");
 
@@ -114,21 +126,8 @@ void RenderDeferredTask::build(JobModel& task, const render::Varying& input, ren
     const auto ambientOcclusionInputs = AmbientOcclusionEffect::Inputs(deferredFrameTransform, deferredFramebuffer, linearDepthTarget).hasVarying();
     const auto ambientOcclusionOutputs = task.addJob<AmbientOcclusionEffect>("AmbientOcclusion", ambientOcclusionInputs);
     const auto ambientOcclusionFramebuffer = ambientOcclusionOutputs.getN<AmbientOcclusionEffect::Outputs>(0);
-    const auto ambientOcclusionUniforms = ambientOcclusionOutputs.getN<AmbientOcclusionEffect::Outputs>(1);
-
-    
-    // Draw Lights just add the lights to the current list of lights to deal with. NOt really gpu job for now.
-    task.addJob<DrawLight>("DrawLight", lights);
-
-    // Filter zones from the general metas bucket
-    const auto zones = task.addJob<ZoneRendererTask>("ZoneRenderer", metas);
-
-    // Light Clustering
-    // Create the cluster grid of lights, cpu job for now
-    const auto lightClusteringPassInputs = LightClusteringPass::Inputs(deferredFrameTransform, lightingModel, linearDepthTarget).hasVarying();
-    const auto lightClusters = task.addJob<LightClusteringPass>("LightClustering", lightClusteringPassInputs);
-    
-    
+    const auto ambientOcclusionUniforms = ambientOcclusionOutputs.getN<AmbientOcclusionEffect::Outputs>(1);  
+        
     // DeferredBuffer is complete, now let's shade it into the LightingBuffer
     const auto deferredLightingInputs = RenderDeferred::Inputs(deferredFrameTransform, deferredFramebuffer, lightingModel,
         surfaceGeometryFramebuffer, ambientOcclusionFramebuffer, scatteringResource, lightClusters).hasVarying();

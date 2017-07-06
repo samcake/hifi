@@ -72,7 +72,7 @@ namespace render {
             return LAYER_2D;
         }
     }
-    template <> void payloadRender(const Overlay::Pointer& overlay, RenderArgs* args) {
+    template <> void payloadRenderShape(const Overlay::Pointer& overlay, RenderArgs* args) {
         if (args) {
             if (overlay->getAnchor() == Overlay::MY_AVATAR) {
                 auto batch = args->_batch;
@@ -93,7 +93,7 @@ namespace render {
             }
         }
     }
-    template <> const ShapeKey shapeGetShapeKey(const Overlay::Pointer& overlay) {
+    template <> const ShapeKey payloadGetShapeKey(const Overlay::Pointer& overlay) {
         return overlay->getShapeKey();
     }
 }

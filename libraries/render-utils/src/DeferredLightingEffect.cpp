@@ -425,11 +425,6 @@ void PrepareDeferred::run(const RenderContextPointer& renderContext, const Input
         // For the rest of the rendering, bind the lighting model
         batch.setUniformBuffer(LIGHTING_MODEL_BUFFER_SLOT, lightingModel->getParametersBuffer());
     });
-    
-    
-    // Prepare a fresh Light Frame
-    auto lightStage = renderContext->_scene->getStage<LightStage>();
-    lightStage->_currentFrame.clear();
 }
 
 

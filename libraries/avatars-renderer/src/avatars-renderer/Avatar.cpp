@@ -50,14 +50,14 @@ namespace render {
     template <> const Item::Bound payloadGetBound(const AvatarSharedPointer& avatar) {
         return static_pointer_cast<Avatar>(avatar)->getBounds();
     }
-    template <> void payloadRender(const AvatarSharedPointer& avatar, RenderArgs* args) {
+    template <> void payloadRenderShape(const AvatarSharedPointer& avatar, RenderArgs* args) {
         auto avatarPtr = static_pointer_cast<Avatar>(avatar);
         if (avatarPtr->isInitialized() && args) {
             PROFILE_RANGE_BATCH(*args->_batch, "renderAvatarPayload");
             avatarPtr->render(args);
         }
     }
-    template <> uint32_t metaFetchMetaSubItems(const AvatarSharedPointer& avatar, ItemIDs& subItems) {
+    template <> uint32_t payloadFetchMetaSubItems(const AvatarSharedPointer& avatar, ItemIDs& subItems) {
         auto avatarPtr = static_pointer_cast<Avatar>(avatar);
         if (avatarPtr->getSkeletonModel()) {
             auto metaSubItems = avatarPtr->getSkeletonModel()->fetchRenderItemIDs();

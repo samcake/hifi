@@ -25,31 +25,17 @@
 
 using namespace render;
 
-void render::renderItems(const RenderContextPointer& renderContext, const ItemBounds& inItems, int maxDrawnItems) {
-    auto& scene = renderContext->_scene;
-    RenderArgs* args = renderContext->args;
-
-    int numItemsToDraw = (int)inItems.size();
-    if (maxDrawnItems != -1) {
-        numItemsToDraw = glm::min(numItemsToDraw, maxDrawnItems);
-    }
-    for (auto i = 0; i < numItemsToDraw; ++i) {
-        auto& item = scene->getItem(inItems[i].id);
-        item.render(args);
-    }
-}
-
 void renderShape(RenderArgs* args, const ShapePlumberPointer& shapeContext, const Item& item, const ShapeKey& globalKey) {
     assert(item.getKey().isShape());
     auto key = item.getShapeKey() | globalKey;
     if (key.isValid() && !key.hasOwnPipeline()) {
         args->_pipeline = shapeContext->pickPipeline(args, key);
         if (args->_pipeline) {
-            item.render(args);
+            item.renderShape(args);
         }
         args->_pipeline = nullptr;
     } else if (key.hasOwnPipeline()) {
-        item.render(args);
+        item.renderShape(args);
     } else {
         qCDebug(renderlogging) << "Item could not be rendered with invalid key" << key;
     }
@@ -114,14 +100,30 @@ void render::renderStateSortShapes(const RenderContextPointer& renderContext,
             continue;
         }
         for (auto& item : bucket) {
-            item.render(args);
+            item.renderShape(args);
         }
     }
     args->_pipeline = nullptr;
     for (auto& item : ownPipelineBucket) {
-        item.render(args);
+        item.renderShape(args);
     }
 }
+
+
+void render::renderLights(const RenderContextPointer& renderContext, const ItemBounds& inItems, int maxDrawnItems) {
+    auto& scene = renderContext->_scene;
+    RenderArgs* args = renderContext->args;
+
+    int numItemsToDraw = (int)inItems.size();
+    if (maxDrawnItems != -1) {
+        numItemsToDraw = glm::min(numItemsToDraw, maxDrawnItems);
+    }
+    for (auto i = 0; i < numItemsToDraw; ++i) {
+        auto& item = scene->getItem(inItems[i].id);
+        item.renderLight(args);
+    }
+}
+
 
 void DrawLight::run(const RenderContextPointer& renderContext, const ItemBounds& inLights) {
     assert(renderContext->args);
@@ -131,7 +133,7 @@ void DrawLight::run(const RenderContextPointer& renderContext, const ItemBounds&
     // render lights
     gpu::doInBatch(args->_context, [&](gpu::Batch& batch) {
         args->_batch = &batch;
-        renderItems(renderContext, inLights, _maxDrawn);
+        renderLights(renderContext, inLights, _maxDrawn);
         args->_batch = nullptr;
     });
 

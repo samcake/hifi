@@ -16,9 +16,9 @@
 
 namespace render {
 
-void renderItems(const RenderContextPointer& renderContext, const ItemBounds& inItems, int maxDrawnItems = -1);
 void renderShapes(const RenderContextPointer& renderContext, const ShapePlumberPointer& shapeContext, const ItemBounds& inItems, int maxDrawnItems = -1, const ShapeKey& globalKey = ShapeKey());
 void renderStateSortShapes(const RenderContextPointer& renderContext, const ShapePlumberPointer& shapeContext, const ItemBounds& inItems, int maxDrawnItems = -1, const ShapeKey& globalKey = ShapeKey());
+void renderLights(const RenderContextPointer& renderContext, const ItemBounds& inItems, int maxDrawnItems = -1);
 
 class DrawLightConfig : public Job::Config {
     Q_OBJECT

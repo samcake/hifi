@@ -866,7 +866,7 @@ namespace render {
         return render::Item::Bound();
     }
 
-    template <> void payloadRender(const PolyVoxPayload::Pointer& payload, RenderArgs* args) {
+    template <> void payloadRenderShape(const PolyVoxPayload::Pointer& payload, RenderArgs* args) {
         if (args && payload && payload->_owner) {
             payload->_owner->getRenderableInterface()->render(args);
         }

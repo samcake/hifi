@@ -30,7 +30,7 @@ namespace render {
         }
         return render::Item::Bound();
     }
-    template <> void payloadRender(const LightPayload::Pointer& payload, RenderArgs* args) {
+    template <> void payloadRenderLight(const LightPayload::Pointer& payload, RenderArgs* args) {
         if (args) {
             if (payload) {
                 payload->render(args);
@@ -98,7 +98,7 @@ namespace render {
         }
         return render::Item::Bound();
     }
-    template <> void payloadRender(const KeyLightPayload::Pointer& payload, RenderArgs* args) {
+    template <> void payloadRenderLight(const KeyLightPayload::Pointer& payload, RenderArgs* args) {
         if (args) {
             if (payload) {
                 payload->render(args);
@@ -139,13 +139,6 @@ void KeyLightPayload::render(RenderArgs* args) {
     if (isVisible()) {
         // FInally, push the light visible in the frame
         _stage->_currentFrame.pushLight(_index, _light->getType());
-
-#ifdef WANT_DEBUG
-        Q_ASSERT(args->_batch);
-        gpu::Batch& batch = *args->_batch;
-        batch.setModelTransform(getTransformToCenter());
-        DependencyManager::get<GeometryCache>()->renderWireSphere(batch, 0.5f, 15, 15, glm::vec4(color, 1.0f));
-#endif
     }
 }
 

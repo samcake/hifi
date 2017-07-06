@@ -133,10 +133,14 @@ const gpu::PipelinePointer& DebugZoneLighting::getBackgroundPipeline() {
 
 void DebugZoneLighting::run(const render::RenderContextPointer& context, const Inputs& inputs) {
     RenderArgs* args = context->args;
-
+    
     auto deferredTransform = inputs;
 
     auto lightStage = context->_scene->getStage<LightStage>("LIGHT_STAGE");
+
+   // Prepare a fresh Light Frame
+    lightStage->_currentFrame.clear();
+
     std::vector<model::LightPointer> keyLightStack;
     if (lightStage && lightStage->_currentFrame._sunLights.size()) {
         for (auto index : lightStage->_currentFrame._sunLights) {

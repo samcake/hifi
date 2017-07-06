@@ -33,14 +33,14 @@ template <> const Item::Bound payloadGetBound(const MeshPartPayload::Pointer& pa
     return Item::Bound();
 }
 
-template <> const ShapeKey shapeGetShapeKey(const MeshPartPayload::Pointer& payload) {
+template <> const ShapeKey payloadGetShapeKey(const MeshPartPayload::Pointer& payload) {
     if (payload) {
         return payload->getShapeKey();
     }
     return ShapeKey::Builder::invalid();
 }
 
-template <> void payloadRender(const MeshPartPayload::Pointer& payload, RenderArgs* args) {
+template <> void payloadRenderShape(const MeshPartPayload::Pointer& payload, RenderArgs* args) {
     return payload->render(args);
 }
 }
@@ -308,14 +308,14 @@ template <> int payloadGetLayer(const ModelMeshPartPayload::Pointer& payload) {
     return 0;
 }
 
-template <> const ShapeKey shapeGetShapeKey(const ModelMeshPartPayload::Pointer& payload) {
+template <> const ShapeKey payloadGetShapeKey(const ModelMeshPartPayload::Pointer& payload) {
     if (payload) {
         return payload->getShapeKey();
     }
     return ShapeKey::Builder::invalid();
 }
 
-template <> void payloadRender(const ModelMeshPartPayload::Pointer& payload, RenderArgs* args) {
+template <> void payloadRenderShape(const ModelMeshPartPayload::Pointer& payload, RenderArgs* args) {
     return payload->render(args);
 }
 }

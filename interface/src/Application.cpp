@@ -5135,7 +5135,7 @@ render::ItemID WorldBoxRenderData::_item { render::Item::INVALID_ITEM_ID };
 namespace render {
     template <> const ItemKey payloadGetKey(const WorldBoxRenderData::Pointer& stuff) { return ItemKey::Builder::opaqueShape(); }
     template <> const Item::Bound payloadGetBound(const WorldBoxRenderData::Pointer& stuff) { return Item::Bound(); }
-    template <> void payloadRender(const WorldBoxRenderData::Pointer& stuff, RenderArgs* args) {
+    template <> void payloadRenderShape(const WorldBoxRenderData::Pointer& stuff, RenderArgs* args) {
         if (Menu::getInstance()->isOptionChecked(MenuOption::WorldAxes)) {
             PerformanceTimer perfTimer("worldBox");
 

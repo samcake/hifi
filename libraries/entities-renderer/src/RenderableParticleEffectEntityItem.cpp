@@ -137,7 +137,7 @@ namespace render {
     }
 
     template <>
-    void payloadRender(const ParticlePayloadData::Pointer& payload, RenderArgs* args) {
+    void payloadRenderShape(const ParticlePayloadData::Pointer& payload, RenderArgs* args) {
         if (payload->getVisibleFlag()) {
             payload->render(args);
         }

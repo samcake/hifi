@@ -207,7 +207,7 @@ namespace render {
         }
         return render::Item::Bound();
     }
-    template <> void payloadRender(const RenderableModelEntityItemMeta::Pointer& payload, RenderArgs* args) {
+    template <> void payloadRenderShape(const RenderableModelEntityItemMeta::Pointer& payload, RenderArgs* args) {
         if (args) {
             if (payload && payload->entity) {
                 PROFILE_RANGE(render_detail, "MetaModelRender");
@@ -215,7 +215,7 @@ namespace render {
             }
         }
     }
-    template <> uint32_t metaFetchMetaSubItems(const RenderableModelEntityItemMeta::Pointer& payload, ItemIDs& subItems) {
+    template <> uint32_t payloadFetchMetaSubItems(const RenderableModelEntityItemMeta::Pointer& payload, ItemIDs& subItems) {
         auto modelEntity = std::static_pointer_cast<RenderableModelEntityItem>(payload->entity);
         if (modelEntity->hasModel()) {
             auto metaSubItems = modelEntity->getModelNotSafe()->fetchRenderItemIDs();

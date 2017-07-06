@@ -566,7 +566,6 @@ void LightClusteringPass::run(const render::RenderContextPointer& renderContext,
     
     auto deferredTransform = inputs.get0();
     auto lightingModel = inputs.get1();
-    auto surfaceGeometryFramebuffer = inputs.get2();
 
     // first update the Grid with the new frustum
     if (!_freeze) {

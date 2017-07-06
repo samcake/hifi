@@ -317,9 +317,10 @@ public:
         virtual const Bound getBound() const = 0;
         virtual int getLayer() const = 0;
 
-        virtual void render(RenderArgs* args) = 0;
-
+        virtual void renderShape(RenderArgs* args) = 0;
         virtual const ShapeKey getShapeKey() const = 0;
+
+        virtual void renderLight(RenderArgs* args) = 0;
 
         virtual uint32_t fetchMetaSubItems(ItemIDs& subItems) const = 0;
 
@@ -364,11 +365,16 @@ public:
     // Get the layer where the item belongs. 0 by default meaning NOT LAYERED
     int getLayer() const { return _payload->getLayer(); }
 
-    // Render call for the item
-    void render(RenderArgs* args) const { _payload->render(args); }
 
     // Shape Type Interface
+    // Render as shape call for the item
+    void renderShape(RenderArgs* args) const { _payload->renderShape(args); }
+
     const ShapeKey getShapeKey() const { return _payload->getShapeKey(); }
+
+    // Light Type Interface
+    // Render as light call for the item
+    void renderLight(RenderArgs* args) const { _payload->renderLight(args); }
 
     // Meta Type Interface
     uint32_t fetchMetaSubItems(ItemIDs& subItems) const { return _payload->fetchMetaSubItems(subItems); }
@@ -408,17 +414,20 @@ inline QDebug operator<<(QDebug debug, const Item& item) {
 template <class T> const ItemKey payloadGetKey(const std::shared_ptr<T>& payloadData) { return ItemKey(); }
 template <class T> const Item::Bound payloadGetBound(const std::shared_ptr<T>& payloadData) { return Item::Bound(); }
 template <class T> int payloadGetLayer(const std::shared_ptr<T>& payloadData) { return 0; }
-template <class T> void payloadRender(const std::shared_ptr<T>& payloadData, RenderArgs* args) { }
 
 // Shape type interface
 // This allows shapes to characterize their pipeline via a ShapeKey, to be picked with a subclass of Shape.
 // When creating a new shape payload you need to create a specialized version, or the ShapeKey will be ownPipeline,
 // implying that the shape will setup its own pipeline without the use of the ShapeKey.
-template <class T> const ShapeKey shapeGetShapeKey(const std::shared_ptr<T>& payloadData) { return ShapeKey::Builder::ownPipeline(); }
+template <class T> void payloadRenderShape(const std::shared_ptr<T>& payloadData, RenderArgs* args) { }
+template <class T> const ShapeKey payloadGetShapeKey(const std::shared_ptr<T>& payloadData) { return ShapeKey::Builder::ownPipeline(); }
+
+// Light type interface
+template <class T> void payloadRenderLight(const std::shared_ptr<T>& payloadData, RenderArgs* args) { }
 
 // Meta Type Interface
 // Meta items act as the grouping object for several sub items (typically shapes).
-template <class T> uint32_t metaFetchMetaSubItems(const std::shared_ptr<T>& payloadData, ItemIDs& subItems) { return 0; }
+template <class T> uint32_t payloadFetchMetaSubItems(const std::shared_ptr<T>& payloadData, ItemIDs& subItems) { return 0; }
 
 // THe Payload class is the real Payload to be used
 // THis allow anything to be turned into a Payload as long as the required interface functions are available
@@ -436,14 +445,15 @@ public:
     virtual const Item::Bound getBound() const override { return payloadGetBound<T>(_data); }
     virtual int getLayer() const override { return payloadGetLayer<T>(_data); }
 
-
-    virtual void render(RenderArgs* args) override { payloadRender<T>(_data, args); }
-
     // Shape Type interface
-    virtual const ShapeKey getShapeKey() const override { return shapeGetShapeKey<T>(_data); }
+    virtual void renderShape(RenderArgs* args) override { payloadRenderShape<T>(_data, args); }
+    virtual const ShapeKey getShapeKey() const override { return payloadGetShapeKey<T>(_data); }
+
+    // Light Type interface
+    virtual void renderLight(RenderArgs* args) override { payloadRenderLight<T>(_data, args); }
 
     // Meta Type Interface
-    virtual uint32_t fetchMetaSubItems(ItemIDs& subItems) const override { return metaFetchMetaSubItems<T>(_data, subItems); }
+    virtual uint32_t fetchMetaSubItems(ItemIDs& subItems) const override { return payloadFetchMetaSubItems<T>(_data, subItems); }
 
 protected:
     DataPointer _data;

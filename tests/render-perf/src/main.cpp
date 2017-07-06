@@ -401,7 +401,7 @@ namespace render {
         return Item::Bound();
     }
 
-    template <> void payloadRender(const BackgroundRenderData::Pointer& background, RenderArgs* args) {
+    template <> void payloadRenderShape(const BackgroundRenderData::Pointer& background, RenderArgs* args) {
         Q_ASSERT(args->_batch);
         gpu::Batch& batch = *args->_batch;
 

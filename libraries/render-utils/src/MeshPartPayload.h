@@ -79,8 +79,8 @@ public:
 namespace render {
     template <> const ItemKey payloadGetKey(const MeshPartPayload::Pointer& payload);
     template <> const Item::Bound payloadGetBound(const MeshPartPayload::Pointer& payload);
-    template <> const ShapeKey shapeGetShapeKey(const MeshPartPayload::Pointer& payload);
-    template <> void payloadRender(const MeshPartPayload::Pointer& payload, RenderArgs* args);
+    template <> const ShapeKey payloadGetShapeKey(const MeshPartPayload::Pointer& payload);
+    template <> void payloadRenderShape(const MeshPartPayload::Pointer& payload, RenderArgs* args);
 }
 
 class ModelMeshPartPayload : public MeshPartPayload {
@@ -130,8 +130,8 @@ namespace render {
     template <> const ItemKey payloadGetKey(const ModelMeshPartPayload::Pointer& payload);
     template <> const Item::Bound payloadGetBound(const ModelMeshPartPayload::Pointer& payload);
     template <> int payloadGetLayer(const ModelMeshPartPayload::Pointer& payload);
-    template <> const ShapeKey shapeGetShapeKey(const ModelMeshPartPayload::Pointer& payload);
-    template <> void payloadRender(const ModelMeshPartPayload::Pointer& payload, RenderArgs* args);
+    template <> const ShapeKey payloadGetShapeKey(const ModelMeshPartPayload::Pointer& payload);
+    template <> void payloadRenderShape(const ModelMeshPartPayload::Pointer& payload, RenderArgs* args);
 }
 
 #endif // hifi_MeshPartPayload_h

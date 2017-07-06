@@ -62,8 +62,8 @@ public:
 namespace render {
    template <> const ItemKey payloadGetKey(const RenderableEntityItemProxy::Pointer& payload);
    template <> const Item::Bound payloadGetBound(const RenderableEntityItemProxy::Pointer& payload);
-   template <> void payloadRender(const RenderableEntityItemProxy::Pointer& payload, RenderArgs* args);
-   template <> uint32_t metaFetchMetaSubItems(const RenderableEntityItemProxy::Pointer& payload, ItemIDs& subItems);
+   template <> void payloadRenderShape(const RenderableEntityItemProxy::Pointer& payload, RenderArgs* args);
+   template <> uint32_t payloadFetchMetaSubItems(const RenderableEntityItemProxy::Pointer& payload, ItemIDs& subItems);
 }
 
 
