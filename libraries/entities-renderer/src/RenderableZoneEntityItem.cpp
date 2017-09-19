@@ -236,7 +236,6 @@ bool ZoneEntityRenderer::needsRenderUpdateFromTypedEntity(const TypedEntityPoint
         return true;
     }
 
-
     if (entity->getPosition() != _lastPosition) {
         return true;
     }

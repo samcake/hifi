@@ -172,7 +172,6 @@ bool RenderableModelEntityItem::needsUpdateModelBounds() const {
         if (model->getTranslation() != transform.getTranslation()) {
             return true;
         }
-
         if (model->getRotation() != transform.getRotation()) {
             return true;
         }

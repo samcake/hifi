@@ -235,7 +235,6 @@ void Model::updateRenderItems() {
 
         uint32_t deleteGeometryCounter = self->_deleteGeometryCounter;
 
-
         render::Transaction transaction;
         foreach (auto itemID, self->_modelMeshRenderItemsMap.keys()) {
             transaction.updateItem<ModelMeshPartPayload>(itemID, [deleteGeometryCounter](ModelMeshPartPayload& data) {
