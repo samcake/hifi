@@ -9,20 +9,21 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 
+#include "DdeFaceTracker.h"
+
 #include <SharedUtil.h>
 
-#include <QCoreApplication>
-#include <QJsonDocument>
-#include <QJsonArray>
-#include <QJsonObject>
-#include <QTimer>
+#include <QtCore/QCoreApplication>
+#include <QtCore/QJsonDocument>
+#include <QtCore/QJsonArray>
+#include <QtCore/QJsonObject>
+#include <QtCore/QTimer>
 
 #include <GLMHelpers.h>
 #include <NumericalConstants.h>
+#include <FaceshiftConstants.h>
 
 #include "Application.h"
-#include "DdeFaceTracker.h"
-#include "FaceshiftConstants.h"
 #include "InterfaceLogging.h"
 #include "Menu.h"
 
@@ -193,7 +194,7 @@ DdeFaceTracker::DdeFaceTracker(const QHostAddress& host, quint16 serverPort, qui
     _calibrationCount(0),
     _calibrationValues(),
     _calibrationBillboard(NULL),
-    _calibrationBillboardID(0),
+    _calibrationBillboardID(UNKNOWN_OVERLAY_ID),
     _calibrationMessage(QString()),
     _isCalibrated(false)
 {

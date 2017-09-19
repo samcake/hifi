@@ -26,7 +26,7 @@ class PolyVoxEntityItem : public EntityItem {
     virtual EntityItemProperties getProperties(EntityPropertyFlags desiredProperties = EntityPropertyFlags()) const override;
     virtual bool setProperties(const EntityItemProperties& properties) override;
 
-    // TODO: eventually only include properties changed since the params.lastViewFrustumSent time
+    // TODO: eventually only include properties changed since the params.nodeData->getLastTimeBagEmpty() time
     virtual EntityPropertyFlags getEntityProperties(EncodeBitstreamParams& params) const override;
 
     virtual void appendSubclassData(OctreePacketData* packetData, EncodeBitstreamParams& params,
@@ -51,11 +51,13 @@ class PolyVoxEntityItem : public EntityItem {
 
     virtual void debugDump() const override;
 
-    virtual void setVoxelVolumeSize(glm::vec3 voxelVolumeSize);
+    virtual void setVoxelVolumeSize(const vec3& voxelVolumeSize);
     virtual glm::vec3 getVoxelVolumeSize() const;
 
-    virtual void setVoxelData(QByteArray voxelData);
-    virtual const QByteArray getVoxelData() const;
+    virtual void setVoxelData(const QByteArray& voxelData);
+    virtual QByteArray getVoxelData() const;
+
+    virtual int getOnCount() const { return 0; }
 
     enum PolyVoxSurfaceStyle {
         SURFACE_MARCHING_CUBES,
@@ -63,6 +65,8 @@ class PolyVoxEntityItem : public EntityItem {
         SURFACE_EDGED_CUBIC,
         SURFACE_EDGED_MARCHING_CUBES
     };
+    static bool isEdged(PolyVoxSurfaceStyle surfaceStyle);
+
 
     virtual void setVoxelSurfaceStyle(PolyVoxSurfaceStyle voxelSurfaceStyle) { _voxelSurfaceStyle = voxelSurfaceStyle; }
     // this other version of setVoxelSurfaceStyle is needed for SET_ENTITY_PROPERTY_FROM_PROPERTIES
@@ -75,73 +79,91 @@ class PolyVoxEntityItem : public EntityItem {
     static const QByteArray DEFAULT_VOXEL_DATA;
     static const PolyVoxSurfaceStyle DEFAULT_VOXEL_SURFACE_STYLE;
 
+    glm::vec3 voxelCoordsToWorldCoords(const glm::vec3& voxelCoords) const;
+    glm::vec3 worldCoordsToVoxelCoords(const glm::vec3& worldCoords) const;
+    glm::vec3 voxelCoordsToLocalCoords(const glm::vec3& voxelCoords) const;
+    glm::vec3 localCoordsToVoxelCoords(const glm::vec3& localCoords) const;
+
     // coords are in voxel-volume space
-    virtual bool setSphereInVolume(glm::vec3 center, float radius, uint8_t toValue) { return false; }
-    virtual bool setVoxelInVolume(glm::vec3 position, uint8_t toValue) { return false; }
-
-    virtual glm::vec3 voxelCoordsToWorldCoords(glm::vec3& voxelCoords) const { return glm::vec3(0.0f); }
-    virtual glm::vec3 worldCoordsToVoxelCoords(glm::vec3& worldCoords) const { return glm::vec3(0.0f); }
-    virtual glm::vec3 voxelCoordsToLocalCoords(glm::vec3& voxelCoords) const { return glm::vec3(0.0f); }
-    virtual glm::vec3 localCoordsToVoxelCoords(glm::vec3& localCoords) const { return glm::vec3(0.0f); }
-
+    virtual bool setSphereInVolume(const vec3& center, float radius, uint8_t toValue) { return false; }
+    virtual bool setVoxelInVolume(const vec3& position, uint8_t toValue) { return false; }
     // coords are in world-space
-    virtual bool setSphere(glm::vec3 center, float radius, uint8_t toValue) { return false; }
+    virtual bool setSphere(const vec3& center, float radius, uint8_t toValue) { return false; }
+    virtual bool setCapsule(const vec3& startWorldCoords, const vec3& endWorldCoords,
+                            float radiusWorldCoords, uint8_t toValue) { return false; }
     virtual bool setAll(uint8_t toValue) { return false; }
-    virtual bool setCuboid(const glm::vec3& lowPosition, const glm::vec3& cuboidSize, int value) { return false; }
+    virtual bool setCuboid(const vec3& lowPosition, const vec3& cuboidSize, int value) { return false; }
 
-    virtual uint8_t getVoxel(int x, int y, int z) { return 0; }
-    virtual bool setVoxel(int x, int y, int z, uint8_t toValue) { return false; }
+    virtual uint8_t getVoxel(int x, int y, int z) const final { return getVoxel({ x, y, z }); }
+    virtual bool setVoxel(int x, int y, int z, uint8_t toValue) final{ return setVoxel({ x, y, z }, toValue); }
+
+    virtual uint8_t getVoxel(const ivec3& v) const { return 0; }
+    virtual bool setVoxel(const ivec3& v, uint8_t toValue) { return false; }
 
     static QByteArray makeEmptyVoxelData(quint16 voxelXSize = 16, quint16 voxelYSize = 16, quint16 voxelZSize = 16);
 
     static const QString DEFAULT_X_TEXTURE_URL;
-    virtual void setXTextureURL(QString xTextureURL) { _xTextureURL = xTextureURL; }
-    virtual const QString& getXTextureURL() const { return _xTextureURL; }
+    void setXTextureURL(const QString& xTextureURL);
+    QString getXTextureURL() const;
 
     static const QString DEFAULT_Y_TEXTURE_URL;
-    virtual void setYTextureURL(QString yTextureURL) { _yTextureURL = yTextureURL; }
-    virtual const QString& getYTextureURL() const { return _yTextureURL; }
+    void setYTextureURL(const QString& yTextureURL);
+    QString getYTextureURL() const;
 
     static const QString DEFAULT_Z_TEXTURE_URL;
-    virtual void setZTextureURL(QString zTextureURL) { _zTextureURL = zTextureURL; }
-    virtual const QString& getZTextureURL() const { return _zTextureURL; }
+    void setZTextureURL(const QString& zTextureURL);
+    QString getZTextureURL() const;
 
-    virtual void setXNNeighborID(const EntityItemID& xNNeighborID) { _xNNeighborID = xNNeighborID; }
-    void setXNNeighborID(const QString& xNNeighborID) { setXNNeighborID(QUuid(xNNeighborID)); }
-    virtual const EntityItemID& getXNNeighborID() const { return _xNNeighborID; }
-    virtual void setYNNeighborID(const EntityItemID& yNNeighborID) { _yNNeighborID = yNNeighborID; }
-    void setYNNeighborID(const QString& yNNeighborID) { setYNNeighborID(QUuid(yNNeighborID)); }
-    virtual const EntityItemID& getYNNeighborID() const { return _yNNeighborID; }
-    virtual void setZNNeighborID(const EntityItemID& zNNeighborID) { _zNNeighborID = zNNeighborID; }
-    void setZNNeighborID(const QString& zNNeighborID) { setZNNeighborID(QUuid(zNNeighborID)); }
-    virtual const EntityItemID& getZNNeighborID() const { return _zNNeighborID; }
+    virtual void setXNNeighborID(const EntityItemID& xNNeighborID);
+    void setXNNeighborID(const QString& xNNeighborID);
+    EntityItemID getXNNeighborID() const;
+    virtual void setYNNeighborID(const EntityItemID& yNNeighborID);
+    void setYNNeighborID(const QString& yNNeighborID);
+    EntityItemID getYNNeighborID() const;
+    virtual void setZNNeighborID(const EntityItemID& zNNeighborID);
+    void setZNNeighborID(const QString& zNNeighborID);
+    EntityItemID getZNNeighborID() const;
 
-    virtual void setXPNeighborID(const EntityItemID& xPNeighborID) { _xPNeighborID = xPNeighborID; }
-    void setXPNeighborID(const QString& xPNeighborID) { setXPNeighborID(QUuid(xPNeighborID)); }
-    virtual const EntityItemID& getXPNeighborID() const { return _xPNeighborID; }
-    virtual void setYPNeighborID(const EntityItemID& yPNeighborID) { _yPNeighborID = yPNeighborID; }
-    void setYPNeighborID(const QString& yPNeighborID) { setYPNeighborID(QUuid(yPNeighborID)); }
-    virtual const EntityItemID& getYPNeighborID() const { return _yPNeighborID; }
-    virtual void setZPNeighborID(const EntityItemID& zPNeighborID) { _zPNeighborID = zPNeighborID; }
-    void setZPNeighborID(const QString& zPNeighborID) { setZPNeighborID(QUuid(zPNeighborID)); }
-    virtual const EntityItemID& getZPNeighborID() const { return _zPNeighborID; }
+    std::array<EntityItemID, 3> getNNeigborIDs() const;
+    
 
-    virtual void rebakeMesh() {};
+    virtual void setXPNeighborID(const EntityItemID& xPNeighborID);
+    void setXPNeighborID(const QString& xPNeighborID);
+    EntityItemID getXPNeighborID() const;
+    virtual void setYPNeighborID(const EntityItemID& yPNeighborID);
+    void setYPNeighborID(const QString& yPNeighborID);
+    EntityItemID getYPNeighborID() const;
+    virtual void setZPNeighborID(const EntityItemID& zPNeighborID);
+    void setZPNeighborID(const QString& zPNeighborID);
+    EntityItemID getZPNeighborID() const;
 
-    void setVoxelDataDirty(bool value) { withWriteLock([&] { _voxelDataDirty = value; }); }
-    virtual void getMesh() {}; // recompute mesh
+    std::array<EntityItemID, 3> getPNeigborIDs() const;
+
+    glm::vec3 getSurfacePositionAdjustment() const;
+
+    virtual ShapeType getShapeType() const override;
+    virtual bool shouldBePhysical() const override { return !isDead(); }
+
+    bool isEdged() const;
+
+    glm::mat4 voxelToWorldMatrix() const;
+    glm::mat4 worldToVoxelMatrix() const;
+    glm::mat4 voxelToLocalMatrix() const;
+    glm::mat4 localToVoxelMatrix() const;
 
  protected:
-    glm::vec3 _voxelVolumeSize; // this is always 3 bytes
+    void setVoxelDataDirty(bool value) { withWriteLock([&] { _voxelDataDirty = value; }); }
 
-    QByteArray _voxelData;
-    bool _voxelDataDirty; // _voxelData has changed, things that depend on it should be updated
+    glm::vec3 _voxelVolumeSize { DEFAULT_VOXEL_VOLUME_SIZE }; // this is always 3 bytes
 
-    PolyVoxSurfaceStyle _voxelSurfaceStyle;
+    QByteArray _voxelData { DEFAULT_VOXEL_DATA };
+    bool _voxelDataDirty { true }; // _voxelData has changed, things that depend on it should be updated
 
-    QString _xTextureURL;
-    QString _yTextureURL;
-    QString _zTextureURL;
+    PolyVoxSurfaceStyle _voxelSurfaceStyle { DEFAULT_VOXEL_SURFACE_STYLE };
+
+    QString _xTextureURL { DEFAULT_X_TEXTURE_URL };
+    QString _yTextureURL { DEFAULT_Y_TEXTURE_URL };
+    QString _zTextureURL { DEFAULT_Z_TEXTURE_URL };
 
     // for non-edged surface styles, these are used to compute the high-axis edges
     EntityItemID _xNNeighborID{UNKNOWN_ENTITY_ID};

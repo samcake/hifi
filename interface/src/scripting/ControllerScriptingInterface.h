@@ -25,38 +25,6 @@
 #include <WheelEvent.h>
 class ScriptEngine;
 
-class PalmData;
-
-class InputController : public  controller::InputController {
-    Q_OBJECT
-
-public:
-    InputController(int deviceTrackerId, int subTrackerId, QObject* parent = NULL);
-
-    virtual void update() override;
-    virtual Key getKey() const override;
-
-public slots:
-
-    virtual bool isActive() const override { return _isActive; }
-    virtual glm::vec3 getAbsTranslation() const override { return _eventCache.absTranslation; }
-    virtual glm::quat getAbsRotation() const override { return _eventCache.absRotation; }
-    virtual glm::vec3 getLocTranslation() const override { return _eventCache.locTranslation; }
-    virtual glm::quat getLocRotation() const override { return _eventCache.locRotation; }
-
-private:
-
-    int  _deviceTrackerId;
-    uint  _subTrackerId;
-
-    // cache for the spatial
-    SpatialEvent    _eventCache;
-    bool            _isActive;
-
-signals:
-};
- 
-
 /// handles scripting of input controller commands from JS
 class ControllerScriptingInterface : public controller::ScriptingInterface {
     Q_OBJECT
@@ -84,8 +52,7 @@ public:
     bool isKeyCaptured(QKeyEvent* event) const;
     bool isKeyCaptured(const KeyEvent& event) const;
     bool isJoystickCaptured(int joystickIndex) const;
-
-    void updateInputControllers();
+    bool areEntityClicksCaptured() const;
 
 public slots:
 
@@ -95,12 +62,11 @@ public slots:
     virtual void captureJoystick(int joystickIndex);
     virtual void releaseJoystick(int joystickIndex);
 
+    virtual void captureEntityClickEvents();
+    virtual void releaseEntityClickEvents();
+
     virtual glm::vec2 getViewportDimensions() const;
     virtual QVariant getRecommendedOverlayRect() const;
-
-    /// Factory to create an InputController
-    virtual controller::InputController* createInputController(const QString& deviceName, const QString& tracker);
-    virtual void releaseInputController(controller::InputController* input);
 
 signals:
     void keyPressEvent(const KeyEvent& event);
@@ -128,10 +94,9 @@ private:
 
     QMultiMap<int,KeyEvent> _capturedKeys;
     QSet<int> _capturedJoysticks;
+    bool _captureEntityClicks;
 
     using InputKey = controller::InputController::Key;
-    using InputControllerMap = std::map<InputKey, controller::InputController::Pointer>;
-    InputControllerMap _inputControllers;
 };
 
 const int NUMBER_OF_SPATIALCONTROLS_PER_PALM = 2; // the hand and the tip

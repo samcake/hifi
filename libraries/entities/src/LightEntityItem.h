@@ -37,11 +37,6 @@ public:
     // methods for getting/setting all properties of an entity
     virtual EntityItemProperties getProperties(EntityPropertyFlags desiredProperties = EntityPropertyFlags()) const override;
 
-    /// Override this in your derived class if you'd like to be informed when something about the state of the entity
-    /// has changed. This will be called with properties change or when new data is loaded from a stream
-    /// Overriding this function to capture the information that a light properties has changed
-    virtual void somethingChangedNotification() override;
-
     virtual EntityPropertyFlags getEntityProperties(EncodeBitstreamParams& params) const override;
 
     virtual void appendSubclassData(OctreePacketData* packetData, EncodeBitstreamParams& params,
@@ -57,49 +52,45 @@ public:
                                                 EntityPropertyFlags& propertyFlags, bool overwriteLocalData,
                                                 bool& somethingChanged) override;
 
-    const rgbColor& getColor() const { return _color; }
-    xColor getXColor() const {
-        xColor color = { _color[RED_INDEX], _color[GREEN_INDEX], _color[BLUE_INDEX] }; return color;
-    }
+    const rgbColor& getColor() const;
+    xColor getXColor() const;
 
-    void setColor(const rgbColor& value) { memcpy(_color, value, sizeof(_color)); }
-    void setColor(const xColor& value) {
-            _color[RED_INDEX] = value.red;
-            _color[GREEN_INDEX] = value.green;
-            _color[BLUE_INDEX] = value.blue;
-            _lightPropertiesChanged = true;
-    }
+    void setColor(const rgbColor& value);
+    void setColor(const xColor& value);
 
-    bool getIsSpotlight() const { return _isSpotlight; }
+    bool getIsSpotlight() const;
     void setIsSpotlight(bool value);
 
     void setIgnoredColor(const rgbColor& value) { }
     void setIgnoredAttenuation(float value) { }
 
-    float getIntensity() const { return _intensity; }
-    void setIntensity(float value) {
-        _intensity = value; 
-        _lightPropertiesChanged = true;
-    }
-
-    float getFalloffRadius() const { return _falloffRadius; }
+    float getIntensity() const;
+    void setIntensity(float value);
+    float getFalloffRadius() const;
     void setFalloffRadius(float value);
 
-    float getExponent() const { return _exponent; }
-    void setExponent(float value) {
-        _exponent = value;
-        _lightPropertiesChanged = true;
-    }
+    float getExponent() const;
+    void setExponent(float value);
 
-    float getCutoff() const { return _cutoff; }
+    float getCutoff() const;
     void setCutoff(float value);
     
     static bool getLightsArePickable() { return _lightsArePickable; }
     static void setLightsArePickable(bool value) { _lightsArePickable = value; }
     
-protected:
+    virtual void locationChanged(bool tellPhysics) override;
+    virtual void dimensionsChanged() override;
 
+    bool lightPropertiesChanged() const { return _lightPropertiesChanged; }
+    void resetLightPropertiesChanged();
 
+    virtual bool supportsDetailedRayIntersection() const override { return true; }
+    virtual bool findDetailedRayIntersection(const glm::vec3& origin, const glm::vec3& direction,
+                            bool& keepSearching, OctreeElementPointer& element, float& distance,
+                            BoxFace& face, glm::vec3& surfaceNormal,
+                            void** intersectedObject, bool precisionPicking) const override;
+
+private:
     // properties of a light
     rgbColor _color;
     bool _isSpotlight { DEFAULT_IS_SPOTLIGHT };
@@ -107,10 +98,7 @@ protected:
     float _falloffRadius { DEFAULT_FALLOFF_RADIUS };
     float _exponent { DEFAULT_EXPONENT };
     float _cutoff { DEFAULT_CUTOFF };
-
     // Dirty flag turn true when either light properties is changing values.
-    // This gets back to false in the somethingChangedNotification() call
-    // Which is called after a setProperties() or a readEntitySubClassFromBUfferCall on the entity.
     bool _lightPropertiesChanged { false };
 
     static bool _lightsArePickable;

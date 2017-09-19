@@ -50,7 +50,7 @@ Item {
         id: colors
 
         // Base colors
-        readonly property color baseGray: "#404040"
+        readonly property color baseGray: "#393939"
         readonly property color darkGray: "#121212"
         readonly property color baseGrayShadow: "#252525"
         readonly property color baseGrayHighlight: "#575757"
@@ -70,6 +70,10 @@ Item {
         readonly property color indigoAccent: "#9495FF"
         readonly property color magentaHighlight: "#EF93D1"
         readonly property color magentaAccent: "#A2277C"
+        readonly property color checkboxCheckedRed: "#FF0000"
+        readonly property color checkboxCheckedBorderRed: "#D00000"
+        readonly property color lightBlueHighlight: "#d6f6ff"
+
         // Semitransparent
         readonly property color darkGray30: "#4d121212"
         readonly property color darkGray0: "#00121212"
@@ -156,9 +160,10 @@ Item {
         readonly property real modalDialogTitleHeight: 40
         readonly property real controlLineHeight: 28  // Height of spinbox control on 1920 x 1080 monitor
         readonly property real controlInterlineHeight: 21  // 75% of controlLineHeight
-        readonly property vector2d menuPadding: Qt.vector2d(14, 12)
+        readonly property vector2d menuPadding: Qt.vector2d(14, 102)
         readonly property real scrollbarBackgroundWidth: 18
         readonly property real scrollbarHandleWidth: scrollbarBackgroundWidth - 2
+        readonly property real tabletMenuHeader: 90
     }
 
     Item {
@@ -171,7 +176,7 @@ Item {
         readonly property real textFieldInputLabel: dimensions.largeScreen ? 13 : 9
         readonly property real textFieldSearchIcon: dimensions.largeScreen ? 30 : 24
         readonly property real tableHeading: dimensions.largeScreen ? 12 : 10
-        readonly property real tableHeadingIcon: dimensions.largeScreen ? 40 : 33
+        readonly property real tableHeadingIcon: dimensions.largeScreen ? 60 : 33
         readonly property real tableText: dimensions.largeScreen ? 15 : 12
         readonly property real buttonLabel: dimensions.largeScreen ? 13 : 9
         readonly property real iconButton: dimensions.largeScreen ? 13 : 9
@@ -318,5 +323,20 @@ Item {
         readonly property string deg: "\\"
         readonly property string px: "|"
         readonly property string editPencil: "\ue00d"
+        readonly property string vol_0: "\ue00e"
+        readonly property string vol_1: "\ue00f"
+        readonly property string vol_2: "\ue010"
+        readonly property string vol_3: "\ue011"
+        readonly property string vol_4: "\ue012"
+        readonly property string vol_x_0: "\ue013"
+        readonly property string vol_x_1: "\ue014"
+        readonly property string vol_x_2: "\ue015"
+        readonly property string vol_x_3: "\ue016"
+        readonly property string vol_x_4: "\ue017"
+        readonly property string source: "\ue01c"
+        readonly property string playback_play: "\ue01d"
+        readonly property string stop_square: "\ue01e"
+        readonly property string avatarTPose: "\ue01f"
+        readonly property string lock: "\ue006"
     }
 }

@@ -28,11 +28,8 @@ void GLBackend::resetPipelineState(State::Signature nextSignature) {
             }
         }
     }
-}
 
-void GLBackend::syncPipelineStateCache() {
-    State::Data state;
-
+    // force a few states regardless
     glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 
     // Point size is always on
@@ -43,6 +40,25 @@ void GLBackend::syncPipelineStateCache() {
 
     // Default line width accross the board
     glLineWidth(1.0f);
+    glEnable(GL_LINE_SMOOTH);
+
+}
+
+void GLBackend::syncPipelineStateCache() {
+    State::Data state;
+
+    // force a few states regardless
+    glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+
+    // Point size is always on
+    // FIXME CORE
+    //glHint(GL_POINT_SMOOTH_HINT, GL_NICEST);
+    glEnable(GL_PROGRAM_POINT_SIZE_EXT);
+    glEnable(GL_VERTEX_PROGRAM_POINT_SIZE);
+
+    // Default line width accross the board
+    glLineWidth(1.0f);
+    glEnable(GL_LINE_SMOOTH);
 
     getCurrentGLState(state);
     State::Signature signature = State::evalSignature(state);
@@ -306,7 +322,7 @@ void GLBackend::do_setStateScissorRect(const Batch& batch, size_t paramOffset) {
     Vec4i rect;
     memcpy(&rect, batch.readData(batch._params[paramOffset]._uint), sizeof(Vec4i));
 
-    if (_stereo._enable) {
+    if (_stereo.isStereo()) {
         rect.z /= 2;
         if (_stereo._pass) {
             rect.x += rect.z;

@@ -6,9 +6,9 @@ namespace gl {
 
 
 #ifdef SEPARATE_PROGRAM
-    bool compileShader(GLenum shaderDomain, const std::string& shaderSource, const std::string& defines, GLuint &shaderObject, GLuint &programObject) {
+    bool compileShader(GLenum shaderDomain, const std::string& shaderSource, const std::string& defines, GLuint &shaderObject, GLuint &programObject, std::string& error) {
 #else
-    bool compileShader(GLenum shaderDomain, const std::string& shaderSource, const std::string& defines, GLuint &shaderObject) {
+    bool compileShader(GLenum shaderDomain, const std::string& shaderSource, const std::string& defines, GLuint &shaderObject, std::string& error) {
 #endif
     if (shaderSource.empty()) {
         qCDebug(glLogging) << "GLShader::compileShader - no GLSL shader source code ? so failed to create";
@@ -69,6 +69,8 @@ namespace gl {
         }
         qCWarning(glLogging) << "GLShader::compileShader - errors:";
         qCWarning(glLogging) << temp;
+
+        error = std::string(temp);
         delete[] temp;
 
         glDeleteShader(glshader);
@@ -130,7 +132,7 @@ namespace gl {
     return true;
 }
 
-GLuint compileProgram(const std::vector<GLuint>& glshaders) {
+GLuint compileProgram(const std::vector<GLuint>& glshaders, std::string& error) {
     // A brand new program:
     GLuint glprogram = glCreateProgram();
     if (!glprogram) {
@@ -170,6 +172,9 @@ GLuint compileProgram(const std::vector<GLuint>& glshaders) {
         qCDebug(glLogging) << "GLShader::compileProgram -  failed to LINK the gl program object :";
         qCDebug(glLogging) << temp;
 
+        error = std::string(temp);
+        delete[] temp;
+
         /*
         filestream.open("debugshader.glsl.info.txt");
         if (filestream.is_open()) {
@@ -177,7 +182,6 @@ GLuint compileProgram(const std::vector<GLuint>& glshaders) {
         filestream.close();
         }
         */
-        delete[] temp;
 
         glDeleteProgram(glprogram);
         return 0;

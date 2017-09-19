@@ -12,7 +12,6 @@
 #include "udt/PacketHeaders.h"
 #include "SharedUtil.h"
 #include "UUID.h"
-#include "ServerPathUtils.h"
 
 #include <QtCore/QDataStream>
 
@@ -35,6 +34,8 @@ Assignment::Type Assignment::typeForNodeType(NodeType_t nodeType) {
             return Assignment::AssetServerType;
         case NodeType::MessagesMixer:
             return Assignment::MessagesMixerType;
+        case NodeType::EntityScriptServer:
+            return Assignment::EntityScriptServerType;
         default:
             return Assignment::AllTypes;
     }
@@ -139,6 +140,8 @@ const char* Assignment::getTypeName() const {
             return "entity-server";
         case Assignment::MessagesMixerType:
             return "messages-mixer";
+        case Assignment::EntityScriptServerType:
+            return "entity-script-server";
         default:
             return "unknown";
     }

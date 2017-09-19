@@ -1,5 +1,5 @@
 //
-//  PreferencesDialog.qml
+//  GeneralPreferencesDialog.qml
 //
 //  Created by Bradley Austin Davis on 24 Jan 2016
 //  Copyright 2015 High Fidelity, Inc.
@@ -17,7 +17,7 @@ PreferencesDialog {
     id: root
     objectName: "GeneralPreferencesDialog"
     title: "General Settings"
-    showCategories: ["UI", "Snapshots", "Scripts", "Privacy", "Octree", "HMD", "Sixense Controllers", "Perception Neuron", "Kinect"]
+    showCategories: ["UI", "Snapshots", "Scripts", "Privacy", "Octree", "HMD", "Game Controller", "Sixense Controllers", "Perception Neuron", "Kinect", "Leap Motion"]
     property var settings: Settings {
         category: root.objectName
         property alias x: root.x

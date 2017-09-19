@@ -1,7 +1,9 @@
+/* eslint-env jasmine */
+
 describe('Entity', function() {
     var center = Vec3.sum(
         MyAvatar.position,
-        Vec3.multiply(3, Quat.getFront(Camera.getOrientation()))
+        Vec3.multiply(3, Quat.getForward(Camera.getOrientation()))
     );
     var boxEntity;
     var boxProps = {
@@ -18,6 +20,14 @@ describe('Entity', function() {
             z: 1,
         },
     };
+
+    it('serversExist', function() {
+        expect(Entities.serversExist()).toBe(true);
+    });
+
+    it('canRezTmp', function() {
+        expect(Entities.canRezTmp()).toBe(true);
+    });
 
     beforeEach(function() {
         boxEntity = Entities.addEntity(boxProps);

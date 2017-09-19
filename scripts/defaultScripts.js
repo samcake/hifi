@@ -11,30 +11,29 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 
-var DEFAULT_SCRIPTS = [
+var DEFAULT_SCRIPTS_COMBINED = [
     "system/progress.js",
     "system/away.js",
-    "system/users.js",
-    "system/mute.js",
-    "system/goto.js",
+    "system/audio.js",
     "system/hmd.js",
-    "system/marketplaces/marketplaces.js",
-    "system/edit.js",
-    "system/pal.js", //"system/mod.js", // older UX, if you prefer
-    "system/selectAudioDevice.js",
-    "system/notifications.js",
-    "system/controllers/controllerDisplayManager.js",
-    "system/controllers/handControllerGrab.js",
-    "system/controllers/handControllerPointer.js",
-    "system/controllers/squeezeHands.js",
-    "system/controllers/grab.js",
-    "system/controllers/teleport.js",
-    "system/controllers/toggleAdvancedMovementForHandControllers.js",
-    "system/dialTone.js",
-    "system/firstPersonHMD.js",
+    "system/menu.js",
+    "system/bubble.js",
     "system/snapshot.js",
     "system/help.js",
-    "system/bubble.js"
+    "system/pal.js", // "system/mod.js", // older UX, if you prefer
+    "system/makeUserConnection.js",
+    "system/tablet-goto.js",
+    "system/marketplaces/marketplaces.js",
+    "system/commerce/wallet.js",
+    "system/edit.js",
+    "system/notifications.js",
+    "system/dialTone.js",
+    "system/firstPersonHMD.js",
+    "system/tablet-ui/tabletUI.js"
+];
+var DEFAULT_SCRIPTS_SEPARATE = [
+    "system/controllers/controllerScripts.js",
+    // "system/chat.js"
 ];
 
 // add a menu item for debugging
@@ -52,9 +51,6 @@ if (previousSetting === true || previousSetting === 'true') {
     previousSetting = true;
 }
 
-
-
-
 if (Menu.menuExists(MENU_CATEGORY) && !Menu.menuItemExists(MENU_CATEGORY, MENU_ITEM)) {
     Menu.addMenuItem({
         menuName: MENU_CATEGORY,
@@ -65,22 +61,30 @@ if (Menu.menuExists(MENU_CATEGORY) && !Menu.menuItemExists(MENU_CATEGORY, MENU_I
     });
 }
 
-function runDefaultsTogether() {
-    for (var j in DEFAULT_SCRIPTS) {
-        Script.include(DEFAULT_SCRIPTS[j]);
+function loadSeparateDefaults() {
+    for (var i in DEFAULT_SCRIPTS_SEPARATE) {
+        Script.load(DEFAULT_SCRIPTS_SEPARATE[i]);
     }
 }
 
-function runDefaultsSeparately() {
-    for (var i in DEFAULT_SCRIPTS) {
-        Script.load(DEFAULT_SCRIPTS[i]);
+function runDefaultsTogether() {
+    for (var i in DEFAULT_SCRIPTS_COMBINED) {
+        Script.include(DEFAULT_SCRIPTS_COMBINED[i]);
     }
+    loadSeparateDefaults();
 }
+
+function runDefaultsSeparately() {
+    for (var i in DEFAULT_SCRIPTS_COMBINED) {
+        Script.load(DEFAULT_SCRIPTS_COMBINED[i]);
+    }
+    loadSeparateDefaults();
+}
+
 // start all scripts
 if (Menu.isOptionChecked(MENU_ITEM)) {
     // we're debugging individual default scripts
     // so we load each into its own ScriptEngine instance
-    debuggingDefaultScripts = true;
     runDefaultsSeparately();
 } else {
     // include all default scripts into this ScriptEngine
@@ -88,32 +92,14 @@ if (Menu.isOptionChecked(MENU_ITEM)) {
 }
 
 function menuItemEvent(menuItem) {
-    if (menuItem == MENU_ITEM) {
-
-        isChecked = Menu.isOptionChecked(MENU_ITEM);
+    if (menuItem === MENU_ITEM) {
+        var isChecked = Menu.isOptionChecked(MENU_ITEM);
         if (isChecked === true) {
             Settings.setValue(SETTINGS_KEY, true);
         } else if (isChecked === false) {
             Settings.setValue(SETTINGS_KEY, false);
         }
-         Window.alert('You must reload all scripts for this to take effect.')
-    }
-
-
-}
-
-
-
-function stopLoadedScripts() {
-        // remove debug script loads
-    var runningScripts = ScriptDiscoveryService.getRunning();
-    for (var i in runningScripts) {
-        var scriptName = runningScripts[i].name;
-        for (var j in DEFAULT_SCRIPTS) {
-            if (DEFAULT_SCRIPTS[j].slice(-scriptName.length) === scriptName) {
-                ScriptDiscoveryService.stopScript(runningScripts[i].url);
-            }
-        }
+        Menu.triggerOption("Reload All Scripts");
     }
 }
 
@@ -124,7 +110,6 @@ function removeMenuItem() {
 }
 
 Script.scriptEnding.connect(function() {
-    stopLoadedScripts();
     removeMenuItem();
 });
 

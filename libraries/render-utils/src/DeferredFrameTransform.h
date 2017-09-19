@@ -12,10 +12,10 @@
 #ifndef hifi_DeferredFrameTransform_h
 #define hifi_DeferredFrameTransform_h
 
-#include "gpu/Resource.h"
-#include "render/DrawTask.h"
+#include <gpu/Resource.h>
 
-class RenderArgs;
+#include <render/Forward.h>
+#include <render/DrawTask.h>
 
 // DeferredFrameTransform is  a helper class gathering in one place the needed camera transform
 // and frame resolution needed for all the deferred rendering passes taking advantage of the Deferred buffers
@@ -70,7 +70,7 @@ public:
 
     GenerateDeferredFrameTransform() {}
 
-    void run(const render::SceneContextPointer& sceneContext, const render::RenderContextPointer& renderContext, DeferredFrameTransformPointer& frameTransform);
+    void run(const render::RenderContextPointer& renderContext, DeferredFrameTransformPointer& frameTransform);
 
 private:
 };

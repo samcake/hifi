@@ -34,7 +34,23 @@
 #include "EntitiesScriptEngineProvider.h"
 #include "EntityItemProperties.h"
 
+#include "BaseScriptEngine.h"
+
 class EntityTree;
+class MeshProxy;
+
+// helper factory to compose standardized, async metadata queries for "magic" Entity properties
+// like .script and .serverScripts.  This is used for automated testing of core scripting features
+// as well as to provide early adopters a self-discoverable, consistent way to diagnose common
+// problems with their own Entity scripts.
+class EntityPropertyMetadataRequest {
+public:
+    EntityPropertyMetadataRequest(BaseScriptEngine* engine) : _engine(engine) {};
+    bool script(EntityItemID entityID, QScriptValue handler);
+    bool serverScripts(EntityItemID entityID, QScriptValue handler);
+private:
+    QPointer<BaseScriptEngine> _engine;
+};
 
 class RayToEntityIntersectionResult {
 public:
@@ -42,7 +58,6 @@ public:
     bool intersects;
     bool accurate;
     QUuid entityID;
-    EntityItemProperties properties;
     float distance;
     BoxFace face;
     glm::vec3 intersection;
@@ -67,6 +82,7 @@ class EntityScriptingInterface : public OctreeScriptingInterface, public Depende
     Q_PROPERTY(float costMultiplier READ getCostMultiplier WRITE setCostMultiplier)
     Q_PROPERTY(QUuid keyboardFocusEntity READ getKeyboardFocusEntity WRITE setKeyboardFocusEntity)
 
+    friend EntityPropertyMetadataRequest;
 public:
     EntityScriptingInterface(bool bidOnSimulationOwnership);
 
@@ -83,7 +99,7 @@ public:
 
     void setEntityTree(EntityTreePointer modelTree);
     EntityTreePointer getEntityTree() { return _entityTree; }
-    void setEntitiesScriptEngine(EntitiesScriptEngineProvider* engine);
+    void setEntitiesScriptEngine(QSharedPointer<EntitiesScriptEngineProvider> engine);
     float calculateCost(float mass, float oldVelocity, float newVelocity);
 
     void resetActivityTracking();
@@ -196,8 +212,15 @@ public slots:
     /// - orientation
     /// - projection
     /// - centerRadius
-    /// this function will not find any models in script engine contexts which don't have access to models
+    /// this function will not find any models in script engine contexts which don't have access to entities
     Q_INVOKABLE QVector<QUuid> findEntitiesInFrustum(QVariantMap frustum) const;
+
+	/// finds entities of the indicated type within a sphere given by the center point and radius
+	/// @param {QString} string representation of entity type
+	/// @param {vec3} center point
+	/// @param {float} radius to search
+	/// this function will not find any entities in script engine contexts which don't have access to entities
+	Q_INVOKABLE QVector<QUuid> findEntitiesByType(const QString entityType, const glm::vec3& center, float radius) const;
 
     /// If the scripting context has visible entities, this will determine a ray intersection, the results
     /// may be inaccurate if the engine is unable to access the visible entities, in which case result.accurate
@@ -206,20 +229,55 @@ public slots:
         const QScriptValue& entityIdsToInclude = QScriptValue(), const QScriptValue& entityIdsToDiscard = QScriptValue(),
         bool visibleOnly = false, bool collidableOnly = false);
 
+    /// Same as above but with QVectors
+    RayToEntityIntersectionResult findRayIntersectionVector(const PickRay& ray, bool precisionPicking,
+        const QVector<EntityItemID>& entityIdsToInclude, const QVector<EntityItemID>& entityIdsToDiscard,
+        bool visibleOnly, bool collidableOnly);
+
     /// If the scripting context has visible entities, this will determine a ray intersection, and will block in
     /// order to return an accurate result
     Q_INVOKABLE RayToEntityIntersectionResult findRayIntersectionBlocking(const PickRay& ray, bool precisionPicking = false, const QScriptValue& entityIdsToInclude = QScriptValue(), const QScriptValue& entityIdsToDiscard = QScriptValue());
 
+    Q_INVOKABLE bool reloadServerScripts(QUuid entityID);
+
+    /**jsdoc
+     * Query additional metadata for "magic" Entity properties like `script` and `serverScripts`.
+     *
+     * @function Entities.queryPropertyMetadata
+     * @param {EntityID} entityID The ID of the entity.
+     * @param {string} property The name of the property extended metadata is wanted for.
+     * @param {ResultCallback} callback Executes callback(err, result) with the query results.
+     */
+    /**jsdoc
+     * Query additional metadata for "magic" Entity properties like `script` and `serverScripts`.
+     *
+     * @function Entities.queryPropertyMetadata
+     * @param {EntityID} entityID The ID of the entity.
+     * @param {string} property The name of the property extended metadata is wanted for.
+     * @param {Object} thisObject The scoping "this" context that callback will be executed within.
+     * @param {ResultCallback} callbackOrMethodName Executes thisObject[callbackOrMethodName](err, result) with the query results.
+     */
+    Q_INVOKABLE bool queryPropertyMetadata(QUuid entityID, QScriptValue property, QScriptValue scopeOrCallback, QScriptValue methodOrName = QScriptValue());
+
+    Q_INVOKABLE bool getServerScriptStatus(QUuid entityID, QScriptValue callback);
+
+    // FIXME move to a renderable entity interface
     Q_INVOKABLE void setLightsArePickable(bool value);
     Q_INVOKABLE bool getLightsArePickable() const;
 
+    // FIXME move to a renderable entity interface
     Q_INVOKABLE void setZonesArePickable(bool value);
     Q_INVOKABLE bool getZonesArePickable() const;
 
+    // FIXME move to a renderable entity interface
     Q_INVOKABLE void setDrawZoneBoundaries(bool value);
     Q_INVOKABLE bool getDrawZoneBoundaries() const;
 
+    // FIXME move to a renderable entity interface
     Q_INVOKABLE bool setVoxelSphere(QUuid entityID, const glm::vec3& center, float radius, int value);
+    Q_INVOKABLE bool setVoxelCapsule(QUuid entityID, const glm::vec3& start, const glm::vec3& end, float radius, int value);
+
+    // FIXME move to a renderable entity interface
     Q_INVOKABLE bool setVoxel(QUuid entityID, const glm::vec3& position, int value);
     Q_INVOKABLE bool setAllVoxels(QUuid entityID, int value);
     Q_INVOKABLE bool setVoxelsInCuboid(QUuid entityID, const glm::vec3& lowPosition,
@@ -236,32 +294,41 @@ public slots:
     Q_INVOKABLE QVector<QUuid> getActionIDs(const QUuid& entityID);
     Q_INVOKABLE QVariantMap getActionArguments(const QUuid& entityID, const QUuid& actionID);
 
+    // FIXME move to a renderable entity interface
     Q_INVOKABLE glm::vec3 voxelCoordsToWorldCoords(const QUuid& entityID, glm::vec3 voxelCoords);
     Q_INVOKABLE glm::vec3 worldCoordsToVoxelCoords(const QUuid& entityID, glm::vec3 worldCoords);
     Q_INVOKABLE glm::vec3 voxelCoordsToLocalCoords(const QUuid& entityID, glm::vec3 voxelCoords);
     Q_INVOKABLE glm::vec3 localCoordsToVoxelCoords(const QUuid& entityID, glm::vec3 localCoords);
 
+    // FIXME move to a renderable entity interface
     Q_INVOKABLE glm::vec3 getAbsoluteJointTranslationInObjectFrame(const QUuid& entityID, int jointIndex);
     Q_INVOKABLE glm::quat getAbsoluteJointRotationInObjectFrame(const QUuid& entityID, int jointIndex);
     Q_INVOKABLE bool setAbsoluteJointTranslationInObjectFrame(const QUuid& entityID, int jointIndex, glm::vec3 translation);
     Q_INVOKABLE bool setAbsoluteJointRotationInObjectFrame(const QUuid& entityID, int jointIndex, glm::quat rotation);
 
+    // FIXME move to a renderable entity interface
     Q_INVOKABLE glm::vec3 getLocalJointTranslation(const QUuid& entityID, int jointIndex);
     Q_INVOKABLE glm::quat getLocalJointRotation(const QUuid& entityID, int jointIndex);
     Q_INVOKABLE bool setLocalJointTranslation(const QUuid& entityID, int jointIndex, glm::vec3 translation);
     Q_INVOKABLE bool setLocalJointRotation(const QUuid& entityID, int jointIndex, glm::quat rotation);
 
+    // FIXME move to a renderable entity interface
     Q_INVOKABLE bool setLocalJointRotations(const QUuid& entityID, const QVector<glm::quat>& rotations);
     Q_INVOKABLE bool setLocalJointTranslations(const QUuid& entityID, const QVector<glm::vec3>& translations);
     Q_INVOKABLE bool setLocalJointsData(const QUuid& entityID,
                                         const QVector<glm::quat>& rotations,
                                         const QVector<glm::vec3>& translations);
 
+    // FIXME move to a renderable entity interface
     Q_INVOKABLE int getJointIndex(const QUuid& entityID, const QString& name);
     Q_INVOKABLE QStringList getJointNames(const QUuid& entityID);
+
+
     Q_INVOKABLE QVector<QUuid> getChildrenIDs(const QUuid& parentID);
     Q_INVOKABLE QVector<QUuid> getChildrenIDsOfJoint(const QUuid& parentID, int jointIndex);
     Q_INVOKABLE bool isChildOfParent(QUuid childID, QUuid parentID);
+
+    Q_INVOKABLE QString getNestableType(QUuid id);
 
     Q_INVOKABLE QUuid getKeyboardFocusEntity() const;
     Q_INVOKABLE void setKeyboardFocusEntity(QUuid id);
@@ -281,6 +348,31 @@ public slots:
     Q_INVOKABLE bool wantsHandControllerPointerEvents(QUuid id);
 
     Q_INVOKABLE void emitScriptEvent(const EntityItemID& entityID, const QVariant& message);
+
+    Q_INVOKABLE bool AABoxIntersectsCapsule(const glm::vec3& low, const glm::vec3& dimensions,
+                                            const glm::vec3& start, const glm::vec3& end, float radius);
+
+    // FIXME move to a renderable entity interface
+    Q_INVOKABLE void getMeshes(QUuid entityID, QScriptValue callback);
+
+    /**jsdoc
+     * Returns object to world transform, excluding scale
+     *
+     * @function Entities.getEntityTransform
+     * @param {EntityID} entityID The ID of the entity whose transform is to be returned
+     * @return {Mat4} Entity's object to world transform, excluding scale
+     */
+    Q_INVOKABLE glm::mat4 getEntityTransform(const QUuid& entityID);
+
+
+    /**jsdoc
+     * Returns object to world transform, excluding scale
+     *
+     * @function Entities.getEntityLocalTransform
+     * @param {EntityID} entityID The ID of the entity whose local transform is to be returned
+     * @return {Mat4} Entity's object to parent transform, excluding scale
+     */
+    Q_INVOKABLE glm::mat4 getEntityLocalTransform(const QUuid& entityID);
 
 signals:
     void collisionWithEntity(const EntityItemID& idA, const EntityItemID& idB, const Collision& collision);
@@ -312,9 +404,14 @@ signals:
 
     void webEventReceived(const EntityItemID& entityItemID, const QVariant& message);
 
+protected:
+    void withEntitiesScriptEngine(std::function<void(QSharedPointer<EntitiesScriptEngineProvider>)> function) {
+        std::lock_guard<std::recursive_mutex> lock(_entitiesScriptEngineLock);
+        function(_entitiesScriptEngine);
+    };
 private:
     bool actionWorker(const QUuid& entityID, std::function<bool(EntitySimulationPointer, EntityItemPointer)> actor);
-    bool setVoxels(QUuid entityID, std::function<bool(PolyVoxEntityItem&)> actor);
+    bool polyVoxWorker(QUuid entityID, std::function<bool(PolyVoxEntityItem&)> actor);
     bool setPoints(QUuid entityID, std::function<bool(LineEntityItem&)> actor);
     void queueEntityMessage(PacketType packetType, EntityItemID entityID, const EntityItemProperties& properties);
 
@@ -330,7 +427,7 @@ private:
     EntityTreePointer _entityTree;
 
     std::recursive_mutex _entitiesScriptEngineLock;
-    EntitiesScriptEngineProvider* _entitiesScriptEngine { nullptr };
+    QSharedPointer<EntitiesScriptEngineProvider> _entitiesScriptEngine;
 
     bool _bidOnSimulationOwnership { false };
     float _currentAvatarEnergy = { FLT_MAX };

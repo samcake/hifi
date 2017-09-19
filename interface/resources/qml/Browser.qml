@@ -21,8 +21,6 @@ ScrollingWindow {
     property alias url: webview.url
     property alias webView: webview
 
-    property alias eventBridge: eventBridgeWrapper.eventBridge
-
     signal loadingChanged(int status)
 
     x: 100
@@ -31,6 +29,10 @@ ScrollingWindow {
     Component.onCompleted: {
         shown = true
         addressBar.text = webview.url
+    }
+
+    function setProfile(profile) {
+        webview.profile = profile;
     }
 
     function showPermissionsBar(){
@@ -204,16 +206,7 @@ ScrollingWindow {
         WebView {
             id: webview
             url: "https://highfidelity.com/"
-
-            property alias eventBridgeWrapper: eventBridgeWrapper
-
-            QtObject {
-                id: eventBridgeWrapper
-                WebChannel.id: "eventBridgeWrapper"
-                property var eventBridge;
-            }
-
-            webChannel.registeredObjects: [eventBridgeWrapper]
+            profile: FileTypeProfile;
 
             // Create a global EventBridge object for raiseAndLowerKeyboard.
             WebEngineScript {
@@ -261,6 +254,8 @@ ScrollingWindow {
             }
 
             Component.onCompleted: {
+                webChannel.registerObject("eventBridge", eventBridge);
+                webChannel.registerObject("eventBridgeWrapper", eventBridgeWrapper);
                 desktop.initWebviewProfileHandlers(webview.profile);
             }
         }

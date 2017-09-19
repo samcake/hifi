@@ -17,8 +17,10 @@ const DESCENDING_STRING = '&#x25BE;';
 const LOCKED_GLYPH = "&#xe006;";
 const VISIBLE_GLYPH = "&#xe007;";
 const TRANSPARENCY_GLYPH = "&#xe00b;";
+const BAKED_GLYPH = "&#xe01a;"
 const SCRIPT_GLYPH = "k";
 const DELETE = 46; // Key code for the delete key.
+const KEY_P = 80; // Key code for letter p used for Parenting hotkey.
 const MAX_ITEMS = Number.MAX_VALUE; // Used to set the max length of the list of discovered entities.
 
 debugPrint = function (message) {
@@ -26,7 +28,7 @@ debugPrint = function (message) {
 };
 
 function loaded() {
-  openEventBridge(function() { 
+  openEventBridge(function() {
       entityList = new List('entity-list', { valueNames: ['name', 'type', 'url', 'locked', 'visible'], page: MAX_ITEMS});
       entityList.clear();
       elEntityTable = document.getElementById("entity-table");
@@ -38,7 +40,7 @@ function loaded() {
       elFilter = document.getElementById("filter");
       elInView = document.getElementById("in-view")
       elRadius = document.getElementById("radius");
-      elTeleport = document.getElementById("teleport");
+      elExport = document.getElementById("export");
       elPal = document.getElementById("pal");
       elEntityTable = document.getElementById("entity-table");
       elInfoToggle = document.getElementById("info-toggle");
@@ -48,7 +50,7 @@ function loaded() {
       elNoEntitiesInView = document.getElementById("no-entities-in-view");
       elNoEntitiesRadius = document.getElementById("no-entities-radius");
       elEntityTableScroll = document.getElementById("entity-table-scroll");
-      
+
       document.getElementById("entity-name").onclick = function() {
           setSortColumn('name');
       };
@@ -76,6 +78,9 @@ function loaded() {
       document.getElementById("entity-hasTransparent").onclick = function () {
           setSortColumn('hasTransparent');
       };
+      document.getElementById("entity-isBaked").onclick = function () {
+          setSortColumn('isBaked');
+      };
       document.getElementById("entity-drawCalls").onclick = function () {
           setSortColumn('drawCalls');
       };
@@ -90,7 +95,7 @@ function loaded() {
               selection = selection.concat(selectedEntities);
           } else if (clickEvent.shiftKey && selectedEntities.length > 0) {
               var previousItemFound = -1;
-              var clickedItemFound = -1; 
+              var clickedItemFound = -1;
               for (var entity in entityList.visibleItems) {
                   if (clickedItemFound === -1 && this.dataset.entityId == entityList.visibleItems[entity].values().id) {
                       clickedItemFound = entity;
@@ -113,11 +118,11 @@ function loaded() {
                   selection = selection.concat(betweenItems, selectedEntities);
               }
           }
-      
+
           selectedEntities = selection;
-      
+
           this.className = 'selected';
-      
+
           EventBridge.emitWebEvent(JSON.stringify({
               type: "selectionUpdate",
               focus: false,
@@ -126,7 +131,7 @@ function loaded() {
 
           refreshFooter();
       }
-      
+
       function onRowDoubleClicked() {
           EventBridge.emitWebEvent(JSON.stringify({
               type: "selectionUpdate",
@@ -134,7 +139,7 @@ function loaded() {
               entityIds: [this.dataset.entityId],
           }));
       }
-      
+
       const BYTES_PER_MEGABYTE = 1024 * 1024;
 
       function decimalMegabytes(number) {
@@ -146,7 +151,7 @@ function loaded() {
       }
 
       function addEntity(id, name, type, url, locked, visible, verticesCount, texturesCount, texturesSize, hasTransparent,
-          drawCalls, hasScript) {
+          isBaked, drawCalls, hasScript) {
 
           var urlParts = url.split('/');
           var filename = urlParts[urlParts.length - 1];
@@ -156,7 +161,7 @@ function loaded() {
                   id: id, name: name, type: type, url: filename, locked: locked, visible: visible,
                   verticesCount: displayIfNonZero(verticesCount), texturesCount: displayIfNonZero(texturesCount),
                   texturesSize: decimalMegabytes(texturesSize), hasTransparent: hasTransparent,
-                  drawCalls: displayIfNonZero(drawCalls), hasScript: hasScript
+                  isBaked: isBaked, drawCalls: displayIfNonZero(drawCalls), hasScript: hasScript
               }],
                   function (items) {
                       var currentElement = items[0].elm;
@@ -173,7 +178,7 @@ function loaded() {
                       currentElement.onclick = onRowClicked;
                       currentElement.ondblclick = onRowDoubleClicked;
               });
-      
+
               if (refreshEntityListTimer) {
                   clearTimeout(refreshEntityListTimer);
               }
@@ -183,13 +188,13 @@ function loaded() {
               item.values({ name: name, url: filename, locked: locked, visible: visible });
           }
       }
-      
+
       function clearEntities() {
           entities = {};
           entityList.clear();
           refreshFooter();
       }
-      
+
       var elSortOrder = {
           name: document.querySelector('#entity-name .sort-order'),
           type: document.querySelector('#entity-type .sort-order'),
@@ -200,6 +205,7 @@ function loaded() {
           texturesCount: document.querySelector('#entity-texturesCount .sort-order'),
           texturesSize: document.querySelector('#entity-texturesSize .sort-order'),
           hasTransparent: document.querySelector('#entity-hasTransparent .sort-order'),
+          isBaked: document.querySelector('#entity-isBaked .sort-order'),
           drawCalls: document.querySelector('#entity-drawCalls .sort-order'),
           hasScript: document.querySelector('#entity-hasScript .sort-order'),
       }
@@ -215,12 +221,12 @@ function loaded() {
           entityList.sort(currentSortColumn, { order: currentSortOrder });
       }
       setSortColumn('type');
-      
+
       function refreshEntities() {
           clearEntities();
           EventBridge.emitWebEvent(JSON.stringify({ type: 'refresh' }));
       }
-      
+
       function refreshFooter() {
           if (selectedEntities.length > 1) {
               elFooter.firstChild.nodeValue = selectedEntities.length + " entities selected";
@@ -239,7 +245,7 @@ function loaded() {
           entityList.search(elFilter.value);
           refreshFooter();
       }
-      
+
       function updateSelectedEntities(selectedIDs) {
           var notFound = false;
           for (var id in entities) {
@@ -262,7 +268,7 @@ function loaded() {
 
           return notFound;
       }
-      
+
       elRefresh.onclick = function() {
           refreshEntities();
       }
@@ -272,8 +278,8 @@ function loaded() {
       elToggleVisible.onclick = function () {
           EventBridge.emitWebEvent(JSON.stringify({ type: 'toggleVisible' }));
       }
-      elTeleport.onclick = function () {
-          EventBridge.emitWebEvent(JSON.stringify({ type: 'teleport' }));
+      elExport.onclick = function() {
+          EventBridge.emitWebEvent(JSON.stringify({ type: 'export'}));
       }
       elPal.onclick = function () {
           EventBridge.emitWebEvent(JSON.stringify({ type: 'pal' }));
@@ -282,7 +288,7 @@ function loaded() {
           EventBridge.emitWebEvent(JSON.stringify({ type: 'delete' }));
           refreshEntities();
       }
-      
+
       document.addEventListener("keydown", function (keyDownEvent) {
           if (keyDownEvent.target.nodeName === "INPUT") {
               return;
@@ -292,8 +298,15 @@ function loaded() {
               EventBridge.emitWebEvent(JSON.stringify({ type: 'delete' }));
               refreshEntities();
           }
+          if (keyDownEvent.keyCode === KEY_P && keyDownEvent.ctrlKey) {
+              if (keyDownEvent.shiftKey) {
+                  EventBridge.emitWebEvent(JSON.stringify({ type: 'unparent' }));
+              } else {
+                  EventBridge.emitWebEvent(JSON.stringify({ type: 'parent' }));
+              }
+          }
       }, false);
-      
+
       var isFilterInView = false;
       var FILTER_IN_VIEW_ATTRIBUTE = "pressed";
       elNoEntitiesInView.style.display = "none";
@@ -320,7 +333,7 @@ function loaded() {
       if (window.EventBridge !== undefined) {
           EventBridge.scriptEventReceived.connect(function(data) {
               data = JSON.parse(data);
-      
+
               if (data.type === "clearEntityList") {
                   clearEntities();
               } else if (data.type == "selectionUpdate") {
@@ -330,10 +343,10 @@ function loaded() {
                   }
               } else if (data.type == "update") {
                   var newEntities = data.entities;
-                  if (newEntities.length == 0) {
+                  if (newEntities && newEntities.length == 0) {
                       elNoEntitiesMessage.style.display = "block";
                       elFooter.firstChild.nodeValue = "0 entities found";
-                  } else {
+                  } else if (newEntities) {
                       elNoEntitiesMessage.style.display = "none";
                       for (var i = 0; i < newEntities.length; i++) {
                           var id = newEntities[i].id;
@@ -342,6 +355,7 @@ function loaded() {
                               newEntities[i].visible ? VISIBLE_GLYPH : null,
                               newEntities[i].verticesCount, newEntities[i].texturesCount, newEntities[i].texturesSize,
                               newEntities[i].hasTransparent ? TRANSPARENCY_GLYPH : null,
+                              newEntities[i].isBaked ? BAKED_GLYPH : null,
                               newEntities[i].drawCalls,
                               newEntities[i].hasScript ? SCRIPT_GLYPH : null);
                       }
@@ -426,4 +440,3 @@ function loaded() {
       event.preventDefault();
   }, false);
 }
-

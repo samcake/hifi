@@ -13,12 +13,12 @@
 #include <QtWidgets/QShortcut>
 
 #include <SettingHandle.h>
+#include <shared/QtHelpers.h>
 
 #include "../VrMenu.h"
 #include "../OffscreenUi.h"
 
 #include "Logging.h"
-
 using namespace ui;
 
 static QList<QString> groups;
@@ -223,6 +223,18 @@ QAction* Menu::addCheckableActionToQMenuAndActionHash(MenuWrapper* destinationMe
     return action;
 }
 
+QAction* Menu::addCheckableActionToQMenuAndActionHash(MenuWrapper* destinationMenu,
+                                                    const QString& actionName,
+                                                    const std::function<void(bool)>& handler,
+                                                    const QKeySequence& shortcut,
+                                                    const bool checked,
+                                                    int menuItemLocation,
+                                                    const QString& grouping) { 
+    auto action = addCheckableActionToQMenuAndActionHash(destinationMenu, actionName, shortcut, checked, nullptr, nullptr, menuItemLocation, grouping);
+    connect(action, &QAction::triggered, handler);
+    return action;
+}
+
 void Menu::removeAction(MenuWrapper* menu, const QString& actionName) {
     auto action = _actionHash.value(actionName);
     menu->removeAction(action);
@@ -234,7 +246,7 @@ void Menu::removeAction(MenuWrapper* menu, const QString& actionName) {
 
 void Menu::setIsOptionChecked(const QString& menuOption, bool isChecked) {
     if (thread() != QThread::currentThread()) {
-        QMetaObject::invokeMethod(this, "setIsOptionChecked", Qt::BlockingQueuedConnection,
+        BLOCKING_INVOKE_METHOD(this, "setIsOptionChecked",
                     Q_ARG(const QString&, menuOption),
                     Q_ARG(bool, isChecked));
         return;
@@ -254,6 +266,16 @@ bool Menu::isOptionChecked(const QString& menuOption) const {
         return menu->isChecked();
     }
     return false;
+}
+
+void Menu::closeInfoView(const QString& path) {
+    auto offscreenUi = DependencyManager::get<OffscreenUi>();
+    offscreenUi->hide(path);
+}
+
+bool Menu::isInfoViewVisible(const QString& path) {
+    auto offscreenUi = DependencyManager::get<OffscreenUi>();
+    return offscreenUi->isVisible(path);
 }
 
 void Menu::triggerOption(const QString& menuOption) {
@@ -460,11 +482,11 @@ void Menu::removeSeparator(const QString& menuName, const QString& separatorName
     if (menu) {
         int textAt = findPositionOfMenuItem(menu, separatorName);
         QList<QAction*> menuActions = menu->actions();
-        QAction* separatorText = menuActions[textAt];
         if (textAt > 0 && textAt < menuActions.size()) {
             QAction* separatorLine = menuActions[textAt - 1];
             if (separatorLine) {
                 if (separatorLine->isSeparator()) {
+                    QAction* separatorText = menuActions[textAt];
                     menu->removeAction(separatorText);
                     menu->removeAction(separatorLine);
                     separatorRemoved = true;

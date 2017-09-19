@@ -18,14 +18,27 @@
 #include <gpu/Context.h>
 
 #include "EngineStats.h"
+#include "SceneTask.h"
+
 #include "Logging.h"
 
 using namespace render;
 
-Engine::Engine() :
-    _sceneContext(std::make_shared<SceneContext>()),
-    _renderContext(std::make_shared<RenderContext>()) {
-    addJob<EngineStats>("Stats");
+class EngineTask {
+public:
+
+    using JobModel = Task::Model<EngineTask>;
+
+    EngineTask() {}
+
+    void build(JobModel& task, const Varying& in, Varying& out) {
+        task.addJob<EngineStats>("Stats");
+    }
+};
+
+Engine::Engine() : Task("Engine", EngineTask::JobModel::create()),
+    _renderContext(std::make_shared<RenderContext>())
+{
 }
 
 void Engine::load() {

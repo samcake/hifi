@@ -12,9 +12,10 @@
 #ifndef hifi_render_DrawSceneOctree_h
 #define hifi_render_DrawSceneOctree_h
 
-#include "DrawTask.h"
-#include "gpu/Batch.h"
 #include <ViewFrustum.h>
+#include <gpu/Batch.h>
+
+#include "DrawTask.h"
 
 namespace render {
     class DrawSceneOctreeConfig : public Job::Config {
@@ -71,7 +72,7 @@ namespace render {
         DrawSceneOctree() {}
 
         void configure(const Config& config);
-        void run(const SceneContextPointer& sceneContext, const RenderContextPointer& renderContext, const ItemSpatialTree::ItemSelection& selection);
+        void run(const RenderContextPointer& renderContext, const ItemSpatialTree::ItemSelection& selection);
 
         const gpu::PipelinePointer getDrawCellBoundsPipeline();
         const gpu::PipelinePointer getDrawLODReticlePipeline();
@@ -129,7 +130,7 @@ namespace render {
         DrawItemSelection() {}
 
         void configure(const Config& config);
-        void run(const SceneContextPointer& sceneContext, const RenderContextPointer& renderContext, const ItemSpatialTree::ItemSelection& selection);
+        void run(const RenderContextPointer& renderContext, const ItemSpatialTree::ItemSelection& selection);
 
         const gpu::PipelinePointer getDrawItemBoundPipeline();
     };

@@ -17,10 +17,9 @@
 
 #include <gpu/Resource.h>
 #include <gpu/Pipeline.h>
+#include <render/Forward.h>
 #include <render/DrawTask.h>
 
-
-class RenderArgs;
 
 class ToneMappingEffect {
 public:
@@ -89,7 +88,7 @@ public:
     using JobModel = render::Job::ModelI<ToneMappingDeferred, Inputs, Config>;
 
     void configure(const Config& config);
-    void run(const render::SceneContextPointer& sceneContext, const render::RenderContextPointer& renderContext, const Inputs& inputs);
+    void run(const render::RenderContextPointer& renderContext, const Inputs& inputs);
 
     ToneMappingEffect _toneMappingEffect;
 };

@@ -14,8 +14,10 @@
 
 #include <QtScript/QScriptEngine>
 
-//#include "EntityItemProperties.h"
+#include <OctreeElement.h>
+
 #include "EntityPropertyFlags.h"
+
 
 class EntityItemProperties;
 class EncodeBitstreamParams;
@@ -23,31 +25,6 @@ class OctreePacketData;
 class EntityTreeElementExtraEncodeData;
 class ReadBitstreamToTreeParams;
 using EntityTreeElementExtraEncodeDataPointer = std::shared_ptr<EntityTreeElementExtraEncodeData>;
-
-#include <OctreeElement.h>
-
-/*
-#include <stdint.h>
-
-#include <glm/glm.hpp>
-#include <glm/gtx/extented_min_max.hpp>
-
-#include <QtCore/QObject>
-#include <QVector>
-#include <QString>
-
-#include <AACube.h>
-#include <FBXReader.h> // for SittingPoint
-#include <PropertyFlags.h>
-#include <OctreeConstants.h>
-#include <ShapeInfo.h>
-
-#include "EntityItemID.h"
-#include "PropertyGroupMacros.h"
-#include "EntityTypes.h"
-*/
-
-//typedef PropertyFlags<EntityPropertyList> EntityPropertyFlags;
 
 
 class PropertyGroup {
@@ -77,10 +54,6 @@ public:
     
     /// returns true if something changed
     virtual bool setProperties(const EntityItemProperties& properties) = 0;
-
-    /// Override this in your derived class if you'd like to be informed when something about the state of the entity
-    /// has changed. This will be called with properties change or when new data is loaded from a stream
-    virtual void somethingChangedNotification() { }
 
     virtual EntityPropertyFlags getEntityProperties(EncodeBitstreamParams& params) const = 0;
         

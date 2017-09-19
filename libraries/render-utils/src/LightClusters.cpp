@@ -16,6 +16,8 @@
 
 #include <gpu/StandardShaderLib.h>
 
+#include "StencilMaskPass.h"
+
 #include "lightClusters_drawGrid_vert.h"
 #include "lightClusters_drawGrid_frag.h"
 
@@ -546,6 +548,7 @@ glm::ivec3 LightClusters::updateClusters() {
 
 
 LightClusteringPass::LightClusteringPass() {
+    _lightClusters = std::make_shared<LightClusters>();
 }
 
 
@@ -558,26 +561,21 @@ void LightClusteringPass::configure(const Config& config) {
     _freeze = config.freeze;
 }
 
-void LightClusteringPass::run(const render::SceneContextPointer& sceneContext, const render::RenderContextPointer& renderContext, const Inputs& inputs, Outputs& output) {
+void LightClusteringPass::run(const render::RenderContextPointer& renderContext, const Inputs& inputs, Outputs& output) {
     auto args = renderContext->args;
     
     auto deferredTransform = inputs.get0();
     auto lightingModel = inputs.get1();
     auto surfaceGeometryFramebuffer = inputs.get2();
-    
-    
-    if (!_lightClusters) {
-        _lightClusters = std::make_shared<LightClusters>();
-    }
-    
+
     // first update the Grid with the new frustum
     if (!_freeze) {
         _lightClusters->updateFrustum(args->getViewFrustum());
     }
     
     // From the LightStage and the current frame, update the light cluster Grid
-    auto deferredLightingEffect = DependencyManager::get<DeferredLightingEffect>();
-    auto lightStage = deferredLightingEffect->getLightStage();
+    auto lightStage = renderContext->_scene->getStage<LightStage>();
+    assert(lightStage);
     _lightClusters->updateLightStage(lightStage);
     _lightClusters->updateLightFrame(lightStage->_currentFrame, lightingModel->isPointLightEnabled(), lightingModel->isSpotLightEnabled());
     
@@ -697,7 +695,7 @@ const gpu::PipelinePointer DebugLightClusters::getDrawClusterContentPipeline() {
 }
 
 
-void DebugLightClusters::run(const render::SceneContextPointer& sceneContext, const render::RenderContextPointer& renderContext, const Inputs& inputs) {
+void DebugLightClusters::run(const render::RenderContextPointer& renderContext, const Inputs& inputs) {
     if (!(doDrawClusterFromDepth || doDrawContent || doDrawGrid)) {
         return;
     }

@@ -108,6 +108,7 @@ public:
 
 signals:
     void updateNodePermissions();
+    void settingsUpdated();
 
 public slots:
     void apiGetGroupIDJSONCallback(QNetworkReply& requestReply);
@@ -137,8 +138,6 @@ private:
     HifiConfigVariantMap _configMap;
 
     friend class DomainServer;
-
-    void validateDescriptorsMap();
 
     // these cause calls to metaverse's group api
     void apiGetGroupID(const QString& groupName);

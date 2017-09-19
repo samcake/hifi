@@ -23,7 +23,7 @@ public:
 
     BeginGPURangeTimer(const std::string& name) : _gpuTimer(std::make_shared<gpu::RangeTimer>(name)) {}
 
-    void run(const render::SceneContextPointer& sceneContext, const render::RenderContextPointer& renderContext, gpu::RangeTimerPointer& timer);
+    void run(const render::RenderContextPointer& renderContext, gpu::RangeTimerPointer& timer);
 
 protected:
     gpu::RangeTimerPointer _gpuTimer;
@@ -39,17 +39,16 @@ public:
     EndGPURangeTimer() {}
 
     void configure(const Config& config) {}
-    void run(const render::SceneContextPointer& sceneContext, const render::RenderContextPointer& renderContext, const gpu::RangeTimerPointer& timer);
+    void run(const render::RenderContextPointer& renderContext, const gpu::RangeTimerPointer& timer);
 
 protected:
 };
 
-
 class DrawConfig : public render::Job::Config {
     Q_OBJECT
     Q_PROPERTY(int numDrawn READ getNumDrawn NOTIFY newStats)
-
     Q_PROPERTY(int maxDrawn MEMBER maxDrawn NOTIFY dirty)
+
 public:
 
     int getNumDrawn() { return _numDrawn; }
@@ -74,7 +73,7 @@ public:
     DrawDeferred(render::ShapePlumberPointer shapePlumber) : _shapePlumber{ shapePlumber } {}
 
     void configure(const Config& config) { _maxDrawn = config.maxDrawn; }
-    void run(const render::SceneContextPointer& sceneContext, const render::RenderContextPointer& renderContext, const Inputs& inputs);
+    void run(const render::RenderContextPointer& renderContext, const Inputs& inputs);
 
 protected:
     render::ShapePlumberPointer _shapePlumber;
@@ -112,41 +111,12 @@ public:
     DrawStateSortDeferred(render::ShapePlumberPointer shapePlumber) : _shapePlumber{ shapePlumber } {}
 
     void configure(const Config& config) { _maxDrawn = config.maxDrawn; _stateSort = config.stateSort; }
-    void run(const render::SceneContextPointer& sceneContext, const render::RenderContextPointer& renderContext, const Inputs& inputs);
+    void run(const render::RenderContextPointer& renderContext, const Inputs& inputs);
 
 protected:
     render::ShapePlumberPointer _shapePlumber;
     int _maxDrawn; // initialized by Config
     bool _stateSort;
-};
-
-class DeferredFramebuffer;
-class DrawStencilDeferred {
-public:
-    using JobModel = render::Job::ModelI<DrawStencilDeferred, std::shared_ptr<DeferredFramebuffer>>;
-
-    void run(const render::SceneContextPointer& sceneContext, const render::RenderContextPointer& renderContext, const std::shared_ptr<DeferredFramebuffer>& deferredFramebuffer);
-
-protected:
-    gpu::PipelinePointer _opaquePipeline;
-
-    gpu::PipelinePointer getOpaquePipeline();
-};
-
-using DrawBackgroundDeferredConfig = render::GPUJobConfig;
-
-class DrawBackgroundDeferred {
-public:
-    using Inputs = render::VaryingSet2 <render::ItemBounds, LightingModelPointer>;
-
-    using Config = DrawBackgroundDeferredConfig;
-    using JobModel = render::Job::ModelI<DrawBackgroundDeferred, Inputs, Config>;
-
-    void configure(const Config& config) {}
-    void run(const render::SceneContextPointer& sceneContext, const render::RenderContextPointer& renderContext, const Inputs& inputs);
-
-protected:
-    gpu::RangeTimerPointer _gpuTimer;
 };
 
 class DrawOverlay3DConfig : public render::Job::Config {
@@ -177,26 +147,49 @@ public:
     DrawOverlay3D(bool opaque);
 
     void configure(const Config& config) { _maxDrawn = config.maxDrawn; }
-    void run(const render::SceneContextPointer& sceneContext, const render::RenderContextPointer& renderContext, const Inputs& inputs);
+    void run(const render::RenderContextPointer& renderContext, const Inputs& inputs);
 
 protected:
     render::ShapePlumberPointer _shapePlumber;
     int _maxDrawn; // initialized by Config
-    bool _opaquePass{ true };
+    bool _opaquePass { true };
 };
 
 class Blit {
 public:
     using JobModel = render::Job::ModelI<Blit, gpu::FramebufferPointer>;
 
-    void run(const render::SceneContextPointer& sceneContext, const render::RenderContextPointer& renderContext, const gpu::FramebufferPointer& srcFramebuffer);
+    void run(const render::RenderContextPointer& renderContext, const gpu::FramebufferPointer& srcFramebuffer);
 };
 
-class RenderDeferredTask : public render::Task {
+class RenderDeferredTaskConfig : public render::Task::Config {
+    Q_OBJECT
+        Q_PROPERTY(float fadeScale MEMBER fadeScale NOTIFY dirty)
+        Q_PROPERTY(float fadeDuration MEMBER fadeDuration NOTIFY dirty)
+        Q_PROPERTY(bool debugFade MEMBER debugFade NOTIFY dirty)
+        Q_PROPERTY(float debugFadePercent MEMBER debugFadePercent NOTIFY dirty)
 public:
-    using JobModel = Model<RenderDeferredTask>;
+    float fadeScale{ 0.5f };
+    float fadeDuration{ 3.0f };
+    float debugFadePercent{ 0.f };
+    bool debugFade{ false };
 
-    RenderDeferredTask(RenderFetchCullSortTask::Output items);
+signals:
+    void dirty();
+
+};
+
+class RenderDeferredTask {
+public:
+    using Input = RenderFetchCullSortTask::Output;
+    using Config = RenderDeferredTaskConfig;
+    using JobModel = render::Task::ModelI<RenderDeferredTask, Input, Config>;
+
+    RenderDeferredTask();
+
+    void configure(const Config& config);
+    void build(JobModel& task, const render::Varying& inputs, render::Varying& outputs);
+
 };
 
 #endif // hifi_RenderDeferredTask_h

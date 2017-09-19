@@ -59,13 +59,17 @@ public:
     virtual void trackSend(const QUuid& dataID, quint64 dataLastEdited, const QUuid& sessionID) override;
     virtual void trackViewerGone(const QUuid& sessionID) override;
 
+    virtual void aboutToFinish() override;
+
 public slots:
     virtual void nodeAdded(SharedNodePointer node) override;
     virtual void nodeKilled(SharedNodePointer node) override;
     void pruneDeletedEntities();
+    void entityFilterAdded(EntityItemID id, bool success);
 
 protected:
     virtual OctreePointer createTree() override;
+    virtual UniqueSendThread newSendThread(const SharedNodePointer& node) override;
 
 private slots:
     void handleEntityPacket(QSharedPointer<ReceivedMessage> message, SharedNodePointer senderNode);

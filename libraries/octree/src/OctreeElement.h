@@ -108,7 +108,7 @@ public:
     virtual bool isRendered() const { return getShouldRender(); }
 
     virtual bool deleteApproved() const { return true; }
-
+    
     virtual bool canRayIntersect() const { return isLeaf(); }
     /// \param center center of sphere in meters
     /// \param radius radius of sphere in meters
@@ -122,7 +122,7 @@ public:
     OctreeElementPointer getChildAtIndex(int childIndex) const;
     void deleteChildAtIndex(int childIndex);
     OctreeElementPointer removeChildAtIndex(int childIndex);
-    bool isParentOf(OctreeElementPointer possibleChild) const;
+    bool isParentOf(const OctreeElementPointer& possibleChild) const;
 
     /// handles deletion of all descendants, returns false if delete not approved
     bool safeDeepDeleteChildAtIndex(int childIndex, int recursionCount = 0);
@@ -222,7 +222,7 @@ public:
 protected:
 
     void deleteAllChildren();
-    void setChildAtIndex(int childIndex, OctreeElementPointer child);
+    void setChildAtIndex(int childIndex, const OctreeElementPointer& child);
 
     void calculateAACube();
 

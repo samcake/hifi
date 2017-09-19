@@ -34,7 +34,7 @@
 
 using namespace std;
 
-void renderWorldBox(gpu::Batch& batch) {
+void renderWorldBox(RenderArgs* args, gpu::Batch& batch) {
     auto geometryCache = DependencyManager::get<GeometryCache>();
 
     //  Show center of world
@@ -115,7 +115,7 @@ void renderWorldBox(gpu::Batch& batch) {
                               geometryIds[17]);
 
     
-    geometryCache->renderWireCubeInstance(batch, GREY4);
+    geometryCache->renderWireCubeInstance(args, batch, GREY4);
 
     //  Draw meter markers along the 3 axis to help with measuring things
     const float MARKER_DISTANCE = 1.0f;
@@ -123,28 +123,23 @@ void renderWorldBox(gpu::Batch& batch) {
 
     transform = Transform().setScale(MARKER_RADIUS);
     batch.setModelTransform(transform);
-    geometryCache->renderSolidSphereInstance(batch, RED);
+    geometryCache->renderSolidSphereInstance(args, batch, RED);
 
     transform = Transform().setTranslation(glm::vec3(MARKER_DISTANCE, 0.0f, 0.0f)).setScale(MARKER_RADIUS);
     batch.setModelTransform(transform);
-    geometryCache->renderSolidSphereInstance(batch, RED);
+    geometryCache->renderSolidSphereInstance(args, batch, RED);
 
     transform = Transform().setTranslation(glm::vec3(0.0f, MARKER_DISTANCE, 0.0f)).setScale(MARKER_RADIUS);
     batch.setModelTransform(transform);
-    geometryCache->renderSolidSphereInstance(batch, GREEN);
+    geometryCache->renderSolidSphereInstance(args, batch, GREEN);
 
     transform = Transform().setTranslation(glm::vec3(0.0f, 0.0f, MARKER_DISTANCE)).setScale(MARKER_RADIUS);
     batch.setModelTransform(transform);
-    geometryCache->renderSolidSphereInstance(batch, BLUE);
+    geometryCache->renderSolidSphereInstance(args, batch, BLUE);
 
     transform = Transform().setTranslation(glm::vec3(MARKER_DISTANCE, 0.0f, MARKER_DISTANCE)).setScale(MARKER_RADIUS);
     batch.setModelTransform(transform);
-    geometryCache->renderSolidSphereInstance(batch, GREY);
-}
-
-//  Return a random vector of average length 1
-const glm::vec3 randVector() {
-    return glm::vec3(randFloat() - 0.5f, randFloat() - 0.5f, randFloat() - 0.5f) * 2.0f;
+    geometryCache->renderSolidSphereInstance(args, batch, GREY);
 }
 
 //  Do some basic timing tests and report the results

@@ -13,18 +13,31 @@
 #define hifi_NodePermissions_h
 
 #include <memory>
+#include <unordered_map>
 #include <QString>
 #include <QMap>
 #include <QVariant>
 #include <QUuid>
-
+#include <QHash>
+#include <utility>
 #include "GroupRank.h"
 
 class NodePermissions;
 using NodePermissionsPointer = std::shared_ptr<NodePermissions>;
-using NodePermissionsKey = QPair<QString, QUuid>; // name, rankID
+using NodePermissionsKey = std::pair<QString, QUuid>; // name, rankID
 using NodePermissionsKeyList = QList<QPair<QString, QUuid>>;
 
+namespace std {
+    template<>
+    struct hash<NodePermissionsKey> {	
+        size_t operator()(const NodePermissionsKey& key) const {	
+            size_t result = qHash(key.first);
+            result <<= 32;
+            result |= qHash(key.second);
+            return result;
+	    }
+    };
+}
 
 class NodePermissions {
 public:
@@ -64,7 +77,8 @@ public:
         canRezTemporaryEntities = 8,
         canWriteToAssetServer = 16,
         canConnectPastMaxCapacity = 32,
-        canKick = 64
+        canKick = 64,
+        canReplaceDomainContent = 128
     };
     Q_DECLARE_FLAGS(Permissions, Permission)
     Permissions permissions;
@@ -100,27 +114,40 @@ public:
     NodePermissionsMap() { }
     NodePermissionsPointer& operator[](const NodePermissionsKey& key) {
         NodePermissionsKey dataKey(key.first.toLower(), key.second);
-        if (!_data.contains(dataKey)) {
+        if (0 == _data.count(dataKey)) {
             _data[dataKey] = NodePermissionsPointer(new NodePermissions(key));
         }
         return _data[dataKey];
     }
     NodePermissionsPointer operator[](const NodePermissionsKey& key) const {
-        return _data.value(NodePermissionsKey(key.first.toLower(), key.second));
+        NodePermissionsPointer result;
+        auto itr =  _data.find(NodePermissionsKey(key.first.toLower(), key.second));
+        if (_data.end() != itr) {
+            result = itr->second;
+        }
+        return result;
     }
     bool contains(const NodePermissionsKey& key) const {
-        return _data.contains(NodePermissionsKey(key.first.toLower(), key.second));
+        return 0 != _data.count(NodePermissionsKey(key.first.toLower(), key.second));
     }
-    bool contains(const QString& keyFirst, QUuid keySecond) const {
-        return _data.contains(NodePermissionsKey(keyFirst.toLower(), keySecond));
+    bool contains(const QString& keyFirst, const QUuid& keySecond) const {
+        return 0 != _data.count(NodePermissionsKey(keyFirst.toLower(), keySecond));
     }
-    QList<NodePermissionsKey> keys() const { return _data.keys(); }
-    QHash<NodePermissionsKey, NodePermissionsPointer> get() { return _data; }
+
+    QList<NodePermissionsKey> keys() const { 
+        QList<NodePermissionsKey> result;
+        for (const auto& entry : _data) {
+            result.push_back(entry.first);
+        }
+        return result;
+    }
+
+    const std::unordered_map<NodePermissionsKey, NodePermissionsPointer>& get() { return _data; }
     void clear() { _data.clear(); }
-    void remove(const NodePermissionsKey& key) { _data.remove(key); }
+    void remove(const NodePermissionsKey& key) { _data.erase(key); }
 
 private:
-    QHash<NodePermissionsKey, NodePermissionsPointer> _data;
+    std::unordered_map<NodePermissionsKey, NodePermissionsPointer> _data;
 };
 
 

@@ -22,10 +22,9 @@
 #include <DeferredLightingEffect.h>
 #include <FramebufferCache.h>
 #include <TextureCache.h>
-#include <OctreeRenderer.h>
 
 #ifdef DEFERRED_LIGHTING
-extern void initDeferredPipelines(render::ShapePlumber& plumber);
+extern void initDeferredPipelines(render::ShapePlumber& plumber, const render::ShapePipeline::BatchSetter& batchSetter, const render::ShapePipeline::ItemSetter& itemSetter);
 extern void initStencilPipeline(gpu::PipelinePointer& pipeline);
 #endif
 
@@ -78,8 +77,7 @@ void TestWindow::initGl() {
 #ifdef DEFERRED_LIGHTING
     auto deferredLightingEffect = DependencyManager::get<DeferredLightingEffect>();
     deferredLightingEffect->init();
-    deferredLightingEffect->setGlobalLight(_light);
-    initDeferredPipelines(*_shapePlumber);
+    initDeferredPipelines(*_shapePlumber, nullptr, nullptr);
 #endif
 }
 
@@ -97,17 +95,17 @@ void TestWindow::beginFrame() {
 #ifdef DEFERRED_LIGHTING
 
     gpu::FramebufferPointer primaryFramebuffer;
-    _preparePrimaryFramebuffer.run(_sceneContext, _renderContext, primaryFramebuffer);
+    _preparePrimaryFramebuffer.run(_renderContext, primaryFramebuffer);
 
     DeferredFrameTransformPointer frameTransform;
-    _generateDeferredFrameTransform.run(_sceneContext, _renderContext, frameTransform);
+    _generateDeferredFrameTransform.run(_renderContext, frameTransform);
 
     LightingModelPointer lightingModel;
-    _generateLightingModel.run(_sceneContext, _renderContext, lightingModel);
+    _generateLightingModel.run(_renderContext, lightingModel);
 
     _prepareDeferredInputs.edit0() = primaryFramebuffer;
     _prepareDeferredInputs.edit1() = lightingModel;
-    _prepareDeferred.run(_sceneContext, _renderContext, _prepareDeferredInputs, _prepareDeferredOutputs);
+    _prepareDeferred.run(_renderContext, _prepareDeferredInputs, _prepareDeferredOutputs);
 
 
     _renderDeferredInputs.edit0() = frameTransform; // Pass the deferredFrameTransform
@@ -144,7 +142,7 @@ void TestWindow::endFrame() {
         batch.setResourceTexture(0, nullptr);
     });
 
-    _renderDeferred.run(_sceneContext, _renderContext, _renderDeferredInputs);
+    _renderDeferred.run(_renderContext, _renderDeferredInputs);
 
     gpu::doInBatch(_renderArgs->_context, [&](gpu::Batch& batch) {
         PROFILE_RANGE_BATCH(batch, "blit");

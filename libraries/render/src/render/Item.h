@@ -22,13 +22,16 @@
 #include <vector>
 
 #include <AABox.h>
-#include <RenderArgs.h>
+
+#include "Args.h"
 
 #include "model/Material.h"
 #include "ShapePipeline.h"
 
-
 namespace render {
+
+typedef int32_t Index;
+const Index INVALID_INDEX{ -1 };
 
 class Context;
 
@@ -68,6 +71,7 @@ public:
         Flags _flags{ 0 };
     public:
         Builder() {}
+        Builder(const ItemKey& key) : _flags{ key._flags } {}
 
         ItemKey build() const { return ItemKey(_flags); }
 
@@ -212,13 +216,6 @@ inline QDebug operator<<(QDebug debug, const ItemFilter& me) {
     return debug;
 }
 
-using ItemID = uint32_t;
-using ItemCell = int32_t;
-
-// A few typedefs for standard containers of ItemIDs
-using ItemIDs = std::vector<ItemID>;
-using ItemIDSet = std::set<ItemID>;
-
 // Handy type to just pass the ID and the bound of an item
 class ItemBound {
     public:
@@ -227,6 +224,7 @@ class ItemBound {
 
         ItemID id;
         AABox bound;
+        uint32_t padding;
 };
 
 // many Item Bounds in a vector
@@ -239,8 +237,8 @@ public:
     typedef std::vector<Item> Vector;
     typedef ItemID ID;
 
-    static const ID INVALID_ITEM_ID = 0;
-    static const ItemCell INVALID_CELL = -1;
+    static const ID INVALID_ITEM_ID;
+    static const ItemCell INVALID_CELL;
 
     // Convenient function to clear an ID or check it s valid
     static void clearID(ID& id) { id = INVALID_ITEM_ID; }
@@ -320,7 +318,6 @@ public:
         virtual const ItemKey getKey() const = 0;
         virtual const Bound getBound() const = 0;
         virtual int getLayer() const = 0;
-
         virtual void render(RenderArgs* args) = 0;
 
         virtual const ShapeKey getShapeKey() const = 0;
@@ -372,7 +369,7 @@ public:
     void render(RenderArgs* args) const { _payload->render(args); }
 
     // Shape Type Interface
-    const ShapeKey getShapeKey() const { return _payload->getShapeKey(); }
+    const ShapeKey getShapeKey() const;
 
     // Meta Type Interface
     uint32_t fetchMetaSubItems(ItemIDs& subItems) const { return _payload->fetchMetaSubItems(subItems); }
@@ -380,10 +377,14 @@ public:
     // Access the status
     const StatusPointer& getStatus() const { return _payload->getStatus(); }
 
+    void setTransitionId(Index id) { _transitionId = id; }
+    Index getTransitionId() const { return _transitionId; }
+
 protected:
     PayloadPointer _payload;
     ItemKey _key;
     ItemCell _cell{ INVALID_CELL };
+    Index _transitionId{ INVALID_INDEX };
 
     friend class Scene;
 };
@@ -461,7 +462,6 @@ public:
     virtual const Item::Bound getBound() const override { return payloadGetBound<T>(_data); }
     virtual int getLayer() const override { return payloadGetLayer<T>(_data); }
 
-
     virtual void render(RenderArgs* args) override { payloadRender<T>(_data, args); }
 
     // Shape Type interface
@@ -513,6 +513,25 @@ template <> const Item::Bound payloadGetBound(const FooPointer& foo) {
 
 */
 // End of the example
+
+class PayloadProxyInterface {
+public:
+    using ProxyPayload = Payload<PayloadProxyInterface>;
+    using Pointer = ProxyPayload::DataPointer;
+
+    virtual ItemKey getKey() = 0;
+    virtual ShapeKey getShapeKey() = 0;
+    virtual Item::Bound getBound() = 0;
+    virtual void render(RenderArgs* args) = 0;
+    virtual uint32_t metaFetchMetaSubItems(ItemIDs& subItems) = 0;
+};
+
+template <> const ItemKey payloadGetKey(const PayloadProxyInterface::Pointer& payload);
+template <> const Item::Bound payloadGetBound(const PayloadProxyInterface::Pointer& payload);
+template <> void payloadRender(const PayloadProxyInterface::Pointer& payload, RenderArgs* args);
+template <> uint32_t metaFetchMetaSubItems(const PayloadProxyInterface::Pointer& payload, ItemIDs& subItems);
+template <> const ShapeKey shapeGetShapeKey(const PayloadProxyInterface::Pointer& payload);
+
 
 typedef Item::PayloadPointer PayloadPointer;
 typedef std::vector< PayloadPointer > Payloads;

@@ -15,6 +15,7 @@
 #include <stdint.h>
 
 #include <glm/glm.hpp>
+#include <glm/gtx/component_wise.hpp>
 
 #include <QtScript/QScriptEngine>
 #include <QtCore/QObject>
@@ -22,7 +23,6 @@
 #include <QString>
 
 #include <AACube.h>
-#include <FBXReader.h> // for SittingPoint
 #include <NumericalConstants.h>
 #include <PropertyFlags.h>
 #include <OctreeConstants.h>
@@ -73,7 +73,7 @@ public:
     EntityTypes::EntityType getType() const { return _type; }
     void setType(EntityTypes::EntityType type) { _type = type; }
 
-    virtual QScriptValue copyToScriptValue(QScriptEngine* engine, bool skipDefaults) const;
+    virtual QScriptValue copyToScriptValue(QScriptEngine* engine, bool skipDefaults, bool allowUnknownCreateTime = false, bool strictSemantics = false) const;
     virtual void copyFromScriptValue(const QScriptValue& object, bool honorReadOnly);
 
     static QScriptValue entityPropertyFlagsToScriptValue(QScriptEngine* engine, const EntityPropertyFlags& flags);
@@ -86,13 +86,16 @@ public:
 
     EntityPropertyFlags getChangedProperties() const;
 
-    bool parentDependentPropertyChanged() const; // was there a changed in a property that requires parent info to interpret?
-    bool parentRelatedPropertyChanged() const; // parentDependentPropertyChanged or parentID or parentJointIndex
+    bool transformChanged() const;
+    bool parentRelatedPropertyChanged() const;
+    bool queryAACubeRelatedPropertyChanged() const;
 
     AABox getAABox() const;
 
     void debugDump() const;
     void setLastEdited(quint64 usecTime);
+    EntityPropertyFlags getDesiredProperties() { return _desiredProperties; }
+    void setDesiredProperties(EntityPropertyFlags properties) {  _desiredProperties = properties; }
 
     // Note:  DEFINE_PROPERTY(PROP_FOO, Foo, foo, type, value) creates the following methods and variables:
     // type getFoo() const;
@@ -117,14 +120,14 @@ public:
     DEFINE_PROPERTY_REF(PROP_SCRIPT, Script, script, QString, ENTITY_ITEM_DEFAULT_SCRIPT);
     DEFINE_PROPERTY(PROP_SCRIPT_TIMESTAMP, ScriptTimestamp, scriptTimestamp, quint64, ENTITY_ITEM_DEFAULT_SCRIPT_TIMESTAMP);
     DEFINE_PROPERTY_REF(PROP_COLLISION_SOUND_URL, CollisionSoundURL, collisionSoundURL, QString, ENTITY_ITEM_DEFAULT_COLLISION_SOUND_URL);
-    DEFINE_PROPERTY_REF(PROP_COLOR, Color, color, xColor, ParticleEffectEntityItem::DEFAULT_COLOR);
-    DEFINE_PROPERTY_REF(PROP_COLOR_SPREAD, ColorSpread, colorSpread, xColor, ParticleEffectEntityItem::DEFAULT_COLOR_SPREAD);
-    DEFINE_PROPERTY_REF(PROP_COLOR_START, ColorStart, colorStart, xColor, ParticleEffectEntityItem::DEFAULT_COLOR);
-    DEFINE_PROPERTY_REF(PROP_COLOR_FINISH, ColorFinish, colorFinish, xColor, ParticleEffectEntityItem::DEFAULT_COLOR);
-    DEFINE_PROPERTY(PROP_ALPHA, Alpha, alpha, float, ParticleEffectEntityItem::DEFAULT_ALPHA);
-    DEFINE_PROPERTY(PROP_ALPHA_SPREAD, AlphaSpread, alphaSpread, float, ParticleEffectEntityItem::DEFAULT_ALPHA_SPREAD);
-    DEFINE_PROPERTY(PROP_ALPHA_START, AlphaStart, alphaStart, float, ParticleEffectEntityItem::DEFAULT_ALPHA);
-    DEFINE_PROPERTY(PROP_ALPHA_FINISH, AlphaFinish, alphaFinish, float, ParticleEffectEntityItem::DEFAULT_ALPHA);
+    DEFINE_PROPERTY_REF(PROP_COLOR, Color, color, xColor, particle::DEFAULT_COLOR);
+    DEFINE_PROPERTY_REF(PROP_COLOR_SPREAD, ColorSpread, colorSpread, xColor, particle::DEFAULT_COLOR_SPREAD);
+    DEFINE_PROPERTY_REF(PROP_COLOR_START, ColorStart, colorStart, xColor, particle::DEFAULT_COLOR);
+    DEFINE_PROPERTY_REF(PROP_COLOR_FINISH, ColorFinish, colorFinish, xColor, particle::DEFAULT_COLOR);
+    DEFINE_PROPERTY(PROP_ALPHA, Alpha, alpha, float, particle::DEFAULT_ALPHA);
+    DEFINE_PROPERTY(PROP_ALPHA_SPREAD, AlphaSpread, alphaSpread, float, particle::DEFAULT_ALPHA_SPREAD);
+    DEFINE_PROPERTY(PROP_ALPHA_START, AlphaStart, alphaStart, float, particle::DEFAULT_ALPHA);
+    DEFINE_PROPERTY(PROP_ALPHA_FINISH, AlphaFinish, alphaFinish, float, particle::DEFAULT_ALPHA);
     DEFINE_PROPERTY_REF(PROP_MODEL_URL, ModelURL, modelURL, QString, "");
     DEFINE_PROPERTY_REF(PROP_COMPOUND_SHAPE_URL, CompoundShapeURL, compoundShapeURL, QString, "");
     DEFINE_PROPERTY_REF(PROP_REGISTRATION_POINT, RegistrationPoint, registrationPoint, glm::vec3, ENTITY_ITEM_DEFAULT_REGISTRATION_POINT);
@@ -147,26 +150,26 @@ public:
     DEFINE_PROPERTY_REF(PROP_TEXT_COLOR, TextColor, textColor, xColor, TextEntityItem::DEFAULT_TEXT_COLOR);
     DEFINE_PROPERTY_REF(PROP_BACKGROUND_COLOR, BackgroundColor, backgroundColor, xColor, TextEntityItem::DEFAULT_BACKGROUND_COLOR);
     DEFINE_PROPERTY_REF_ENUM(PROP_SHAPE_TYPE, ShapeType, shapeType, ShapeType, SHAPE_TYPE_NONE);
-    DEFINE_PROPERTY(PROP_MAX_PARTICLES, MaxParticles, maxParticles, quint32, ParticleEffectEntityItem::DEFAULT_MAX_PARTICLES);
-    DEFINE_PROPERTY(PROP_LIFESPAN, Lifespan, lifespan, float, ParticleEffectEntityItem::DEFAULT_LIFESPAN);
+    DEFINE_PROPERTY(PROP_MAX_PARTICLES, MaxParticles, maxParticles, quint32, particle::DEFAULT_MAX_PARTICLES);
+    DEFINE_PROPERTY(PROP_LIFESPAN, Lifespan, lifespan, float, particle::DEFAULT_LIFESPAN);
     DEFINE_PROPERTY(PROP_EMITTING_PARTICLES, IsEmitting, isEmitting, bool, true);
-    DEFINE_PROPERTY(PROP_EMIT_RATE, EmitRate, emitRate, float, ParticleEffectEntityItem::DEFAULT_EMIT_RATE);
-    DEFINE_PROPERTY(PROP_EMIT_SPEED, EmitSpeed, emitSpeed, float, ParticleEffectEntityItem::DEFAULT_EMIT_SPEED);
-    DEFINE_PROPERTY(PROP_SPEED_SPREAD, SpeedSpread, speedSpread, float, ParticleEffectEntityItem::DEFAULT_SPEED_SPREAD);
-    DEFINE_PROPERTY_REF(PROP_EMIT_ORIENTATION, EmitOrientation, emitOrientation, glm::quat, ParticleEffectEntityItem::DEFAULT_EMIT_ORIENTATION);
-    DEFINE_PROPERTY_REF(PROP_EMIT_DIMENSIONS, EmitDimensions, emitDimensions, glm::vec3, ParticleEffectEntityItem::DEFAULT_EMIT_DIMENSIONS);
-    DEFINE_PROPERTY(PROP_EMIT_RADIUS_START, EmitRadiusStart, emitRadiusStart, float, ParticleEffectEntityItem::DEFAULT_EMIT_RADIUS_START);
-    DEFINE_PROPERTY(PROP_POLAR_START, PolarStart, polarStart, float, ParticleEffectEntityItem::DEFAULT_POLAR_START);
-    DEFINE_PROPERTY(PROP_POLAR_FINISH, PolarFinish, polarFinish, float, ParticleEffectEntityItem::DEFAULT_POLAR_FINISH);
-    DEFINE_PROPERTY(PROP_AZIMUTH_START, AzimuthStart, azimuthStart, float, ParticleEffectEntityItem::DEFAULT_AZIMUTH_START);
-    DEFINE_PROPERTY(PROP_AZIMUTH_FINISH, AzimuthFinish, azimuthFinish, float, ParticleEffectEntityItem::DEFAULT_AZIMUTH_FINISH);
-    DEFINE_PROPERTY_REF(PROP_EMIT_ACCELERATION, EmitAcceleration, emitAcceleration, glm::vec3, ParticleEffectEntityItem::DEFAULT_EMIT_ACCELERATION);
-    DEFINE_PROPERTY_REF(PROP_ACCELERATION_SPREAD, AccelerationSpread, accelerationSpread, glm::vec3, ParticleEffectEntityItem::DEFAULT_ACCELERATION_SPREAD);
-    DEFINE_PROPERTY(PROP_PARTICLE_RADIUS, ParticleRadius, particleRadius, float, ParticleEffectEntityItem::DEFAULT_PARTICLE_RADIUS);
-    DEFINE_PROPERTY(PROP_RADIUS_SPREAD, RadiusSpread, radiusSpread, float, ParticleEffectEntityItem::DEFAULT_RADIUS_SPREAD);
-    DEFINE_PROPERTY(PROP_RADIUS_START, RadiusStart, radiusStart, float, ParticleEffectEntityItem::DEFAULT_RADIUS_START);
-    DEFINE_PROPERTY(PROP_RADIUS_FINISH, RadiusFinish, radiusFinish, float, ParticleEffectEntityItem::DEFAULT_RADIUS_FINISH);
-    DEFINE_PROPERTY(PROP_EMITTER_SHOULD_TRAIL, EmitterShouldTrail, emitterShouldTrail, bool, ParticleEffectEntityItem::DEFAULT_EMITTER_SHOULD_TRAIL);
+    DEFINE_PROPERTY(PROP_EMIT_RATE, EmitRate, emitRate, float, particle::DEFAULT_EMIT_RATE);
+    DEFINE_PROPERTY(PROP_EMIT_SPEED, EmitSpeed, emitSpeed, float, particle::DEFAULT_EMIT_SPEED);
+    DEFINE_PROPERTY(PROP_SPEED_SPREAD, SpeedSpread, speedSpread, float, particle::DEFAULT_SPEED_SPREAD);
+    DEFINE_PROPERTY_REF(PROP_EMIT_ORIENTATION, EmitOrientation, emitOrientation, glm::quat, particle::DEFAULT_EMIT_ORIENTATION);
+    DEFINE_PROPERTY_REF(PROP_EMIT_DIMENSIONS, EmitDimensions, emitDimensions, glm::vec3, particle::DEFAULT_EMIT_DIMENSIONS);
+    DEFINE_PROPERTY(PROP_EMIT_RADIUS_START, EmitRadiusStart, emitRadiusStart, float, particle::DEFAULT_EMIT_RADIUS_START);
+    DEFINE_PROPERTY(PROP_POLAR_START, PolarStart, polarStart, float, particle::DEFAULT_POLAR_START);
+    DEFINE_PROPERTY(PROP_POLAR_FINISH, PolarFinish, polarFinish, float, particle::DEFAULT_POLAR_FINISH);
+    DEFINE_PROPERTY(PROP_AZIMUTH_START, AzimuthStart, azimuthStart, float, particle::DEFAULT_AZIMUTH_START);
+    DEFINE_PROPERTY(PROP_AZIMUTH_FINISH, AzimuthFinish, azimuthFinish, float, particle::DEFAULT_AZIMUTH_FINISH);
+    DEFINE_PROPERTY_REF(PROP_EMIT_ACCELERATION, EmitAcceleration, emitAcceleration, glm::vec3, particle::DEFAULT_EMIT_ACCELERATION);
+    DEFINE_PROPERTY_REF(PROP_ACCELERATION_SPREAD, AccelerationSpread, accelerationSpread, glm::vec3, particle::DEFAULT_ACCELERATION_SPREAD);
+    DEFINE_PROPERTY(PROP_PARTICLE_RADIUS, ParticleRadius, particleRadius, float, particle::DEFAULT_PARTICLE_RADIUS);
+    DEFINE_PROPERTY(PROP_RADIUS_SPREAD, RadiusSpread, radiusSpread, float, particle::DEFAULT_RADIUS_SPREAD);
+    DEFINE_PROPERTY(PROP_RADIUS_START, RadiusStart, radiusStart, float, particle::DEFAULT_RADIUS_START);
+    DEFINE_PROPERTY(PROP_RADIUS_FINISH, RadiusFinish, radiusFinish, float, particle::DEFAULT_RADIUS_FINISH);
+    DEFINE_PROPERTY(PROP_EMITTER_SHOULD_TRAIL, EmitterShouldTrail, emitterShouldTrail, bool, particle::DEFAULT_EMITTER_SHOULD_TRAIL);
     DEFINE_PROPERTY_REF(PROP_MARKETPLACE_ID, MarketplaceID, marketplaceID, QString, ENTITY_ITEM_DEFAULT_MARKETPLACE_ID);
     DEFINE_PROPERTY_GROUP(KeyLight, keyLight, KeyLightPropertyGroup);
     DEFINE_PROPERTY_REF(PROP_VOXEL_VOLUME_SIZE, VoxelVolumeSize, voxelVolumeSize, glm::vec3, PolyVoxEntityItem::DEFAULT_VOXEL_VOLUME_SIZE);
@@ -213,6 +216,7 @@ public:
 
     DEFINE_PROPERTY(PROP_FLYING_ALLOWED, FlyingAllowed, flyingAllowed, bool, ZoneEntityItem::DEFAULT_FLYING_ALLOWED);
     DEFINE_PROPERTY(PROP_GHOSTING_ALLOWED, GhostingAllowed, ghostingAllowed, bool, ZoneEntityItem::DEFAULT_GHOSTING_ALLOWED);
+    DEFINE_PROPERTY(PROP_FILTER_URL, FilterURL, filterURL, QString, ZoneEntityItem::DEFAULT_FILTER_URL);
 
     DEFINE_PROPERTY(PROP_CLIENT_ONLY, ClientOnly, clientOnly, bool, false);
     DEFINE_PROPERTY_REF(PROP_OWNING_AVATAR_ID, OwningAvatarID, owningAvatarID, QUuid, UNKNOWN_ENTITY_ID);
@@ -220,6 +224,8 @@ public:
     DEFINE_PROPERTY_REF(PROP_DPI, DPI, dpi, uint16_t, ENTITY_ITEM_DEFAULT_DPI);
 
     DEFINE_PROPERTY_REF(PROP_LAST_EDITED_BY, LastEditedBy, lastEditedBy, QUuid, ENTITY_ITEM_DEFAULT_LAST_EDITED_BY);
+
+    DEFINE_PROPERTY_REF(PROP_SERVER_SCRIPTS, ServerScripts, serverScripts, QString, ENTITY_ITEM_DEFAULT_SERVER_SCRIPTS);
 
     static QString getBackgroundModeString(BackgroundMode mode);
 
@@ -249,8 +255,6 @@ public:
 
     void clearID() { _id = UNKNOWN_ENTITY_ID; _idSet = false; }
     void markAllChanged();
-
-    void setSittingPoints(const QVector<SittingPoint>& sittingPoints);
 
     const glm::vec3& getNaturalDimensions() const { return _naturalDimensions; }
     void setNaturalDimensions(const glm::vec3& value) { _naturalDimensions = value; }
@@ -320,7 +324,6 @@ private:
 
     // NOTE: The following are pseudo client only properties. They are only used in clients which can access
     // properties of model geometry. But these properties are not serialized like other properties.
-    QVector<SittingPoint> _sittingPoints;
     QVariantMap _textureNames;
     glm::vec3 _naturalDimensions;
     glm::vec3 _naturalPosition;
@@ -454,15 +457,12 @@ inline QDebug operator<<(QDebug debug, const EntityItemProperties& properties) {
 
     DEBUG_PROPERTY_IF_CHANGED(debug, properties, FlyingAllowed, flyingAllowed, "");
     DEBUG_PROPERTY_IF_CHANGED(debug, properties, GhostingAllowed, ghostingAllowed, "");
+    DEBUG_PROPERTY_IF_CHANGED(debug, properties, FilterURL, filterURL, "");
 
     DEBUG_PROPERTY_IF_CHANGED(debug, properties, ClientOnly, clientOnly, "");
     DEBUG_PROPERTY_IF_CHANGED(debug, properties, OwningAvatarID, owningAvatarID, "");
 
     DEBUG_PROPERTY_IF_CHANGED(debug, properties, LastEditedBy, lastEditedBy, "");
-
-    properties.getAnimation().debugDump();
-    properties.getSkybox().debugDump();
-    properties.getStage().debugDump();
 
     debug << "  last edited:" << properties.getLastEdited() << "\n";
     debug << "  edited ago:" << properties.getEditedAgo() << "\n";

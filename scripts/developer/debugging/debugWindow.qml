@@ -18,6 +18,9 @@ Rectangle {
     width: parent ? parent.width : 100
     height: parent ? parent.height : 100
 
+    signal moved(vector2d position);
+    signal resized(size size);
+
     property var channel;
 
     TextArea {
@@ -36,6 +39,10 @@ Rectangle {
             textArea.text = lines.join('\n');
         }
         textArea.append(message);
+    }
+
+    function clearWindow() {
+        textArea.remove(0,textArea.length);
     }
 }
 

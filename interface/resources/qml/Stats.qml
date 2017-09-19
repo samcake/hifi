@@ -105,6 +105,14 @@ Item {
                         visible: root.expanded
                         text: "Asset Mbps In/Out: " + root.assetMbpsIn.toFixed(2) + "/" + root.assetMbpsOut.toFixed(2)
                     }
+                    StatText {
+                        visible: root.expanded
+                        text: "Avatars Updated: " + root.updatedAvatarCount
+                    }
+                    StatText {
+                        visible: root.expanded
+                        text: "Avatars NOT Updated: " + root.notUpdatedAvatarCount
+                    }
                 }
             }
 
@@ -122,7 +130,7 @@ Item {
                     id: pingCol
                     spacing: 4; x: 4; y: 4;
                     StatText {
-                        text: "Audio ping: " + root.audioPing
+                        text: "Audio ping/loss: " + root.audioPing + "/" + root.audioPacketLoss + "%"
                     }
                     StatText {
                         text: "Avatar ping: " + root.avatarPing
@@ -175,8 +183,38 @@ Item {
                     }
                     StatText {
                         visible: root.expanded;
+                        text: "Audio Mixer In: " + root.audioMixerInKbps + " kbps, " +
+                            root.audioMixerInPps + "pps";
+                    }
+                    StatText {
+                        visible: root.expanded;
+                        text: "Audio In Audio: " + root.audioAudioInboundPPS + " pps, " +
+                            "Silent: " + root.audioSilentInboundPPS + " pps";
+                    }
+                    StatText {
+                        visible: root.expanded;
+                        text: "Audio Mixer Out: " + root.audioMixerOutKbps + " kbps, " +
+                            root.audioMixerOutPps + "pps";
+                    }
+                    StatText {
+                        visible: root.expanded;
+                        text: "Audio Out Mic: " + root.audioOutboundPPS + " pps, " +
+                            "Silent: " + root.audioSilentOutboundPPS + " pps";
+                    }
+                    StatText {
+                        visible: root.expanded;
+                        text: "Audio Codec: " + root.audioCodec + " Noise Gate: " +
+                            root.audioNoiseGate;
+                    }
+                    StatText {
+                        visible: root.expanded;
                         text: "Downloads: " + root.downloads + "/" + root.downloadLimit +
                               ", Pending: " + root.downloadsPending;
+                    }
+                    StatText {
+                        visible: root.expanded;
+                        text: "Processing: " + root.processing +
+                              ", Pending: " + root.processingPending;
                     }
                     StatText {
                         visible: root.expanded && root.downloadUrls.length > 0;
@@ -211,13 +249,16 @@ Item {
                     id: octreeCol
                     spacing: 4; x: 4; y: 4;
                     StatText {
-                        text: "  Frame timing:"
+                        text: "Engine: " + root.engineFrameTime.toFixed(1) + " ms"
                     }
                     StatText {
-                        text: "      Batch: " + root.batchFrameTime.toFixed(1) + " ms"
+                        text: "Batch: " + root.batchFrameTime.toFixed(1) + " ms"
                     }
                     StatText {
-                        text: "      GPU: " + root.gpuFrameTime.toFixed(1) + " ms"
+                        text: "GPU: " + root.gpuFrameTime.toFixed(1) + " ms"
+                    }
+                    StatText {
+                        text: "Avatar: " + root.avatarSimulationTime.toFixed(1) + " ms"
                     }
                     StatText {
                         text: "Triangles: " + root.triangles +
@@ -230,33 +271,25 @@ Item {
                         text: "GPU Textures: ";
                     }
                     StatText {
-                        text: "  Sparse Enabled: " + (0 == root.gpuSparseTextureEnabled ? "false" : "true");
-                    }
-                    StatText {
                         text: "  Count: " + root.gpuTextures;
                     }
                     StatText {
-                        text: "  Rectified: " + root.rectifiedTextureCount;
+                        text: "  Pressure State: " + root.gpuTextureMemoryPressureState;
                     }
                     StatText {
-                        text: "  Decimated: " + root.decimatedTextureCount;
+                        text: "  Resource Allocated / Populated / Pending: ";
                     }
                     StatText {
-                        text: "  Sparse Count: " + root.gpuTexturesSparse;
-                        visible: 0 != root.gpuSparseTextureEnabled;
+                        text: "       " + root.gpuTextureResourceMemory + " / " + root.gpuTextureResourcePopulatedMemory + " / " + root.texturePendingTransfers + " MB";
                     }
                     StatText {
-                        text: "  Virtual Memory: " + root.gpuTextureVirtualMemory + " MB";
-                    }
-                    StatText {
-                        text: "  Commited Memory: " + root.gpuTextureMemory + " MB";
+                        text: "  Resident Memory: " + root.gpuTextureResidentMemory + " MB";
                     }
                     StatText {
                         text: "  Framebuffer Memory: " + root.gpuTextureFramebufferMemory + " MB";
                     }
                     StatText {
-                        text: "  Sparse Memory: " + root.gpuTextureSparseMemory + " MB";
-                        visible: 0 != root.gpuSparseTextureEnabled;
+                        text: "  External Memory: " + root.gpuTextureExternalMemory + " MB";
                     }
                     StatText {
                         text: "GPU Buffers: "
@@ -265,7 +298,7 @@ Item {
                         text: "  Count: " + root.gpuBuffers;
                     }
                     StatText {
-                        text: "  Memory: " + root.gpuBufferMemory;
+                        text: "  Memory: " + root.gpuBufferMemory + " MB";
                     }
                     StatText {
                         text: "GL Swapchain Memory: " + root.glContextSwapchainMemory + " MB";

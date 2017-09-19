@@ -20,6 +20,7 @@
 #include <QDebug>
 
 #include "BoxBase.h"
+#include "GeometryUtil.h"
 #include "StreamUtils.h"
 
 class AACube;
@@ -58,6 +59,7 @@ public:
     const glm::vec3& getMinimumPoint() const { return _corner; }
     glm::vec3 getMaximumPoint() const { return calcTopFarLeft(); }
 
+    bool contains(const Triangle& triangle) const;
     bool contains(const glm::vec3& point) const;
     bool contains(const AABox& otherBox) const;
     bool touches(const AABox& otherBox) const;
@@ -70,6 +72,7 @@ public:
     bool findRayIntersection(const glm::vec3& origin, const glm::vec3& direction, float& distance,
                                 BoxFace& face, glm::vec3& surfaceNormal) const;
     bool touchesSphere(const glm::vec3& center, float radius) const; // fast but may generate false positives
+    bool touchesAAEllipsoid(const glm::vec3& center, const glm::vec3& radials) const;
     bool findSpherePenetration(const glm::vec3& center, float radius, glm::vec3& penetration) const;
     bool findCapsulePenetration(const glm::vec3& start, const glm::vec3& end, float radius, glm::vec3& penetration) const;
 
@@ -108,6 +111,21 @@ public:
     static const glm::vec3 INFINITY_VECTOR;
 
     bool isInvalid() const { return _corner == INFINITY_VECTOR; }
+
+    void clear() { _corner = INFINITY_VECTOR; _scale = glm::vec3(0.0f); }
+
+    typedef enum {
+        topLeftNear,
+        topLeftFar,
+        topRightNear,
+        topRightFar,
+        bottomLeftNear,
+        bottomLeftFar,
+        bottomRightNear,
+        bottomRightFar
+    } OctreeChild;
+
+    AABox getOctreeChild(OctreeChild child) const; // returns the AABox of the would be octree child of this AABox
 
 private:
     glm::vec3 getClosestPointOnFace(const glm::vec3& point, BoxFace face) const;

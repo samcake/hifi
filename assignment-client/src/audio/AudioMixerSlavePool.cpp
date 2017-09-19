@@ -21,7 +21,7 @@ void AudioMixerSlaveThread::run() {
         // iterate over all available nodes
         SharedNodePointer node;
         while (try_pop(node)) {
-            mix(node);
+            (this->*_function)(node);
         }
 
         bool stopping = _stop;
@@ -41,7 +41,11 @@ void AudioMixerSlaveThread::wait() {
         });
         ++_pool._numStarted;
     }
-    configure(_pool._begin, _pool._end, _pool._frame);
+
+    if (_pool._configure) {
+        _pool._configure(*this);
+    }
+    _function = _pool._function;
 }
 
 void AudioMixerSlaveThread::notify(bool stopping) {
@@ -64,15 +68,31 @@ bool AudioMixerSlaveThread::try_pop(SharedNodePointer& node) {
 static AudioMixerSlave slave;
 #endif
 
-void AudioMixerSlavePool::mix(ConstIter begin, ConstIter end, unsigned int frame) {
+void AudioMixerSlavePool::processPackets(ConstIter begin, ConstIter end) {
+    _function = &AudioMixerSlave::processPackets;
+    _configure = [](AudioMixerSlave& slave) {};
+    run(begin, end);
+}
+
+void AudioMixerSlavePool::mix(ConstIter begin, ConstIter end, unsigned int frame, float throttlingRatio) {
+    _function = &AudioMixerSlave::mix;
+    _configure = [=](AudioMixerSlave& slave) {
+        slave.configureMix(_begin, _end, _frame, _throttlingRatio);
+    };
+    _frame = frame;
+    _throttlingRatio = throttlingRatio;
+
+    run(begin, end);
+}
+
+void AudioMixerSlavePool::run(ConstIter begin, ConstIter end) {
     _begin = begin;
     _end = end;
-    _frame = frame;
 
 #ifdef AUDIO_SINGLE_THREADED
-    slave.configure(_begin, _end, frame);
+    _configure(slave);
     std::for_each(begin, end, [&](const SharedNodePointer& node) {
-        slave.mix(node);
+        _function(slave, node);
     });
 #else
     // fill the queue
@@ -83,7 +103,7 @@ void AudioMixerSlavePool::mix(ConstIter begin, ConstIter end, unsigned int frame
     {
         Lock lock(_mutex);
 
-        // mix
+        // run
         _numStarted = _numFinished = 0;
         _slaveCondition.notify_all();
 

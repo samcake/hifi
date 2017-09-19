@@ -14,6 +14,7 @@
 
 #include <QtScript/QScriptEngine>
 #include <QtCore/QUuid>
+#include <QtCore/QUrl>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -33,6 +34,8 @@ Q_DECLARE_METATYPE(xColor)
 Q_DECLARE_METATYPE(QVector<glm::vec3>)
 Q_DECLARE_METATYPE(QVector<float>)
 Q_DECLARE_METATYPE(AACube)
+Q_DECLARE_METATYPE(std::function<void()>);
+Q_DECLARE_METATYPE(std::function<QVariant()>);
 
 void registerMetaTypes(QScriptEngine* engine);
 
@@ -113,6 +116,10 @@ QScriptValue qVectorFloatToScriptValue(QScriptEngine* engine, const QVector<floa
 void qVectorFloatFromScriptValue(const QScriptValue& array, QVector<float>& vector);
 QVector<float> qVectorFloatFromScriptValue(const QScriptValue& array);
 
+// vector<uint32_t>
+QScriptValue qVectorIntToScriptValue(QScriptEngine* engine, const QVector<uint32_t>& vector);
+void qVectorIntFromScriptValue(const QScriptValue& array, QVector<uint32_t>& vector);
+
 QVector<QUuid> qVectorQUuidFromScriptValue(const QScriptValue& array);
 
 QScriptValue aaCubeToScriptValue(QScriptEngine* engine, const AACube& aaCube);
@@ -129,6 +136,29 @@ Q_DECLARE_METATYPE(PickRay)
 QScriptValue pickRayToScriptValue(QScriptEngine* engine, const PickRay& pickRay);
 void pickRayFromScriptValue(const QScriptValue& object, PickRay& pickRay);
 
+enum IntersectionType {
+    NONE,
+    ENTITY,
+    OVERLAY,
+    AVATAR,
+    HUD
+};
+
+class RayPickResult {
+public:
+    RayPickResult() {}
+    RayPickResult(const IntersectionType type, const QUuid& objectID, const float distance, const glm::vec3& intersection, const glm::vec3& surfaceNormal = glm::vec3(NAN)) :
+        type(type), objectID(objectID), distance(distance), intersection(intersection), surfaceNormal(surfaceNormal) {}
+    IntersectionType type { NONE };
+    QUuid objectID { 0 };
+    float distance { FLT_MAX };
+    glm::vec3 intersection { NAN };
+    glm::vec3 surfaceNormal { NAN };
+};
+Q_DECLARE_METATYPE(RayPickResult)
+QScriptValue rayPickResultToScriptValue(QScriptEngine* engine, const RayPickResult& rayPickResult);
+void rayPickResultFromScriptValue(const QScriptValue& object, RayPickResult& rayPickResult);
+
 enum ContactEventType {
     CONTACT_EVENT_TYPE_START,
     CONTACT_EVENT_TYPE_CONTINUE,
@@ -142,11 +172,13 @@ public:
               const glm::vec3& cPenetration, const glm::vec3& velocityChange)
     :   type(cType), idA(cIdA), idB(cIdB), contactPoint(cPoint), penetration(cPenetration), velocityChange(velocityChange) { }
 
+    void invert(); // swap A and B
+
     ContactEventType type;
     QUuid idA;
     QUuid idB;
-    glm::vec3 contactPoint;
-    glm::vec3 penetration;
+    glm::vec3 contactPoint; // on B in world-frame
+    glm::vec3 penetration; // from B towards A in world-frame
     glm::vec3 velocityChange;
 };
 Q_DECLARE_METATYPE(Collision)
@@ -160,5 +192,75 @@ void quuidFromScriptValue(const QScriptValue& object, QUuid& uuid);
 //Q_DECLARE_METATYPE(QSizeF) // Don't need to to this becase it's arleady a meta type
 QScriptValue qSizeFToScriptValue(QScriptEngine* engine, const QSizeF& qSizeF);
 void qSizeFFromScriptValue(const QScriptValue& object, QSizeF& qSizeF);
+
+class AnimationDetails {
+public:
+    AnimationDetails();
+    AnimationDetails(QString role, QUrl url, float fps, float priority, bool loop,
+        bool hold, bool startAutomatically, float firstFrame, float lastFrame, bool running, float currentFrame, bool allowTranslation);
+
+    QString role;
+    QUrl url;
+    float fps;
+    float priority;
+    bool loop;
+    bool hold;
+    bool startAutomatically;
+    float firstFrame;
+    float lastFrame;
+    bool running;
+    float currentFrame;
+    bool allowTranslation;
+};
+Q_DECLARE_METATYPE(AnimationDetails);
+QScriptValue animationDetailsToScriptValue(QScriptEngine* engine, const AnimationDetails& event);
+void animationDetailsFromScriptValue(const QScriptValue& object, AnimationDetails& event);
+
+namespace model {
+    class Mesh;
+}
+
+using MeshPointer = std::shared_ptr<model::Mesh>;
+
+
+class MeshProxy : public QObject {
+    Q_OBJECT
+
+public:
+    virtual MeshPointer getMeshPointer() const = 0;
+    Q_INVOKABLE virtual int getNumVertices() const = 0;
+    Q_INVOKABLE virtual glm::vec3 getPos3(int index) const = 0;
+};
+
+Q_DECLARE_METATYPE(MeshProxy*);
+
+class MeshProxyList : public QList<MeshProxy*> {}; // typedef and using fight with the Qt macros/templates, do this instead
+Q_DECLARE_METATYPE(MeshProxyList);
+
+
+QScriptValue meshToScriptValue(QScriptEngine* engine, MeshProxy* const &in);
+void meshFromScriptValue(const QScriptValue& value, MeshProxy* &out);
+
+QScriptValue meshesToScriptValue(QScriptEngine* engine, const MeshProxyList &in);
+void meshesFromScriptValue(const QScriptValue& value, MeshProxyList &out);
+
+class MeshFace {
+
+public:
+    MeshFace() {}
+    ~MeshFace() {}
+
+    QVector<uint32_t> vertexIndices;
+    // TODO -- material...
+};
+
+Q_DECLARE_METATYPE(MeshFace)
+Q_DECLARE_METATYPE(QVector<MeshFace>)
+
+QScriptValue meshFaceToScriptValue(QScriptEngine* engine, const MeshFace &meshFace);
+void meshFaceFromScriptValue(const QScriptValue &object, MeshFace& meshFaceResult);
+QScriptValue qVectorMeshFaceToScriptValue(QScriptEngine* engine, const QVector<MeshFace>& vector);
+void qVectorMeshFaceFromScriptValue(const QScriptValue& array, QVector<MeshFace>& result);
+
 
 #endif // hifi_RegisteredMetaTypes_h

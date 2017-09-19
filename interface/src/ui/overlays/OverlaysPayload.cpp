@@ -21,7 +21,6 @@
 #include "Cube3DOverlay.h"
 #include "ImageOverlay.h"
 #include "Line3DOverlay.h"
-#include "LocalModelsOverlay.h"
 #include "ModelOverlay.h"
 #include "Overlays.h"
 #include "Rectangle3DOverlay.h"
@@ -38,7 +37,7 @@ namespace render {
             if (std::static_pointer_cast<Base3DOverlay>(overlay)->getDrawInFront()) {
                 builder.withLayered();
             }
-            if (overlay->getAlphaPulse() != 0.0f || overlay->getAlpha() != 1.0f) {
+            if (overlay->isTransparent()) {
                 builder.withTransparent();
             }
         } else {
@@ -50,12 +49,18 @@ namespace render {
         return overlay->getBounds();
     }
     template <> int payloadGetLayer(const Overlay::Pointer& overlay) {
-        // MAgic number while we are defining the layering mechanism:
-        const int LAYER_2D =  2;
+        // Magic number while we are defining the layering mechanism:
+        const int LAYER_2D = 2;
         const int LAYER_3D_FRONT = 1;
         const int LAYER_3D = 0;
+
         if (overlay->is3D()) {
-            return (std::dynamic_pointer_cast<Base3DOverlay>(overlay)->getDrawInFront() ? LAYER_3D_FRONT : LAYER_3D);
+            auto overlay3D = std::dynamic_pointer_cast<Base3DOverlay>(overlay);
+            if (overlay3D->getDrawInFront()) {
+                return LAYER_3D_FRONT;
+            } else {
+                return LAYER_3D;
+            }
         } else {
             return LAYER_2D;
         }
@@ -69,7 +74,7 @@ namespace render {
                 glm::vec3 myAvatarPosition = avatar->getPosition();
                 float angle = glm::degrees(glm::angle(myAvatarRotation));
                 glm::vec3 axis = glm::axis(myAvatarRotation);
-                float myAvatarScale = avatar->getUniformScale();
+                float myAvatarScale = avatar->getModelScale();
                 Transform transform = Transform();
                 transform.setTranslation(myAvatarPosition);
                 transform.setRotation(glm::angleAxis(angle, axis));

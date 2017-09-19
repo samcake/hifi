@@ -23,13 +23,15 @@
 
 #include <EntityEditPacketSender.h>
 #include <EntityTree.h>
-#include <EntityTreeHeadlessViewer.h>
 #include <ScriptEngine.h>
 #include <ThreadedAssignment.h>
 
 #include <plugins/CodecPlugin.h>
 
+#include "AudioGate.h"
 #include "MixedAudioStream.h"
+#include "entities/EntityTreeHeadlessViewer.h"
+#include "avatars/ScriptableAvatar.h"
 
 class Agent : public ThreadedAssignment {
     Q_OBJECT
@@ -37,19 +39,20 @@ class Agent : public ThreadedAssignment {
     Q_PROPERTY(bool isAvatar READ isAvatar WRITE setIsAvatar)
     Q_PROPERTY(bool isPlayingAvatarSound READ isPlayingAvatarSound)
     Q_PROPERTY(bool isListeningToAudioStream READ isListeningToAudioStream WRITE setIsListeningToAudioStream)
+    Q_PROPERTY(bool isNoiseGateEnabled READ isNoiseGateEnabled WRITE setIsNoiseGateEnabled)
     Q_PROPERTY(float lastReceivedAudioLoudness READ getLastReceivedAudioLoudness)
     Q_PROPERTY(QUuid sessionUUID READ getSessionUUID)
 
 public:
     Agent(ReceivedMessage& message);
 
-    void setIsAvatar(bool isAvatar);
-    bool isAvatar() const { return _isAvatar; }
-
     bool isPlayingAvatarSound() const { return _avatarSound != NULL; }
 
     bool isListeningToAudioStream() const { return _isListeningToAudioStream; }
     void setIsListeningToAudioStream(bool isListeningToAudioStream);
+
+    bool isNoiseGateEnabled() const { return _isNoiseGateEnabled; }
+    void setIsNoiseGateEnabled(bool isNoiseGateEnabled);
 
     float getLastReceivedAudioLoudness() const { return _lastReceivedAudioLoudness; }
     QUuid getSessionUUID() const;
@@ -59,6 +62,9 @@ public:
 public slots:
     void run() override;
     void playAvatarSound(SharedSoundPointer avatarSound);
+    
+    void setIsAvatar(bool isAvatar);
+    bool isAvatar() const { return _isAvatar; }
 
 private slots:
     void requestScript();
@@ -68,22 +74,21 @@ private slots:
     void handleAudioPacket(QSharedPointer<ReceivedMessage> message);
     void handleOctreePacket(QSharedPointer<ReceivedMessage> message, SharedNodePointer senderNode);
     void handleJurisdictionPacket(QSharedPointer<ReceivedMessage> message, SharedNodePointer senderNode);
-    void handleSelectedAudioFormat(QSharedPointer<ReceivedMessage> message); 
+    void handleSelectedAudioFormat(QSharedPointer<ReceivedMessage> message);
 
     void nodeActivated(SharedNodePointer activatedNode);
-    
+    void nodeKilled(SharedNodePointer killedNode);
+
     void processAgentAvatar();
     void processAgentAvatarAudio();
 
-signals:
-    void startAvatarAudioTimer();
-    void stopAvatarAudioTimer();
 private:
     void negotiateAudioFormat();
     void selectAudioFormat(const QString& selectedCodecName);
     void encodeFrameOfZeros(QByteArray& encodedZeros);
+    void computeLoudness(const QByteArray* decodedBuffer, QSharedPointer<ScriptableAvatar>);
 
-    std::unique_ptr<ScriptEngine> _scriptEngine;
+    ScriptEnginePointer _scriptEngine;
     EntityEditPacketSender _entityEditSender;
     EntityTreeHeadlessViewer _entityViewer;
 
@@ -103,11 +108,15 @@ private:
     bool _isAvatar = false;
     QTimer* _avatarIdentityTimer = nullptr;
     QHash<QUuid, quint16> _outgoingScriptAudioSequenceNumbers;
-    
+
+    AudioGate _audioGate;
+    bool _audioGateOpen { true };
+    bool _isNoiseGateEnabled { false };
+
     CodecPluginPointer _codec;
     QString _selectedCodecName;
-    Encoder* _encoder { nullptr }; 
-    QThread _avatarAudioTimerThread;
+    Encoder* _encoder { nullptr };
+    QTimer _avatarAudioTimer;
     bool _flushEncoder { false };
 };
 

@@ -27,37 +27,36 @@ class Bookmarks: public QObject {
 public:
     Bookmarks();
 
-    void setupMenus(Menu* menubar, MenuWrapper* menu);
-
+    virtual void setupMenus(Menu* menubar, MenuWrapper* menu) = 0;
     QString addressForBookmark(const QString& name) const;
 
-    static const QString HOME_BOOKMARK;
-
-private slots:
-    void bookmarkLocation();
-    void setHomeLocation();
-    void teleportToBookmark();
-    void deleteBookmark();
+protected:
+    void addBookmarkToFile(const QString& bookmarkName, const QVariant& bookmark);
+    virtual void addBookmarkToMenu(Menu* menubar, const QString& name, const QVariant& bookmark) = 0;
+    void enableMenuItems(bool enabled);
+    virtual void readFromFile();
+    void insert(const QString& name, const QVariant& address);  // Overwrites any existing entry with same name.
+    void sortActions(Menu* menubar, MenuWrapper* menu);
+    int getMenuItemLocation(QList<QAction*> actions, const QString& name) const;
     
-private:
-    QVariantMap _bookmarks;  // { name: address, ... }
+    bool contains(const QString& name) const;
     
+    QVariantMap _bookmarks;  // { name: url, ... }
     QPointer<MenuWrapper> _bookmarksMenu;
     QPointer<QAction> _deleteBookmarksAction;
-
-    const QString BOOKMARKS_FILENAME = "bookmarks.json";
     QString _bookmarksFilename;
-    
-    void insert(const QString& name, const QString& address);  // Overwrites any existing entry with same name.
-    void remove(const QString& name);
-    bool contains(const QString& name) const;
+    bool _isMenuSorted;
 
-    void readFromFile();
+protected slots:
+    void deleteBookmark();
+
+private:
+    void remove(const QString& name);
+    static bool sortOrder(QAction* a, QAction* b);
+
     void persistToFile();
 
-    void enableMenuItems(bool enabled);
-    void addLocationToMenu(Menu* menubar, QString& name, QString& address);
-    void removeLocationFromMenu(Menu* menubar, QString& name);
+    void removeBookmarkFromMenu(Menu* menubar, const QString& name);
 };
 
 #endif // hifi_Bookmarks_h

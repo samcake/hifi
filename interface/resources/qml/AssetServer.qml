@@ -28,6 +28,7 @@ ScrollingWindow {
     minSize: Qt.vector2d(200, 300)
 
     property int colorScheme: hifi.colorSchemes.dark
+    property int selectionMode: SelectionMode.ExtendedSelection
 
     HifiConstants { id: hifi }
 
@@ -35,7 +36,8 @@ ScrollingWindow {
     property var assetProxyModel: Assets.proxyModel;
     property var assetMappingsModel: Assets.mappingModel;
     property var currentDirectory;
-
+    property var selectedItems: treeView.selection.selectedIndexes.length;
+    
     Settings {
         category: "Overlay.AssetServer"
         property alias x: root.x
@@ -48,7 +50,7 @@ ScrollingWindow {
         assetMappingsModel.errorGettingMappings.connect(handleGetMappingsError);
         reload();
     }
-
+    
     function doDeleteFile(path) {
         console.log("Deleting " + path);
 
@@ -118,10 +120,22 @@ ScrollingWindow {
 
     function canAddToWorld(path) {
         var supportedExtensions = [/\.fbx\b/i, /\.obj\b/i];
+        
+        if (selectedItems > 1) {
+            return false;
+        }
 
         return supportedExtensions.reduce(function(total, current) {
             return total | new RegExp(current).test(path);
         }, false);
+    }
+    
+    function canRename() {    
+        if (treeView.selection.hasSelection && selectedItems == 1) {
+            return true;
+        } else {
+            return false;
+        }
     }
 
     function clear() {
@@ -151,13 +165,17 @@ ScrollingWindow {
         var SHAPE_TYPE_SIMPLE_HULL = 1;
         var SHAPE_TYPE_SIMPLE_COMPOUND = 2;
         var SHAPE_TYPE_STATIC_MESH = 3;
-
+        var SHAPE_TYPE_BOX = 4;
+        var SHAPE_TYPE_SPHERE = 5;
+        
         var SHAPE_TYPES = [];
         SHAPE_TYPES[SHAPE_TYPE_NONE] = "No Collision";
         SHAPE_TYPES[SHAPE_TYPE_SIMPLE_HULL] = "Basic - Whole model";
         SHAPE_TYPES[SHAPE_TYPE_SIMPLE_COMPOUND] = "Good - Sub-meshes";
         SHAPE_TYPES[SHAPE_TYPE_STATIC_MESH] = "Exact - All polygons";
-
+        SHAPE_TYPES[SHAPE_TYPE_BOX] = "Box";
+        SHAPE_TYPES[SHAPE_TYPE_SPHERE] = "Sphere";
+        
         var SHAPE_TYPE_DEFAULT = SHAPE_TYPE_STATIC_MESH;
         var DYNAMIC_DEFAULT = false;
         var prompt = desktop.customInputDialog({
@@ -177,7 +195,7 @@ ScrollingWindow {
                     SHAPE_TYPE_STATIC_MESH
                 ],
                 checkStateOnDisable: false,
-                warningOnDisable: "Models with automatic collisions set to 'Exact' cannot be dynamic"
+                warningOnDisable: "Models with 'Exact' automatic collisions cannot be dynamic, and should not be used as floors"
             }
         });
 
@@ -196,6 +214,12 @@ ScrollingWindow {
                     case SHAPE_TYPE_STATIC_MESH:
                         shapeType = "static-mesh";
                         break;
+                    case SHAPE_TYPE_BOX:
+                        shapeType = "box";
+                        break;
+                    case SHAPE_TYPE_SPHERE:
+                        shapeType = "sphere";
+                        break;
                     default:
                         shapeType = "none";
                 }
@@ -206,7 +230,7 @@ ScrollingWindow {
                     print("Error: model cannot be both static mesh and dynamic.  This should never happen.");
                 } else if (url) {
                     var name = assetProxyModel.data(treeView.selection.currentIndex);
-                    var addPosition = Vec3.sum(MyAvatar.position, Vec3.multiply(2, Quat.getFront(MyAvatar.orientation)));
+                    var addPosition = Vec3.sum(MyAvatar.position, Vec3.multiply(2, Quat.getForward(MyAvatar.orientation)));
                     var gravity;
                     if (dynamic) {
                         // Create a vector <0, -10, 0>.  { x: 0, y: -10, z: 0 } won't work because Qt is dumb and this is a
@@ -289,23 +313,37 @@ ScrollingWindow {
         });
     }
     function deleteFile(index) {
+        var path = [];
+        
         if (!index) {
-            index = treeView.selection.currentIndex;
+            for (var i = 0; i < selectedItems; i++) {
+                 treeView.selection.setCurrentIndex(treeView.selection.selectedIndexes[i], 0x100);
+                 index = treeView.selection.currentIndex;
+                 path[i] = assetProxyModel.data(index, 0x100);                  
+            }
         }
-        var path = assetProxyModel.data(index, 0x100);
+        
         if (!path) {
             return;
         }
-
+        
+        var modalMessage = "";
+        var items = selectedItems.toString();
         var isFolder = assetProxyModel.data(treeView.selection.currentIndex, 0x101);
         var typeString = isFolder ? 'folder' : 'file';
-
+        
+        if (selectedItems > 1) {
+            modalMessage = "You are about to delete " + items + " items \nDo you want to continue?";
+        } else {
+            modalMessage = "You are about to delete the following " + typeString + ":\n" + path + "\nDo you want to continue?";
+        }
+        
         var object = desktop.messageBox({
             icon: hifi.icons.question,
             buttons: OriginalDialogs.StandardButton.Yes + OriginalDialogs.StandardButton.No,
             defaultButton: OriginalDialogs.StandardButton.Yes,
             title: "Delete",
-            text: "You are about to delete the following " + typeString + ":\n" + path + "\nDo you want to continue?"
+            text: modalMessage
         });
         object.selected.connect(function(button) {
             if (button === OriginalDialogs.StandardButton.Yes) {
@@ -445,20 +483,20 @@ ScrollingWindow {
                     color: hifi.buttons.black
                     colorScheme: root.colorScheme
                     width: 120
-
+                    
                     enabled: canAddToWorld(assetProxyModel.data(treeView.selection.currentIndex, 0x100))
-
+                    
                     onClicked: root.addToWorld()
                 }
-
+                
                 HifiControls.Button {
                     text: "Rename"
                     color: hifi.buttons.black
                     colorScheme: root.colorScheme
                     width: 80
-
+                    
                     onClicked: root.renameFile()
-                    enabled: treeView.selection.hasSelection
+                    enabled: canRename()
                 }
 
                 HifiControls.Button {
@@ -514,6 +552,7 @@ ScrollingWindow {
             treeModel: assetProxyModel
             canEdit: true
             colorScheme: root.colorScheme
+            selectionMode: SelectionMode.ExtendedSelection
 
             modifyEl: renameEl
 
@@ -542,7 +581,7 @@ ScrollingWindow {
             Item {
                 height: parent.height
                 width: parent.width
-                HifiControls.Button {
+                HifiControls.QueuedButton {
                     id: uploadButton
                     anchors.right: parent.right
 
@@ -552,22 +591,7 @@ ScrollingWindow {
                     height: 30
                     width: 155
 
-                    onClicked: uploadClickedTimer.running = true
-
-                    // For some reason trigginer an API that enters
-                    // an internal event loop directly from the button clicked
-                    // trigger below causes the appliction to behave oddly.
-                    // Most likely because the button onClicked handling is never
-                    // completed until the function returns.
-                    // FIXME find a better way of handling the input dialogs that
-                    // doesn't trigger this.
-                    Timer {
-                        id: uploadClickedTimer
-                        interval: 5
-                        repeat: false
-                        running: false
-                        onTriggered: uploadClicked();
-                    }
+                    onClickedQueued: uploadClicked()
                 }
 
                 Item {

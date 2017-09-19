@@ -12,7 +12,6 @@ import QtQuick 2.5
 import QtQuick.Controls 1.4
 
 import "../dialogs"
-import "../menus"
 import "../js/Utils.js" as Utils
 
 // This is our primary 'desktop' object to which all VR dialogs and windows are childed.
@@ -42,11 +41,31 @@ FocusScope {
     // when they're opened.
     signal showDesktop();
 
+    // This is for JS/QML communication, which is unused in the Desktop,
+    // but not having this here results in spurious warnings about a
+    // missing signal
+    signal sendToScript(var message);
+
     // Allows QML/JS to find the desktop through the parent chain
     property bool desktopRoot: true
 
     // The VR version of the primary menu
-    property var rootMenu: Menu { objectName: "rootMenu" }
+    property var rootMenu: Menu { 
+        objectName: "rootMenu" 
+
+        // for some reasons it is not possible to use just '({})' here as it gets empty when passed to TableRoot/DesktopRoot
+        property var exclusionGroupsByMenuItem : ListModel {}
+
+        function addExclusionGroup(menuItem, exclusionGroup)
+        {
+            exclusionGroupsByMenuItem.append(
+                {
+                    'menuItem' : menuItem.toString(), 
+                    'exclusionGroup' : exclusionGroup.toString()
+                }
+            );
+        }
+    }
 
     // FIXME: Alpha gradients display as fuschia under QtQuick 2.5 on OSX/AMD
     //        because shaders are 4.2, and do not include #version declarations.
@@ -354,6 +373,14 @@ FocusScope {
         showDesktop();
     }
 
+    function ensureTitleBarVisible(targetWindow) {
+        // Reposition window to ensure that title bar is vertically inside window.
+        if (targetWindow.frame && targetWindow.frame.decoration) {
+            var topMargin = -targetWindow.frame.decoration.anchors.topMargin;  // Frame's topMargin is a negative value.
+            targetWindow.y = Math.max(targetWindow.y, topMargin);
+        }
+    }
+
     function centerOnVisible(item) {
         var targetWindow = d.getDesktopWindow(item);
         if (!targetWindow) {
@@ -376,11 +403,12 @@ FocusScope {
         targetWindow.x = newX;
         targetWindow.y = newY;
 
+        ensureTitleBarVisible(targetWindow);
+
         // If we've noticed that our recommended desktop rect has changed, record that change here.
         if (recommendedRect != newRecommendedRect) {
             recommendedRect = newRecommendedRect;
         }
-
     }
 
     function repositionOnVisible(item) {
@@ -394,7 +422,6 @@ FocusScope {
             console.warn("Controller not yet available... can't reposition targetWindow:" + targetWindow);
             return;
         }
-
 
         var oldRecommendedRect = recommendedRect;
         var oldRecommendedDimmensions = { x: oldRecommendedRect.width, y: oldRecommendedRect.height };
@@ -427,7 +454,6 @@ FocusScope {
             newPosition.y = -1
         }
 
-
         if (newPosition.x === -1 && newPosition.y === -1) {
             var originRelativeX = (targetWindow.x - oldRecommendedRect.x);
             var originRelativeY = (targetWindow.y - oldRecommendedRect.y);
@@ -445,6 +471,8 @@ FocusScope {
         }
         targetWindow.x = newPosition.x;
         targetWindow.y = newPosition.y;
+
+        ensureTitleBarVisible(targetWindow);
     }
 
     Component { id: messageDialogBuilder; MessageDialog { } }
@@ -465,31 +493,11 @@ FocusScope {
     Component { id: fileDialogBuilder; FileDialog { } }
     function fileDialog(properties) {
         return fileDialogBuilder.createObject(desktop, properties);
-    }
+    } 
 
-    MenuMouseHandler { id: menuPopperUpper }
-    function popupMenu(point) {
-        menuPopperUpper.popup(desktop, rootMenu.items, point);
-    }
-
-    function toggleMenu(point) {
-        menuPopperUpper.toggle(desktop, rootMenu.items, point);
-    }
-
-    Keys.onEscapePressed: {
-        if (menuPopperUpper.closeLastMenu()) {
-            event.accepted = true;
-            return;
-        }
-        event.accepted = false;
-    }
-
-    Keys.onLeftPressed: {
-        if (menuPopperUpper.closeLastMenu()) {
-            event.accepted = true;
-            return;
-        }
-        event.accepted = false;
+    Component { id: assetDialogBuilder; AssetDialog { } }
+    function assetDialog(properties) {
+        return assetDialogBuilder.createObject(desktop, properties);
     }
 
     function unfocusWindows() {
@@ -514,6 +522,13 @@ FocusScope {
         // For the desktop to have active focus
         desktop.focus = true;
         desktop.forceActiveFocus();
+    }
+
+    function openBrowserWindow(request, profile) {
+        var component = Qt.createComponent("../Browser.qml");
+        var newWindow = component.createObject(desktop);
+        newWindow.webView.profile = profile;
+        request.openIn(newWindow.webView);
     }
 
     FocusHack { id: focusHack; }

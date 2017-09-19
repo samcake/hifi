@@ -152,9 +152,9 @@ public:
     int numInputLights { 0 };
     int numClusteredLights { 0 };
 
-    void setNumClusteredLightReferences(int numRefs) { numClusteredLightReferences = numRefs; emit dirty(); }
-    void setNumInputLights(int numLights) { numInputLights = numLights; emit dirty(); }
-    void setNumClusteredLights(int numLights) { numClusteredLights = numLights; emit dirty(); }
+    void setNumClusteredLightReferences(int numRefs) { numClusteredLightReferences = numRefs; }
+    void setNumInputLights(int numLights) { numInputLights = numLights; }
+    void setNumClusteredLights(int numLights) { numClusteredLights = numLights; }
 
     int numSceneLights { 0 };
     int numFreeSceneLights { 0 };
@@ -176,7 +176,7 @@ public:
     
     void configure(const Config& config);
     
-    void run(const render::SceneContextPointer& sceneContext, const render::RenderContextPointer& renderContext, const Inputs& inputs, Outputs& output);
+    void run(const render::RenderContextPointer& renderContext, const Inputs& inputs, Outputs& output);
     
 protected:
     LightClustersPointer _lightClusters;
@@ -221,7 +221,7 @@ public:
 
     void configure(const Config& config);
 
-    void run(const render::SceneContextPointer& sceneContext, const render::RenderContextPointer& renderContext, const Inputs& inputs);
+    void run(const render::RenderContextPointer& renderContext, const Inputs& inputs);
 
 protected:
     gpu::BufferPointer _gridBuffer;

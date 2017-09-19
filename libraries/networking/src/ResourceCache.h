@@ -86,7 +86,7 @@ private:
 /// Wrapper to expose resources to JS/QML
 class ScriptableResource : public QObject {
     Q_OBJECT
-    Q_PROPERTY(QUrl url READ getUrl)
+    Q_PROPERTY(QUrl url READ getURL)
     Q_PROPERTY(int state READ getState NOTIFY stateChanged)
 
     /**jsdoc
@@ -125,7 +125,7 @@ public:
      */
     Q_INVOKABLE void release();
 
-    const QUrl& getUrl() const { return _url; }
+    const QUrl& getURL() const { return _url; }
     int getState() const { return (int)_state; }
     const QSharedPointer<Resource>& getResource() const { return _resource; }
 
@@ -249,6 +249,7 @@ public:
     
     void refreshAll();
     void refresh(const QUrl& url);
+    void clearUnusedResources();
 
 signals:
     void dirty();
@@ -294,11 +295,11 @@ protected:
 
     /// Creates a new resource.
     virtual QSharedPointer<Resource> createResource(const QUrl& url, const QSharedPointer<Resource>& fallback,
-        const void* extra) = 0;
-    
+                                                    const void* extra) = 0;
+
     void addUnusedResource(const QSharedPointer<Resource>& resource);
     void removeUnusedResource(const QSharedPointer<Resource>& resource);
-    
+
     /// Attempt to load a resource if requests are below the limit, otherwise queue the resource for loading
     /// \return true if the resource began loading, otherwise false if the resource is in the pending queue
     static bool attemptRequest(QSharedPointer<Resource> resource);
@@ -309,7 +310,6 @@ private:
     friend class Resource;
 
     void reserveUnusedResource(qint64 resourceSize);
-    void clearUnusedResource();
     void resetResourceCounters();
     void removeResource(const QUrl& url, qint64 size = 0);
 
@@ -344,7 +344,7 @@ class Resource : public QObject {
 public:
     
     Resource(const QUrl& url);
-    ~Resource();
+    virtual ~Resource();
 
     virtual QString getType() const { return "Resource"; }
     
@@ -385,7 +385,7 @@ public:
     float getProgress() const { return (_bytesTotal <= 0) ? 0.0f : (float)_bytesReceived / _bytesTotal; }
     
     /// Refreshes the resource.
-    void refresh();
+    virtual void refresh();
 
     void setSelf(const QWeakPointer<Resource>& self) { _self = self; }
 
@@ -394,6 +394,9 @@ public:
     virtual void deleter() { allReferencesCleared(); }
     
     const QUrl& getURL() const { return _url; }
+
+    unsigned int getDownloadAttempts() { return _attempts; }
+    unsigned int getDownloadAttemptsRemaining() { return _attemptsRemaining; }
 
 signals:
     /// Fired when the resource begins downloading.
@@ -422,7 +425,12 @@ protected slots:
     void attemptRequest();
 
 protected:
-    virtual void init();
+    virtual void init(bool resetLoaded = true);
+
+    /// Called by ResourceCache to begin loading this Resource.
+    /// This method can be overriden to provide custom request functionality. If this is done,
+    /// downloadFinished and ResourceCache::requestCompleted must be called.
+    virtual void makeRequest();
 
     /// Checks whether the resource is cacheable.
     virtual bool isCacheable() const { return true; }
@@ -440,16 +448,32 @@ protected:
 
     Q_INVOKABLE void allReferencesCleared();
 
+    /// Return true if the resource will be retried
+    bool handleFailedRequest(ResourceRequest::Result result);
+
     QUrl _url;
     QUrl _activeUrl;
+    ByteRange _requestByteRange;
+
+    // _loaded == true means we are in a loaded and usable state. It is possible that there may still be
+    // active requests/loading while in this state. Example: Progressive KTX downloads, where higher resolution
+    // mips are being download.
     bool _startedLoading = false;
     bool _failedToLoad = false;
     bool _loaded = false;
+
     QHash<QPointer<QObject>, float> _loadPriorities;
     QWeakPointer<Resource> _self;
     QPointer<ResourceCache> _cache;
-    
-private slots:
+
+    qint64 _bytesReceived{ 0 };
+    qint64 _bytesTotal{ 0 };
+    qint64 _bytes{ 0 };
+
+    int _requestID;
+    ResourceRequest* _request{ nullptr };
+
+public slots:
     void handleDownloadProgress(uint64_t bytesReceived, uint64_t bytesTotal);
     void handleReplyFinished();
 
@@ -459,21 +483,17 @@ private:
     
     void setLRUKey(int lruKey) { _lruKey = lruKey; }
     
-    void makeRequest();
     void retry();
     void reinsert();
 
     bool isInScript() const { return _isInScript; }
     void setInScript(bool isInScript) { _isInScript = isInScript; }
     
-    int _requestID;
-    ResourceRequest* _request{ nullptr };
     int _lruKey{ 0 };
     QTimer* _replyTimer{ nullptr };
-    qint64 _bytesReceived{ 0 };
-    qint64 _bytesTotal{ 0 };
-    qint64 _bytes{ 0 };
-    int _attempts{ 0 };
+    unsigned int _attempts{ 0 };
+    static const int MAX_ATTEMPTS = 8;
+    unsigned int _attemptsRemaining { MAX_ATTEMPTS };
     bool _isInScript{ false };
 };
 

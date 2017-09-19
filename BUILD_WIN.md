@@ -1,104 +1,93 @@
-Please read the [general build guide](BUILD.md) for information on dependencies required for all platforms. Only Windows specific instructions are found in this file.
+This is a stand-alone guide for creating your first High Fidelity build for Windows 64-bit.
 
-Interface can be built as 32 or 64 bit.
+## Building High Fidelity
+Note: We are now using Visual Studio 2017 and Qt 5.9.1. If you are upgrading from Visual Studio 2013 and Qt 5.6.2, do a clean uninstall of those versions before going through this guide. 
 
-###Visual Studio 2013
+Note: The prerequisites will require about 10 GB of space on your drive. You will also need a system with at least 8GB of main memory.
 
-You can use the Community or Professional editions of Visual Studio 2013.
+### Step 1. Visual Studio 2017
 
-You can start a Visual Studio 2013 command prompt using the shortcut provided in the Visual Studio Tools folder installed as part of Visual Studio 2013.
+If you don’t have Community or Professional edition of Visual Studio 2017, download [Visual Studio Community 2017](https://www.visualstudio.com/downloads/). 
 
-Or you can start a regular command prompt and then run:
+When selecting components, check "Desktop development with C++." Also check "Windows 8.1 SDK and UCRT SDK" and "VC++ 2015.3 v140 toolset (x86,x64)" on the Summary toolbar on the right.
 
-    "%VS120COMNTOOLS%\vsvars32.bat"
+### Step 2. Installing CMake
 
-####Windows SDK 8.1
+Download and install the latest version of CMake 3.9. Download the file named  win64-x64 Installer from the [CMake Website](https://cmake.org/download/). Make sure to check "Add CMake to system PATH for all users" when prompted during installation.
 
-If using Visual Studio 2013 and building as a Visual Studio 2013 project you need the Windows 8 SDK which you should already have as part of installing Visual Studio 2013. You should be able to see it at `C:\Program Files (x86)\Windows Kits\8.1\Lib\winv6.3\um\x86`.
+### Step 3. Installing Qt
 
-####nmake
+Download and install the [Qt Online Installer](https://www.qt.io/download-open-source/?hsCtaTracking=f977210e-de67-475f-a32b-65cec207fd03%7Cd62710cd-e1db-46aa-8d4d-2f1c1ffdacea). While installing, you only need to have the following components checked under Qt 5.9.1: "msvc2017 64-bit", "Qt WebEngine", and "Qt Script (Deprecated)".
 
-Some of the external projects may require nmake to compile and install. If it is not installed at the location listed below, please ensure that it is in your PATH so CMake can find it when required.
+Note: Installing the Sources is optional but recommended if you have room for them (~2GB). 
 
-We expect nmake.exe to be located at the following path.
+### Step 4. Setting Qt Environment Variable
 
-    C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin
+Go to `Control Panel > System > Advanced System Settings > Environment Variables > New...` (or search “Environment Variables” in Start Search).
+* Set "Variable name": `QT_CMAKE_PREFIX_PATH`
+* Set "Variable value": `C:\Qt\5.9.1\msvc2017_64\lib\cmake` 
 
-###Qt
-You can use the online installer or the offline installer. If you use the offline installer, be sure to select the "OpenGL" version.
+### Step 5. Installing [vcpkg](https://github.com/Microsoft/vcpkg)
 
-* [Download the online installer](http://www.qt.io/download-open-source/#section-2)
-    * When it asks you to select components, ONLY select one of the following, 32- or 64-bit to match your build preference:
-        * Qt > Qt 5.6.1 > **msvc2013 32-bit**
-        * Qt > Qt 5.6.1 > **msvc2013 64-bit**
+ * Clone the VCPKG [repository](https://github.com/Microsoft/vcpkg)
+ * Follow the instructions in the [readme](https://github.com/Microsoft/vcpkg/blob/master/README.md) to bootstrap vcpkg
+   * Note, you may need to do these in a _Developer Command Prompt_
+ * Set an environment variable VCPKG_ROOT to the location of the cloned repository
+   * Close and re-open any command prompts after setting the environment variable so that they will pick up the change
 
-* Download the offline installer, 32- or 64-bit to match your build preference:
-    * [32-bit](http://download.qt.io/official_releases/qt/5.6/5.6.1-1/qt-opensource-windows-x86-msvc2013-5.6.1-1.exe)
-    * [64-bit](http://download.qt.io/official_releases/qt/5.6/5.6.1-1/qt-opensource-windows-x86-msvc2013_64-5.6.1-1.exe)
+### Step 6. Installing OpenSSL via vcpkg
 
-Once Qt is installed, you need to manually configure the following:
-* Set the QT_CMAKE_PREFIX_PATH environment variable to your `Qt\5.6.1\msvc2013\lib\cmake` or `Qt\5.6.1\msvc2013_64\lib\cmake` directory.
-  * You can set an environment variable from Control Panel > System > Advanced System Settings > Environment Variables > New
+ * In the vcpkg directory, install the 64 bit OpenSSL package with the command `vcpkg install openssl:x64-windows`
+ * Once the build completes you should have a file `ssl.h` in `${VCPKG_ROOT}/installed/x64-windows/include/openssl`
+  
+### Step 7. Running CMake to Generate Build Files
 
-###External Libraries
+Run Command Prompt from Start and run the following commands:
+```
+cd "%HIFI_DIR%"
+mkdir build
+cd build
+cmake .. -G "Visual Studio 15 Win64"
+```
+    
+Where `%HIFI_DIR%` is the directory for the highfidelity repository.     
 
-All libraries should be 32- or 64-bit to match your build preference.
+### Step 8. Making a Build
 
-CMake will need to know where the headers and libraries for required external dependencies are.
+Open `%HIFI_DIR%\build\hifi.sln` using Visual Studio.
 
-We use CMake's `fixup_bundle` to find the DLLs all of our executable targets require, and then copy them beside the executable in a post-build step. If `fixup_bundle` is having problems finding a DLL, you can fix it manually on your end by adding the folder containing that DLL to your path. Let us know which DLL CMake had trouble finding, as it is possible a tweak to our CMake files is required.
+Change the Solution Configuration (next to the green play button) from "Debug" to "Release" for best performance.
 
-The recommended route for CMake to find the external dependencies is to place all of the dependencies in one folder and set one ENV variable - HIFI_LIB_DIR. That ENV variable should point to a directory with the following structure:
+Run `Build > Build Solution`.
 
-    root_lib_dir
-        -> openssl
-            -> bin
-            -> include
-            -> lib
+### Step 9. Testing Interface
 
-For many of the external libraries where precompiled binaries are readily available you should be able to simply copy the extracted folder that you get from the download links provided at the top of the guide. Otherwise you may need to build from source and install the built product to this directory. The `root_lib_dir` in the above example can be wherever you choose on your system - as long as the environment variable HIFI_LIB_DIR is set to it. From here on, whenever you see %HIFI_LIB_DIR% you should substitute the directory that you chose.
+Create another environment variable (see Step #4)
+* Set "Variable name": `_NO_DEBUG_HEAP`
+* Set "Variable value": `1`
 
-####OpenSSL
+In Visual Studio, right+click "interface" under the Apps folder in Solution Explorer and select "Set as Startup Project". Run `Debug > Start Debugging`.
 
-Qt will use OpenSSL if it's available, but it doesn't install it, so you must install it separately.
+Now, you should have a full build of High Fidelity and be able to run the Interface using Visual Studio. Please check our [Docs](https://wiki.highfidelity.com/wiki/Main_Page) for more information regarding the programming workflow.
 
-Your system may already have several versions of the OpenSSL DLL's (ssleay32.dll, libeay32.dll) lying around, but they may be the wrong version. If these DLL's are in the PATH then QT will try to use them, and if they're the wrong version then you will see the following errors in the console:
+Note: You can also run Interface by launching it from command line or File Explorer from `%HIFI_DIR%\build\interface\Release\interface.exe`
 
-    QSslSocket: cannot resolve TLSv1_1_client_method
-    QSslSocket: cannot resolve TLSv1_2_client_method
-    QSslSocket: cannot resolve TLSv1_1_server_method
-    QSslSocket: cannot resolve TLSv1_2_server_method
-    QSslSocket: cannot resolve SSL_select_next_proto
-    QSslSocket: cannot resolve SSL_CTX_set_next_proto_select_cb
-    QSslSocket: cannot resolve SSL_get0_next_proto_negotiated
+## Troubleshooting
 
-To prevent these problems, install OpenSSL yourself. Download one of the following binary packages [from this website](http://slproweb.com/products/Win32OpenSSL.html):
-* Win32 OpenSSL v1.0.1q
-* Win64 OpenSSL v1.0.1q
+For any problems after Step #7, first try this: 
+* Delete your locally cloned copy of the highfidelity repository
+* Restart your computer
+* Redownload the [repository](https://github.com/highfidelity/hifi) 
+* Restart directions from Step #7
 
-Install OpenSSL into the Windows system directory, to make sure that Qt uses the version that you've just installed, and not some other version.
+#### CMake gives you the same error message repeatedly after the build fails
 
-###Build High Fidelity using Visual Studio
-Follow the same build steps from the CMake section of [BUILD.md](BUILD.md), but pass a different generator to CMake.
+Remove `CMakeCache.txt` found in the `%HIFI_DIR%\build` directory.
 
-For 32-bit builds:
+#### CMake can't find OpenSSL
 
-    cmake .. -G "Visual Studio 12"
+Remove `CMakeCache.txt` found in the `%HIFI_DIR%\build` directory.  Verify that your VCPKG_ROOT environment variable is set and pointing to the correct location.  Verify that the file `${VCPKG_ROOT}/installed/x64-windows/include/openssl/ssl.h` exists.
 
-For 64-bit builds:
+#### Qt is throwing an error
 
-    cmake .. -G "Visual Studio 12 Win64"
-
-Open %HIFI_DIR%\build\hifi.sln and compile.
-
-###Running Interface
-If you need to debug Interface, you can run interface from within Visual Studio (see the section below). You can also run Interface by launching it from command line or File Explorer from %HIFI_DIR%\build\interface\Debug\interface.exe
-
-###Debugging Interface
-* In the Solution Explorer, right click interface and click Set as StartUp Project
-* Set the "Working Directory" for the Interface debugging sessions to the Debug output directory so that your application can load resources. Do this: right click interface and click Properties, choose Debugging from Configuration Properties, set Working Directory to .\Debug
-* Now you can run and debug interface through Visual Studio
-
-For better performance when running debug builds, set the environment variable ```_NO_DEBUG_HEAP``` to ```1```
-
-http://preshing.com/20110717/the-windows-heap-is-slow-when-launched-from-the-debugger/
+Make sure you have the correct version (5.9.1) installed and `QT_CMAKE_PREFIX_PATH` environment variable is set correctly.

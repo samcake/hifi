@@ -18,7 +18,8 @@
 #include <QUrl>
 #include "PathUtils.h"
 #include <QtCore/QStandardPaths>
-
+#include <mutex> // std::once
+#include "shared/GlobalAppProperties.h"
 
 const QString& PathUtils::resourcesPath() {
 #ifdef Q_OS_MAC
@@ -30,18 +31,27 @@ const QString& PathUtils::resourcesPath() {
     return staticResourcePath;
 }
 
-QString PathUtils::getRootDataDirectory() {
-    auto dataPath = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+QString PathUtils::getAppDataPath() {
+    return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/";
+}
 
-#ifdef Q_OS_WIN
-    dataPath += "/AppData/Roaming/";
-#elif defined(Q_OS_OSX)
-    dataPath += "/Library/Application Support/";
-#else
-    dataPath += "/.local/share/";
-#endif
+QString PathUtils::getAppLocalDataPath() {
+    QString overriddenPath = qApp->property(hifi::properties::APP_LOCAL_DATA_PATH).toString();
+    // return overridden path if set
+    if (!overriddenPath.isEmpty()) {
+        return overriddenPath;
+    }
 
-    return dataPath;
+    // otherwise return standard path
+    return QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/";
+}
+
+QString PathUtils::getAppDataFilePath(const QString& filename) {
+    return QDir(getAppDataPath()).absoluteFilePath(filename);
+}
+
+QString PathUtils::getAppLocalDataFilePath(const QString& filename) {
+    return QDir(getAppLocalDataPath()).absoluteFilePath(filename);
 }
 
 QString fileNameWithoutExtension(const QString& fileName, const QVector<QString> possibleExtensions) {
@@ -69,16 +79,53 @@ QString findMostRecentFileExtension(const QString& originalFileName, QVector<QSt
     return newestFileName;
 }
 
-QUrl defaultScriptsLocation() {
-    // return "http://s3.amazonaws.com/hifi-public";
-#ifdef Q_OS_WIN
-    QString path = QCoreApplication::applicationDirPath() + "/scripts";
-#elif defined(Q_OS_OSX)
-    QString path = QCoreApplication::applicationDirPath() + "/../Resources/scripts";
-#else
-    QString path = QCoreApplication::applicationDirPath() + "/scripts";
-#endif
+QUrl PathUtils::defaultScriptsLocation(const QString& newDefaultPath) {
+    static QString overriddenDefaultScriptsLocation = "";
+    QString path;
 
+    // set overriddenDefaultScriptLocation if it was passed in
+    if (!newDefaultPath.isEmpty()) {
+        overriddenDefaultScriptsLocation = newDefaultPath;
+    }
+
+    // use the overridden location if it is set
+    if (!overriddenDefaultScriptsLocation.isEmpty()) {
+        path = overriddenDefaultScriptsLocation;
+    } else {
+#ifdef Q_OS_WIN
+        path = QCoreApplication::applicationDirPath() + "/scripts";
+#elif defined(Q_OS_OSX)
+        path = QCoreApplication::applicationDirPath() + "/../Resources/scripts";
+#else
+        path = QCoreApplication::applicationDirPath() + "/scripts";
+#endif
+    }
+
+    // turn the string into a legit QUrl
     QFileInfo fileInfo(path);
     return QUrl::fromLocalFile(fileInfo.canonicalFilePath());
+}
+
+QString PathUtils::stripFilename(const QUrl& url) {
+    // Guard against meaningless query and fragment parts.
+    // Do NOT use PreferLocalFile as its behavior is unpredictable (e.g., on defaultScriptsLocation())
+    return url.toString(QUrl::RemoveFilename | QUrl::RemoveQuery | QUrl::RemoveFragment);
+}
+
+Qt::CaseSensitivity PathUtils::getFSCaseSensitivity() {
+    static Qt::CaseSensitivity sensitivity { Qt::CaseSensitive };
+    static std::once_flag once;
+    std::call_once(once, [&] {
+            QString path = defaultScriptsLocation().toLocalFile();
+            QFileInfo upperFI(path.toUpper());
+            QFileInfo lowerFI(path.toLower());
+            sensitivity = (upperFI == lowerFI) ? Qt::CaseInsensitive : Qt::CaseSensitive;
+        });
+    return sensitivity;
+}
+
+bool PathUtils::isDescendantOf(const QUrl& childURL, const QUrl& parentURL) {
+    QString child = stripFilename(childURL);
+    QString parent = stripFilename(parentURL);
+    return child.startsWith(parent, PathUtils::getFSCaseSensitivity());
 }

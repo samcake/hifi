@@ -9,14 +9,19 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 
+#include <QtCore/QEventLoop>
 #include <QTimer>
 #include <EntityTree.h>
 #include <SimpleEntitySimulation.h>
+#include <ResourceCache.h>
+#include <ScriptCache.h>
+#include <EntityEditFilters.h>
 
+#include "AssignmentParentFinder.h"
+#include "EntityNodeData.h"
 #include "EntityServer.h"
 #include "EntityServerConsts.h"
-#include "EntityNodeData.h"
-#include "AssignmentParentFinder.h"
+#include "EntityTreeSendThread.h"
 
 const char* MODEL_SERVER_NAME = "Entity";
 const char* MODEL_SERVER_LOGGING_TARGET_NAME = "entity-server";
@@ -26,8 +31,12 @@ EntityServer::EntityServer(ReceivedMessage& message) :
     OctreeServer(message),
     _entitySimulation(NULL)
 {
+    DependencyManager::set<ResourceManager>();
+    DependencyManager::set<ResourceCacheSharedItems>();
+    DependencyManager::set<ScriptCache>();
+
     auto& packetReceiver = DependencyManager::get<NodeList>()->getPacketReceiver();
-    packetReceiver.registerListenerForTypes({ PacketType::EntityAdd, PacketType::EntityEdit, PacketType::EntityErase },
+    packetReceiver.registerListenerForTypes({ PacketType::EntityAdd, PacketType::EntityEdit, PacketType::EntityErase, PacketType::EntityPhysics },
                                             this, "handleEntityPacket");
 }
 
@@ -39,6 +48,12 @@ EntityServer::~EntityServer() {
 
     EntityTreePointer tree = std::static_pointer_cast<EntityTree>(_tree);
     tree->removeNewlyCreatedHook(this);
+}
+
+void EntityServer::aboutToFinish() {
+    DependencyManager::get<ResourceManager>()->cleanup();
+
+    OctreeServer::aboutToFinish();
 }
 
 void EntityServer::handleEntityPacket(QSharedPointer<ReceivedMessage> message, SharedNodePointer senderNode) {
@@ -64,8 +79,13 @@ OctreePointer EntityServer::createTree() {
 
     DependencyManager::registerInheritance<SpatialParentFinder, AssignmentParentFinder>();
     DependencyManager::set<AssignmentParentFinder>(tree);
+    DependencyManager::set<EntityEditFilters>(std::static_pointer_cast<EntityTree>(tree));
 
     return tree;
+}
+
+OctreeServer::UniqueSendThread EntityServer::newSendThread(const SharedNodePointer& node) {
+    return std::unique_ptr<EntityTreeSendThread>(new EntityTreeSendThread(this, node));
 }
 
 void EntityServer::beforeRun() {
@@ -284,6 +304,26 @@ void EntityServer::readAdditionalConfiguration(const QJsonObject& settingsSectio
         tree->setEntityScriptSourceWhitelist(entityScriptSourceWhitelist);
     } else {
         tree->setEntityScriptSourceWhitelist("");
+    }
+    
+    auto entityEditFilters = DependencyManager::get<EntityEditFilters>();
+    
+    QString filterURL;
+    if (readOptionString("entityEditFilter", settingsSectionObject, filterURL) && !filterURL.isEmpty()) {
+        // connect the filterAdded signal, and block edits until you hear back
+        connect(entityEditFilters.data(), &EntityEditFilters::filterAdded, this, &EntityServer::entityFilterAdded);
+        
+        entityEditFilters->addFilter(EntityItemID(), filterURL);
+    }
+}
+
+void EntityServer::entityFilterAdded(EntityItemID id, bool success) {
+    if (id.isInvalidID()) {
+        if (success) {
+            qDebug() << "entity edit filter for " << id << "added successfully";
+        } else {
+            qDebug() << "entity edit filter unsuccessfully added, all edits will be rejected for those without lock rights.";
+        }
     }
 }
 

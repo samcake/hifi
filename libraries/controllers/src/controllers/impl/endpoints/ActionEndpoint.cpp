@@ -11,24 +11,36 @@
 #include <DependencyManager.h>
 
 #include "../../UserInputMapper.h"
+#include "../../InputRecorder.h"
 
 using namespace controller;
 
 void ActionEndpoint::apply(float newValue, const Pointer& source) {
+    InputRecorder* inputRecorder = InputRecorder::getInstance();
+    auto userInputMapper = DependencyManager::get<UserInputMapper>();
+    QString actionName = userInputMapper->getActionName(Action(_input.getChannel()));
+    if(inputRecorder->isPlayingback()) {
+        newValue = inputRecorder->getActionState(actionName);
+    }
+    
     _currentValue += newValue;
     if (_input != Input::INVALID_INPUT) {
-        auto userInputMapper = DependencyManager::get<UserInputMapper>();
         userInputMapper->deltaActionState(Action(_input.getChannel()), newValue);
     }
+    inputRecorder->setActionState(actionName, newValue);
 }
 
 void ActionEndpoint::apply(const Pose& value, const Pointer& source) {
     _currentPose = value;
+    InputRecorder* inputRecorder = InputRecorder::getInstance();
+    auto userInputMapper = DependencyManager::get<UserInputMapper>();
+    QString actionName = userInputMapper->getActionName(Action(_input.getChannel()));
+    inputRecorder->setActionState(actionName, _currentPose);
+    
     if (!_currentPose.isValid()) {
         return;
     }
     if (_input != Input::INVALID_INPUT) {
-        auto userInputMapper = DependencyManager::get<UserInputMapper>();
         userInputMapper->setActionState(Action(_input.getChannel()), _currentPose);
     }
 }

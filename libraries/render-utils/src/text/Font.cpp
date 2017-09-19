@@ -14,6 +14,8 @@
 #include "../RenderUtilsLogging.h"
 #include "FontFamilies.h"
 
+static std::mutex fontMutex;
+
 struct TextureVertex {
     glm::vec2 pos;
     glm::vec2 tex;
@@ -56,6 +58,7 @@ Font::Pointer Font::load(QIODevice& fontFile) {
 }
 
 Font::Pointer Font::load(const QString& family) {
+    std::lock_guard<std::mutex> lock(fontMutex);
     if (!LOADED_FONTS.contains(family)) {
 
         static const QString SDFF_COURIER_PRIME_FILENAME{ ":/CourierPrime.sdff" };
@@ -207,9 +210,10 @@ void Font::read(QIODevice& in) {
         formatGPU = gpu::Element(gpu::VEC4, gpu::NUINT8, gpu::RGBA);
         formatMip = gpu::Element(gpu::VEC4, gpu::NUINT8, gpu::BGRA);
     }
-    _texture = gpu::TexturePointer(gpu::Texture::create2D(formatGPU, image.width(), image.height(),
-                                   gpu::Sampler(gpu::Sampler::FILTER_MIN_POINT_MAG_LINEAR)));
-    _texture->assignStoredMip(0, formatMip, image.byteCount(), image.constBits());
+    _texture = gpu::Texture::create2D(formatGPU, image.width(), image.height(), gpu::Texture::SINGLE_MIP,
+                                      gpu::Sampler(gpu::Sampler::FILTER_MIN_POINT_MAG_LINEAR));
+    _texture->setStoredMipFormat(formatMip);
+    _texture->assignStoredMip(0, image.byteCount(), image.constBits());
 }
 
 void Font::setupGPU() {

@@ -14,8 +14,7 @@
 #include <gpu/Context.h>
 #include <gpu/StandardShaderLib.h>
 
-#include <RenderArgs.h>
-
+#include "StencilMaskPass.h"
 #include "FramebufferCache.h"
 
 #include "toneMapping_frag.h"
@@ -88,7 +87,7 @@ void ToneMappingDeferred::configure(const Config& config) {
      _toneMappingEffect.setToneCurve((ToneMappingEffect::ToneCurve)config.curve);
 }
 
-void ToneMappingDeferred::run(const render::SceneContextPointer& sceneContext, const render::RenderContextPointer& renderContext, const Inputs& inputs) {
+void ToneMappingDeferred::run(const render::RenderContextPointer& renderContext, const Inputs& inputs) {
 
     auto lightingBuffer = inputs.get0()->getRenderBuffer(0);
     auto destFbo = inputs.get1();

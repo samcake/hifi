@@ -21,9 +21,9 @@
 #include <QtWidgets/QMessageBox>
 #include <QtWidgets/QInputDialog>
 
-#include <gl/OffscreenQmlSurface.h>
 #include <DependencyManager.h>
 
+#include "ui/OffscreenQmlSurface.h"
 #include "OffscreenQmlElement.h"
 
 class VrMenu;
@@ -36,21 +36,21 @@ class OffscreenUi : public OffscreenQmlSurface, public Dependency {
     friend class VrMenu;
 public:
     OffscreenUi();
-    virtual void create(QOpenGLContext* context) override;
+    virtual void create() override;
     void createDesktop(const QUrl& url);
     void show(const QUrl& url, const QString& name, std::function<void(QQmlContext*, QObject*)> f = [](QQmlContext*, QObject*) {});
     void hide(const QString& name);
+    bool isVisible(const QString& name);
     void toggle(const QUrl& url, const QString& name, std::function<void(QQmlContext*, QObject*)> f = [](QQmlContext*, QObject*) {});
     bool shouldSwallowShortcut(QEvent* event);
     bool navigationFocused();
     void setNavigationFocused(bool focused);
     void unfocusWindows();
-    void toggleMenu(const QPoint& screenCoordinates);
 
 
     // Setting pinned to true will hide all overlay elements on the desktop that don't have a pinned flag
     void setPinned(bool pinned = true);
-
+    
     void togglePinned();
     void setConstrainToolbarToCenterX(bool constrained);
 
@@ -59,7 +59,7 @@ public:
     QObject* getFlags();
     QQuickItem* getDesktop();
     QQuickItem* getToolWindow();
-
+    QObject* getRootMenu();
     enum Icon {
         ICON_NONE = 0,
         ICON_QUESTION,
@@ -118,12 +118,16 @@ public:
     Q_INVOKABLE QString fileSaveDialog(const QString &caption = QString(), const QString &dir = QString(), const QString &filter = QString(), QString *selectedFilter = 0, QFileDialog::Options options = 0);
     Q_INVOKABLE QString existingDirectoryDialog(const QString &caption = QString(), const QString &dir = QString(), const QString &filter = QString(), QString *selectedFilter = 0, QFileDialog::Options options = 0);
 
+    Q_INVOKABLE QString assetOpenDialog(const QString &caption = QString(), const QString &dir = QString(), const QString &filter = QString(), QString *selectedFilter = 0, QFileDialog::Options options = 0);
+
     // Compatibility with QFileDialog::getOpenFileName
     static QString getOpenFileName(void* ignored, const QString &caption = QString(), const QString &dir = QString(), const QString &filter = QString(), QString *selectedFilter = 0, QFileDialog::Options options = 0);
     // Compatibility with QFileDialog::getSaveFileName
     static QString getSaveFileName(void* ignored, const QString &caption = QString(), const QString &dir = QString(), const QString &filter = QString(), QString *selectedFilter = 0, QFileDialog::Options options = 0);
     // Compatibility with QFileDialog::getExistingDirectory
     static QString getExistingDirectory(void* ignored, const QString &caption = QString(), const QString &dir = QString(), const QString &filter = QString(), QString *selectedFilter = 0, QFileDialog::Options options = 0);
+
+    static QString getOpenAssetName(void* ignored, const QString &caption = QString(), const QString &dir = QString(), const QString &filter = QString(), QString *selectedFilter = 0, QFileDialog::Options options = 0);
 
     Q_INVOKABLE QVariant inputDialog(const Icon icon, const QString& title, const QString& label = QString(), const QVariant& current = QVariant());
     Q_INVOKABLE QVariant customInputDialog(const Icon icon, const QString& title, const QVariantMap& config);
@@ -155,6 +159,7 @@ signals:
 
 private:
     QString fileDialog(const QVariantMap& properties);
+    QString assetDialog(const QVariantMap& properties);
 
     QQuickItem* _desktop { nullptr };
     QQuickItem* _toolWindow { nullptr };

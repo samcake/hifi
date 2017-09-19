@@ -9,10 +9,21 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 
+#include <QDebug>
 #include <QThread>
+#include <glm/gtx/transform.hpp>
 
+#include <shared/QtHelpers.h>
 #include <GLMHelpers.h>
+#include <AnimUtil.h>
 #include "ScriptableAvatar.h"
+
+
+QByteArray ScriptableAvatar::toByteArrayStateful(AvatarDataDetail dataDetail, bool dropFaceTracking) {
+    _globalPosition = getPosition();
+    return AvatarData::toByteArrayStateful(dataDetail);
+}
+
 
 // hold and priority unused but kept so that client side JS can run.
 void ScriptableAvatar::startAnimation(const QString& url, float fps, float priority,
@@ -24,7 +35,7 @@ void ScriptableAvatar::startAnimation(const QString& url, float fps, float prior
         return;
     }
     _animation = DependencyManager::get<AnimationCache>()->getAnimation(url);
-    _animationDetails = AnimationDetails("", QUrl(url), fps, 0, loop, hold, false, firstFrame, lastFrame, true, firstFrame);
+    _animationDetails = AnimationDetails("", QUrl(url), fps, 0, loop, hold, false, firstFrame, lastFrame, true, firstFrame, false);
     _maskedJoints = maskedJoints;
 }
 
@@ -39,7 +50,7 @@ void ScriptableAvatar::stopAnimation() {
 AnimationDetails ScriptableAvatar::getAnimationDetails() {
     if (QThread::currentThread() != thread()) {
         AnimationDetails result;
-        QMetaObject::invokeMethod(this, "getAnimationDetails", Qt::BlockingQueuedConnection,
+        BLOCKING_INVOKE_METHOD(this, "getAnimationDetails", 
                                   Q_RETURN_ARG(AnimationDetails, result));
         return result;
     }
@@ -51,6 +62,14 @@ void ScriptableAvatar::setSkeletonModelURL(const QUrl& skeletonModelURL) {
     _animSkeleton.reset();
     AvatarData::setSkeletonModelURL(skeletonModelURL);
 }
+
+static AnimPose composeAnimPose(const FBXJoint& fbxJoint, const glm::quat rotation, const glm::vec3 translation) {
+    glm::mat4 translationMat = glm::translate(translation);
+    glm::mat4 rotationMat = glm::mat4_cast(fbxJoint.preRotation * rotation * fbxJoint.postRotation);
+    glm::mat4 finalMat = translationMat * fbxJoint.preTransform * rotationMat * fbxJoint.postTransform;
+    return AnimPose(finalMat);
+}
+
 void ScriptableAvatar::update(float deltatime) {
     if (_bind.isNull() && !_skeletonFBXURL.isEmpty()) { // AvatarData will parse the .fst, but not get the .fbx skeleton.
         _bind = DependencyManager::get<AnimationCache>()->getAnimation(_skeletonFBXURL);
@@ -75,31 +94,41 @@ void ScriptableAvatar::update(float deltatime) {
             if (_jointData.size() != nJoints) {
                 _jointData.resize(nJoints);
             }
-            
+
             const int frameCount = _animation->getFrames().size();
             const FBXAnimationFrame& floorFrame = _animation->getFrames().at((int)glm::floor(currentFrame) % frameCount);
             const FBXAnimationFrame& ceilFrame = _animation->getFrames().at((int)glm::ceil(currentFrame) % frameCount);
             const float frameFraction = glm::fract(currentFrame);
             std::vector<AnimPose> poses = _animSkeleton->getRelativeDefaultPoses();
-            
+
+            const float UNIT_SCALE = 0.01f;
+
             for (int i = 0; i < animationJointNames.size(); i++) {
                 const QString& name = animationJointNames[i];
                 // As long as we need the model preRotations anyway, let's get the jointIndex from the bind skeleton rather than
                 // trusting the .fst (which is sometimes not updated to match changes to .fbx).
                 int mapping = _bind->getGeometry().getJointIndex(name);
                 if (mapping != -1 && !_maskedJoints.contains(name)) {
-                    // Eventually, this should probably deal with post rotations and translations, too.
-                    poses[mapping].rot() = modelJoints[mapping].preRotation *
-                        safeMix(floorFrame.rotations.at(i), ceilFrame.rotations.at(i), frameFraction);;
+
+                    AnimPose floorPose = composeAnimPose(modelJoints[mapping], floorFrame.rotations[i], floorFrame.translations[i] * UNIT_SCALE);
+                    AnimPose ceilPose = composeAnimPose(modelJoints[mapping], ceilFrame.rotations[i], floorFrame.translations[i] * UNIT_SCALE);
+                    blend(1, &floorPose, &ceilPose, frameFraction, &poses[mapping]);
                  }
             }
-            _animSkeleton->convertRelativePosesToAbsolute(poses);
+
+            std::vector<AnimPose> absPoses = poses;
+            _animSkeleton->convertRelativePosesToAbsolute(absPoses);
             for (int i = 0; i < nJoints; i++) {
                 JointData& data = _jointData[i];
-                AnimPose& pose = poses[i];
-                if (data.rotation != pose.rot()) {
-                    data.rotation = pose.rot();
+                AnimPose& absPose = absPoses[i];
+                if (data.rotation != absPose.rot()) {
+                    data.rotation = absPose.rot();
                     data.rotationSet = true;
+                }
+                AnimPose& relPose = poses[i];
+                if (data.translation != relPose.trans()) {
+                    data.translation = relPose.trans();
+                    data.translationSet = true;
                 }
             }
 

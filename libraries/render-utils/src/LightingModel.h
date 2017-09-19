@@ -12,10 +12,10 @@
 #ifndef hifi_LightingModel_h
 #define hifi_LightingModel_h
 
-#include "gpu/Resource.h"
-#include "render/DrawTask.h"
+#include <gpu/Resource.h>
 
-class RenderArgs;
+#include <render/Forward.h>
+#include <render/DrawTask.h>
 
 // LightingModel is  a helper class gathering in one place the flags to enable the lighting contributions
 class LightingModel {
@@ -49,6 +49,8 @@ public:
     void setAlbedo(bool enable);
     bool isAlbedoEnabled() const;
 
+    void setMaterialTexturing(bool enable);
+    bool isMaterialTexturingEnabled() const;
 
     void setAmbientLight(bool enable);
     bool isAmbientLightEnabled() const;
@@ -61,6 +63,9 @@ public:
 
     void setShowLightContour(bool enable);
     bool isShowLightContourEnabled() const;
+
+    void setWireframe(bool enable);
+    bool isWireframeEnabled() const;
 
     UniformBufferView getParametersBuffer() const { return _parametersBuffer; }
 
@@ -87,10 +92,12 @@ protected:
         float enablePointLight{ 1.0f };
         float enableSpotLight{ 1.0f };
 
-        float showLightContour{ 0.0f }; // false by default
+        float showLightContour { 0.0f }; // false by default
+
         float enableObscurance{ 1.0f };
 
-        glm::vec2 spares{ 0.0f };
+        float enableMaterialTexturing { 1.0f };
+        float enableWireframe { 0.0f }; // false by default
 
         Parameters() {}
     };
@@ -117,11 +124,14 @@ class MakeLightingModelConfig : public render::Job::Config {
     Q_PROPERTY(bool enableSpecular MEMBER enableSpecular NOTIFY dirty)
     Q_PROPERTY(bool enableAlbedo MEMBER enableAlbedo NOTIFY dirty)
 
+    Q_PROPERTY(bool enableMaterialTexturing MEMBER enableMaterialTexturing NOTIFY dirty)
+
     Q_PROPERTY(bool enableAmbientLight MEMBER enableAmbientLight NOTIFY dirty)
     Q_PROPERTY(bool enableDirectionalLight MEMBER enableDirectionalLight NOTIFY dirty)
     Q_PROPERTY(bool enablePointLight MEMBER enablePointLight NOTIFY dirty)
     Q_PROPERTY(bool enableSpotLight MEMBER enableSpotLight NOTIFY dirty)
 
+    Q_PROPERTY(bool enableWireframe MEMBER enableWireframe NOTIFY dirty)
     Q_PROPERTY(bool showLightContour MEMBER showLightContour NOTIFY dirty)
 
 public:
@@ -136,7 +146,9 @@ public:
     bool enableScattering{ true };
     bool enableDiffuse{ true };
     bool enableSpecular{ true };
+
     bool enableAlbedo{ true };
+    bool enableMaterialTexturing { true };
 
     bool enableAmbientLight{ true };
     bool enableDirectionalLight{ true };
@@ -144,6 +156,8 @@ public:
     bool enableSpotLight{ true };
 
     bool showLightContour { false }; // false by default
+
+    bool enableWireframe { false }; // false by default
 
 signals:
     void dirty();
@@ -157,7 +171,7 @@ public:
     MakeLightingModel();
 
     void configure(const Config& config);
-    void run(const render::SceneContextPointer& sceneContext, const render::RenderContextPointer& renderContext, LightingModelPointer& lightingModel);
+    void run(const render::RenderContextPointer& renderContext, LightingModelPointer& lightingModel);
 
 private:
     LightingModelPointer _lightingModel;

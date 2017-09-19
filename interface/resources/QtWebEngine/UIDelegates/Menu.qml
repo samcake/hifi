@@ -1,7 +1,6 @@
 import QtQuick 2.5
 import QtQuick.Controls 1.4 as Controls
 
-import "../../qml/menus"
 import "../../qml/controls-uit"
 import "../../qml/styles-uit"
 
@@ -33,6 +32,7 @@ Item {
         propagateComposedEvents: true
         acceptedButtons: "AllButtons"
         onClicked: {
+            menu.visible = false;
             menu.done();
             mouse.accepted = false;
         }

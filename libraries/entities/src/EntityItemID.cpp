@@ -9,6 +9,7 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 
+#include "EntityItemID.h"
 #include <QtCore/QObject>
 #include <QDebug>
 
@@ -17,8 +18,8 @@
 #include <UUID.h>
 
 #include "RegisteredMetaTypes.h"
-#include "EntityItemID.h"
 
+int entityItemIDTypeID = qRegisterMetaType<EntityItemID>();
 
 EntityItemID::EntityItemID() : QUuid()
 {

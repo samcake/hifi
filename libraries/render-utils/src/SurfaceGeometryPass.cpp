@@ -14,7 +14,7 @@
 
 #include <gpu/Context.h>
 #include <gpu/StandardShaderLib.h>
-
+#include "StencilMaskPass.h"
 
 const int DepthLinearPass_FrameTransformSlot = 0;
 const int DepthLinearPass_DepthMapSlot = 0;
@@ -72,19 +72,19 @@ void LinearDepthFramebuffer::allocate() {
     auto height = _frameSize.y;
 
     // For Linear Depth:
-    _linearDepthTexture = gpu::TexturePointer(gpu::Texture::create2D(gpu::Element(gpu::SCALAR, gpu::FLOAT, gpu::RGB), width, height,
-        gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_LINEAR_MIP_POINT)));
+    _linearDepthTexture = gpu::Texture::createRenderBuffer(gpu::Element(gpu::SCALAR, gpu::FLOAT, gpu::RED), width, height, gpu::Texture::SINGLE_MIP, 
+        gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_LINEAR_MIP_POINT));
     _linearDepthFramebuffer = gpu::FramebufferPointer(gpu::Framebuffer::create("linearDepth"));
     _linearDepthFramebuffer->setRenderBuffer(0, _linearDepthTexture);
     _linearDepthFramebuffer->setDepthStencilBuffer(_primaryDepthTexture, _primaryDepthTexture->getTexelFormat());
 
     // For Downsampling:
-    _halfLinearDepthTexture = gpu::TexturePointer(gpu::Texture::create2D(gpu::Element(gpu::SCALAR, gpu::FLOAT, gpu::RGB), _halfFrameSize.x, _halfFrameSize.y,
-        gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_LINEAR_MIP_POINT)));
-    _halfLinearDepthTexture->autoGenerateMips(5);
+    const uint16_t HALF_LINEAR_DEPTH_MAX_MIP_LEVEL = 5;
+    _halfLinearDepthTexture = gpu::Texture::createRenderBuffer(gpu::Element(gpu::SCALAR, gpu::FLOAT, gpu::RED), _halfFrameSize.x, _halfFrameSize.y, HALF_LINEAR_DEPTH_MAX_MIP_LEVEL,
+        gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_LINEAR_MIP_POINT));
 
-    _halfNormalTexture = gpu::TexturePointer(gpu::Texture::create2D(gpu::Element(gpu::VEC3, gpu::NUINT8, gpu::RGB), _halfFrameSize.x, _halfFrameSize.y,
-        gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_LINEAR_MIP_POINT)));
+    _halfNormalTexture = gpu::Texture::createRenderBuffer(gpu::Element::COLOR_RGBA_32, _halfFrameSize.x, _halfFrameSize.y, gpu::Texture::SINGLE_MIP,
+        gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_LINEAR_MIP_POINT));
 
     _downsampleFramebuffer = gpu::FramebufferPointer(gpu::Framebuffer::create("halfLinearDepth"));
     _downsampleFramebuffer->setRenderBuffer(0, _halfLinearDepthTexture);
@@ -133,7 +133,7 @@ LinearDepthPass::LinearDepthPass() {
 void LinearDepthPass::configure(const Config& config) {
 }
 
-void LinearDepthPass::run(const render::SceneContextPointer& sceneContext, const render::RenderContextPointer& renderContext, const Inputs& inputs, Outputs& outputs) {
+void LinearDepthPass::run(const render::RenderContextPointer& renderContext, const Inputs& inputs, Outputs& outputs) {
     assert(renderContext->args);
     assert(renderContext->args->hasViewFrustum());
 
@@ -224,7 +224,7 @@ const gpu::PipelinePointer& LinearDepthPass::getLinearDepthPipeline() {
         gpu::StatePointer state = gpu::StatePointer(new gpu::State());
 
         // Stencil test the curvature pass for objects pixels only, not the background
-        state->setStencilTest(true, 0xFF, gpu::State::StencilTest(0, 0xFF, gpu::NOT_EQUAL, gpu::State::STENCIL_OP_KEEP, gpu::State::STENCIL_OP_KEEP, gpu::State::STENCIL_OP_KEEP));
+        PrepareStencil::testShape(*state);
 
         state->setColorWriteMask(true, false, false, false);
 
@@ -250,6 +250,7 @@ const gpu::PipelinePointer& LinearDepthPass::getDownsamplePipeline() {
 
 
         gpu::StatePointer state = gpu::StatePointer(new gpu::State());
+        PrepareStencil::testShape(*state);
 
         state->setColorWriteMask(true, true, true, false);
 
@@ -304,15 +305,15 @@ void SurfaceGeometryFramebuffer::allocate() {
     auto width = _frameSize.x;
     auto height = _frameSize.y;
 
-    _curvatureTexture = gpu::TexturePointer(gpu::Texture::create2D(gpu::Element::COLOR_RGBA_32, width, height, gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_LINEAR_MIP_POINT)));
+    _curvatureTexture = gpu::Texture::createRenderBuffer(gpu::Element::COLOR_RGBA_32, width, height, gpu::Texture::SINGLE_MIP, gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_LINEAR_MIP_POINT));
     _curvatureFramebuffer = gpu::FramebufferPointer(gpu::Framebuffer::create("surfaceGeometry::curvature"));
     _curvatureFramebuffer->setRenderBuffer(0, _curvatureTexture);
 
-    _lowCurvatureTexture = gpu::TexturePointer(gpu::Texture::create2D(gpu::Element::COLOR_RGBA_32, width, height, gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_LINEAR_MIP_POINT)));
+    _lowCurvatureTexture = gpu::Texture::createRenderBuffer(gpu::Element::COLOR_RGBA_32, width, height, gpu::Texture::SINGLE_MIP, gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_LINEAR_MIP_POINT));
     _lowCurvatureFramebuffer = gpu::FramebufferPointer(gpu::Framebuffer::create("surfaceGeometry::lowCurvature"));
     _lowCurvatureFramebuffer->setRenderBuffer(0, _lowCurvatureTexture);
 
-    _blurringTexture = gpu::TexturePointer(gpu::Texture::create2D(gpu::Element::COLOR_RGBA_32, width, height, gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_LINEAR_MIP_POINT)));
+    _blurringTexture = gpu::Texture::createRenderBuffer(gpu::Element::COLOR_RGBA_32, width, height, gpu::Texture::SINGLE_MIP, gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_LINEAR_MIP_POINT));
     _blurringFramebuffer = gpu::FramebufferPointer(gpu::Framebuffer::create("surfaceGeometry::blurring"));
     _blurringFramebuffer->setRenderBuffer(0, _blurringTexture);
 }
@@ -404,7 +405,7 @@ void SurfaceGeometryPass::configure(const Config& config) {
 }
 
 
-void SurfaceGeometryPass::run(const render::SceneContextPointer& sceneContext, const render::RenderContextPointer& renderContext, const Inputs& inputs, Outputs& outputs) {
+void SurfaceGeometryPass::run(const render::RenderContextPointer& renderContext, const Inputs& inputs, Outputs& outputs) {
     assert(renderContext->args);
     assert(renderContext->args->hasViewFrustum());
 
@@ -458,7 +459,7 @@ void SurfaceGeometryPass::run(const render::SceneContextPointer& sceneContext, c
     auto diffuseVPipeline = _diffusePass.getBlurVPipeline();
     auto diffuseHPipeline = _diffusePass.getBlurHPipeline();
 
-    _diffusePass.getParameters()->setWidthHeight(curvatureViewport.z, curvatureViewport.w, args->_context->isStereo());
+    _diffusePass.getParameters()->setWidthHeight(curvatureViewport.z, curvatureViewport.w, args->isStereo());
     glm::ivec2 textureSize(curvatureTexture->getDimensions());
     _diffusePass.getParameters()->setTexcoordTransform(gpu::Framebuffer::evalSubregionTexcoordTransformCoefficients(textureSize, curvatureViewport));
     _diffusePass.getParameters()->setDepthPerspective(args->getViewFrustum().getProjection()[1][1]);
@@ -554,7 +555,7 @@ const gpu::PipelinePointer& SurfaceGeometryPass::getCurvaturePipeline() {
 
 #ifdef USE_STENCIL_TEST
         // Stencil test the curvature pass for objects pixels only, not the background
-        state->setStencilTest(true, 0xFF, gpu::State::StencilTest(0, 0xFF, gpu::NOT_EQUAL, gpu::State::STENCIL_OP_KEEP, gpu::State::STENCIL_OP_KEEP, gpu::State::STENCIL_OP_KEEP));
+        PrepareStencil::testShape(*state);
 #endif
         // Good to go add the brand new pipeline
         _curvaturePipeline = gpu::Pipeline::create(program, state);

@@ -19,7 +19,6 @@
 #include <ViewFrustum.h>
 
 #include "GeometryCache.h"
-#include "FramebufferCache.h"
 #include "TextureCache.h"
 #include "DeferredLightingEffect.h"
 
@@ -76,6 +75,7 @@ static const std::string DEFAULT_ROUGHNESS_SHADER {
     "vec4 getFragmentColor() {"
     "    DeferredFragment frag = unpackDeferredFragmentNoPosition(uv);"
     "    return vec4(vec3(pow(frag.roughness, 1.0 / 2.2)), 1.0);"
+   // "    return vec4(vec3(pow(colorRamp(frag.roughness), vec3(1.0 / 2.2))), 1.0);"
     " }"
 };
 static const std::string DEFAULT_NORMAL_SHADER {
@@ -87,8 +87,9 @@ static const std::string DEFAULT_NORMAL_SHADER {
 
 static const std::string DEFAULT_OCCLUSION_SHADER{
     "vec4 getFragmentColor() {"
-    "    DeferredFragment frag = unpackDeferredFragmentNoPosition(uv);"
-    "    return vec4(vec3(pow(frag.obscurance, 1.0 / 2.2)), 1.0);"
+ //   "    DeferredFragment frag = unpackDeferredFragmentNoPosition(uv);"
+ //   "    return vec4(vec3(pow(frag.obscurance, 1.0 / 2.2)), 1.0);"
+    "    return vec4(vec3(pow(texture(specularMap, uv).a, 1.0 / 2.2)), 1.0);"
     " }"
 };
 
@@ -193,6 +194,18 @@ static const std::string DEFAULT_DIFFUSED_NORMAL_CURVATURE_SHADER{
     " }"
 };
 
+static const std::string DEFAULT_CURVATURE_OCCLUSION_SHADER{
+    "vec4 getFragmentColor() {"
+    "    vec4 midNormalCurvature;"
+    "    vec4 lowNormalCurvature;"
+    "    unpackMidLowNormalCurvature(uv, midNormalCurvature, lowNormalCurvature);"
+    "    float ambientOcclusion = curvatureAO(lowNormalCurvature.a * 20.0f) * 0.5f;"
+    "    float ambientOcclusionHF = curvatureAO(midNormalCurvature.a * 8.0f) * 0.5f;"
+    "    ambientOcclusion = min(ambientOcclusion, ambientOcclusionHF);"
+    "    return vec4(vec3(ambientOcclusion), 1.0);"
+    " }"
+};
+
 static const std::string DEFAULT_DEBUG_SCATTERING_SHADER{
     "vec4 getFragmentColor() {"
     "    return vec4(pow(vec3(texture(scatteringMap, uv).xyz), vec3(1.0 / 2.2)), 1.0);"
@@ -202,7 +215,7 @@ static const std::string DEFAULT_DEBUG_SCATTERING_SHADER{
 
 static const std::string DEFAULT_AMBIENT_OCCLUSION_SHADER{
     "vec4 getFragmentColor() {"
-    "    return vec4(vec3(texture(obscuranceMap, uv).xyz), 1.0);"
+    "    return vec4(vec3(texture(obscuranceMap, uv).x), 1.0);"
     // When drawing color "    return vec4(vec3(texture(occlusionMap, uv).xyz), 1.0);"
     // when drawing normal"    return vec4(normalize(texture(occlusionMap, uv).xyz * 2.0 - vec3(1.0)), 1.0);"
     " }"
@@ -287,6 +300,8 @@ std::string DebugDeferredBuffer::getShaderSourceCode(Mode mode, std::string cust
             return DEFAULT_DIFFUSED_CURVATURE_SHADER;
         case DiffusedNormalCurvatureMode:
             return DEFAULT_DIFFUSED_NORMAL_CURVATURE_SHADER;
+        case CurvatureOcclusionMode:
+            return DEFAULT_CURVATURE_OCCLUSION_SHADER;
         case ScatteringDebugMode:
             return DEFAULT_DEBUG_SCATTERING_SHADER;
         case AmbientOcclusionMode:
@@ -375,7 +390,7 @@ void DebugDeferredBuffer::configure(const Config& config) {
     _size = config.size;
 }
 
-void DebugDeferredBuffer::run(const SceneContextPointer& sceneContext, const RenderContextPointer& renderContext, const Inputs& inputs) {
+void DebugDeferredBuffer::run(const RenderContextPointer& renderContext, const Inputs& inputs) {
     if (_mode == Off) {
         return;
     }
@@ -394,7 +409,6 @@ void DebugDeferredBuffer::run(const SceneContextPointer& sceneContext, const Ren
         batch.setViewportTransform(args->_viewport);
 
         const auto geometryBuffer = DependencyManager::get<GeometryCache>();
-        const auto framebufferCache = DependencyManager::get<FramebufferCache>();
         const auto textureCache = DependencyManager::get<TextureCache>();
 
         glm::mat4 projMat;
@@ -418,9 +432,10 @@ void DebugDeferredBuffer::run(const SceneContextPointer& sceneContext, const Ren
             batch.setResourceTexture(Lighting, deferredFramebuffer->getLightingTexture());
         }
 
-        auto deferredLightingEffect = DependencyManager::get<DeferredLightingEffect>();
-        assert(deferredLightingEffect->getLightStage()->getNumLights() > 0);
-        auto lightAndShadow = deferredLightingEffect->getLightStage()->getLightAndShadow(0);
+        auto lightStage = renderContext->_scene->getStage<LightStage>();
+        assert(lightStage);
+        assert(lightStage->getNumLights() > 0);
+        auto lightAndShadow = lightStage->getLightAndShadow(0);
         const auto& globalShadow = lightAndShadow.second;
         if (globalShadow) {
             batch.setResourceTexture(Shadow, globalShadow->map);

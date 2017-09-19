@@ -21,6 +21,7 @@ public:
     Planar3DOverlay(const Planar3DOverlay* planar3DOverlay);
     
     virtual AABox getBounds() const override;
+    virtual glm::vec2 getSize() const { return _dimensions; };
     
     glm::vec2 getDimensions() const { return _dimensions; }
     void setDimensions(float value) { _dimensions = glm::vec2(value); }
@@ -31,7 +32,9 @@ public:
 
     virtual bool findRayIntersection(const glm::vec3& origin, const glm::vec3& direction, float& distance, 
                                         BoxFace& face, glm::vec3& surfaceNormal) override;
-    
+  
+    Transform evalRenderTransform() const override;
+
 protected:
     glm::vec2 _dimensions;
 };

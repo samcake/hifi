@@ -31,7 +31,7 @@ void ViewFrustum::setOrientation(const glm::quat& orientationAsQuaternion) {
     _orientation = orientationAsQuaternion;
     _right = glm::vec3(orientationAsQuaternion * glm::vec4(IDENTITY_RIGHT, 0.0f));
     _up = glm::vec3(orientationAsQuaternion * glm::vec4(IDENTITY_UP,    0.0f));
-    _direction = glm::vec3(orientationAsQuaternion * glm::vec4(IDENTITY_FRONT, 0.0f));
+    _direction = glm::vec3(orientationAsQuaternion * glm::vec4(IDENTITY_FORWARD, 0.0f));
     _view = glm::translate(mat4(), _position) * glm::mat4_cast(_orientation);
 }
 
@@ -729,7 +729,7 @@ void ViewFrustum::evalProjectionMatrix(glm::mat4& proj) const {
 glm::mat4 ViewFrustum::evalProjectionMatrixRange(float rangeNear, float rangeFar) const {
 
     // make sure range near far make sense
-    assert(rangeNear > 0.0);
+    assert(rangeNear > 0.0f);
     assert(rangeFar > rangeNear);
 
     // recreate a projection matrix for only a range of depth of this frustum.
@@ -738,7 +738,7 @@ glm::mat4 ViewFrustum::evalProjectionMatrixRange(float rangeNear, float rangeFar
     glm::mat4 rangeProj = _projection;
     
     float A = -(rangeFar + rangeNear) / (rangeFar - rangeNear);
-    float B = -2 * rangeFar*rangeNear / ((rangeFar - rangeNear));
+    float B = -2.0f * rangeFar*rangeNear / ((rangeFar - rangeNear));
 
     rangeProj[2][2] = A;
     rangeProj[3][2] = B;

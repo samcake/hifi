@@ -11,12 +11,14 @@
 
 #include "OctreeServer.h"
 
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QTimer>
 
 #include <time.h>
 
 #include <AccountManager.h>
+#include <Gzip.h>
 #include <HTTPConnection.h>
 #include <LogHandler.h>
 #include <shared/NetworkUtils.h>
@@ -29,11 +31,11 @@
 #include "OctreeQueryNode.h"
 #include "OctreeServerConsts.h"
 #include <QtCore/QStandardPaths>
-#include <ServerPathUtils.h>
+#include <PathUtils.h>
 #include <QtCore/QDir>
 
 int OctreeServer::_clientCount = 0;
-const int MOVING_AVERAGE_SAMPLE_COUNTS = 1000000;
+const int MOVING_AVERAGE_SAMPLE_COUNTS = 1000;
 
 float OctreeServer::SKIP_TIME = -1.0f; // use this for trackXXXTime() calls for non-times
 
@@ -134,18 +136,19 @@ void OctreeServer::trackEncodeTime(float time) {
 
     if (time == SKIP_TIME) {
         _noEncode++;
-        time = 0.0f;
-    } else if (time <= MAX_SHORT_TIME) {
-        _shortEncode++;
-        _averageShortEncodeTime.updateAverage(time);
-    } else if (time <= MAX_LONG_TIME) {
-        _longEncode++;
-        _averageLongEncodeTime.updateAverage(time);
     } else {
-        _extraLongEncode++;
-        _averageExtraLongEncodeTime.updateAverage(time);
+        if (time <= MAX_SHORT_TIME) {
+            _shortEncode++;
+            _averageShortEncodeTime.updateAverage(time);
+        } else if (time <= MAX_LONG_TIME) {
+            _longEncode++;
+            _averageLongEncodeTime.updateAverage(time);
+        } else {
+            _extraLongEncode++;
+            _averageExtraLongEncodeTime.updateAverage(time);
+        }
+        _averageEncodeTime.updateAverage(time);
     }
-    _averageEncodeTime.updateAverage(time);
 }
 
 void OctreeServer::trackTreeWaitTime(float time) {
@@ -153,18 +156,19 @@ void OctreeServer::trackTreeWaitTime(float time) {
     const float MAX_LONG_TIME = 100.0f;
     if (time == SKIP_TIME) {
         _noTreeWait++;
-        time = 0.0f;
-    } else if (time <= MAX_SHORT_TIME) {
-        _shortTreeWait++;
-        _averageTreeShortWaitTime.updateAverage(time);
-    } else if (time <= MAX_LONG_TIME) {
-        _longTreeWait++;
-        _averageTreeLongWaitTime.updateAverage(time);
     } else {
-        _extraLongTreeWait++;
-        _averageTreeExtraLongWaitTime.updateAverage(time);
+        if (time <= MAX_SHORT_TIME) {
+            _shortTreeWait++;
+            _averageTreeShortWaitTime.updateAverage(time);
+        } else if (time <= MAX_LONG_TIME) {
+            _longTreeWait++;
+            _averageTreeLongWaitTime.updateAverage(time);
+        } else {
+            _extraLongTreeWait++;
+            _averageTreeExtraLongWaitTime.updateAverage(time);
+        }
+        _averageTreeWaitTime.updateAverage(time);
     }
-    _averageTreeWaitTime.updateAverage(time);
 }
 
 void OctreeServer::trackCompressAndWriteTime(float time) {
@@ -172,26 +176,27 @@ void OctreeServer::trackCompressAndWriteTime(float time) {
     const float MAX_LONG_TIME = 100.0f;
     if (time == SKIP_TIME) {
         _noCompress++;
-        time = 0.0f;
-    } else if (time <= MAX_SHORT_TIME) {
-        _shortCompress++;
-        _averageShortCompressTime.updateAverage(time);
-    } else if (time <= MAX_LONG_TIME) {
-        _longCompress++;
-        _averageLongCompressTime.updateAverage(time);
     } else {
-        _extraLongCompress++;
-        _averageExtraLongCompressTime.updateAverage(time);
+        if (time <= MAX_SHORT_TIME) {
+            _shortCompress++;
+            _averageShortCompressTime.updateAverage(time);
+        } else if (time <= MAX_LONG_TIME) {
+            _longCompress++;
+            _averageLongCompressTime.updateAverage(time);
+        } else {
+            _extraLongCompress++;
+            _averageExtraLongCompressTime.updateAverage(time);
+        }
+        _averageCompressAndWriteTime.updateAverage(time);
     }
-    _averageCompressAndWriteTime.updateAverage(time);
 }
 
 void OctreeServer::trackPacketSendingTime(float time) {
     if (time == SKIP_TIME) {
         _noSend++;
-        time = 0.0f;
+    } else {
+        _averagePacketSendingTime.updateAverage(time);
     }
-    _averagePacketSendingTime.updateAverage(time);
 }
 
 
@@ -200,18 +205,19 @@ void OctreeServer::trackProcessWaitTime(float time) {
     const float MAX_LONG_TIME = 100.0f;
     if (time == SKIP_TIME) {
         _noProcessWait++;
-        time = 0.0f;
-    } else if (time <= MAX_SHORT_TIME) {
-        _shortProcessWait++;
-        _averageProcessShortWaitTime.updateAverage(time);
-    } else if (time <= MAX_LONG_TIME) {
-        _longProcessWait++;
-        _averageProcessLongWaitTime.updateAverage(time);
     } else {
-        _extraLongProcessWait++;
-        _averageProcessExtraLongWaitTime.updateAverage(time);
+        if (time <= MAX_SHORT_TIME) {
+            _shortProcessWait++;
+            _averageProcessShortWaitTime.updateAverage(time);
+        } else if (time <= MAX_LONG_TIME) {
+            _longProcessWait++;
+            _averageProcessLongWaitTime.updateAverage(time);
+        } else {
+            _extraLongProcessWait++;
+            _averageProcessExtraLongWaitTime.updateAverage(time);
+        }
+        _averageProcessWaitTime.updateAverage(time);
     }
-    _averageProcessWaitTime.updateAverage(time);
 }
 
 OctreeServer::OctreeServer(ReceivedMessage& message) :
@@ -279,8 +285,7 @@ OctreeServer::~OctreeServer() {
 
 void OctreeServer::initHTTPManager(int port) {
     // setup the embedded web server
-
-    QString documentRoot = QString("%1/web").arg(ServerPathUtils::getDataDirectory());
+    QString documentRoot = QString("%1/web").arg(PathUtils::getAppDataPath());
 
     // setup an httpManager with us as the request handler and the parent
     _httpManager = new HTTPManager(QHostAddress::AnyIPv4, port, documentRoot, this, this);
@@ -660,6 +665,7 @@ bool OctreeServer::handleHTTPRequest(HTTPConnection* connection, const QUrl& url
         quint64 averageUpdateTime = _tree->getAverageUpdateTime();
         quint64 averageCreateTime = _tree->getAverageCreateTime();
         quint64 averageLoggingTime = _tree->getAverageLoggingTime();
+        quint64 averageFilterTime = _tree->getAverageFilterTime();
 
         int FLOAT_PRECISION = 3;
 
@@ -699,6 +705,8 @@ bool OctreeServer::handleHTTPRequest(HTTPConnection* connection, const QUrl& url
             .arg(locale.toString((uint)averageCreateTime).rightJustified(COLUMN_WIDTH, ' '));
         statsString += QString("            Average Logging Time: %1 usecs\r\n")
             .arg(locale.toString((uint)averageLoggingTime).rightJustified(COLUMN_WIDTH, ' '));
+        statsString += QString("            Average Filter Time: %1 usecs\r\n")
+            .arg(locale.toString((uint)averageFilterTime).rightJustified(COLUMN_WIDTH, ' '));
 
 
         int senderNumber = 0;
@@ -869,8 +877,12 @@ void OctreeServer::parsePayload() {
     }
 }
 
+OctreeServer::UniqueSendThread OctreeServer::newSendThread(const SharedNodePointer& node) {
+    return std::unique_ptr<OctreeSendThread>(new OctreeSendThread(this, node));
+}
+
 OctreeServer::UniqueSendThread OctreeServer::createSendThread(const SharedNodePointer& node) {
-    auto sendThread = std::unique_ptr<OctreeSendThread>(new OctreeSendThread(this, node));
+    auto sendThread = newSendThread(node);
     
     // we want to be notified when the thread finishes
     connect(sendThread.get(), &GenericThread::finished, this, &OctreeServer::removeSendThread);
@@ -916,6 +928,87 @@ void OctreeServer::handleOctreeDataNackPacket(QSharedPointer<ReceivedMessage> me
 
 void OctreeServer::handleJurisdictionRequestPacket(QSharedPointer<ReceivedMessage> message, SharedNodePointer senderNode) {
     _jurisdictionSender->queueReceivedPacket(message, senderNode);
+}
+
+void OctreeServer::handleOctreeFileReplacement(QSharedPointer<ReceivedMessage> message) {
+    if (!_isFinished && !_isShuttingDown) {
+        // these messages are only allowed to come from the domain server, so make sure that is the case
+        auto nodeList = DependencyManager::get<NodeList>();
+        if (message->getSenderSockAddr() == nodeList->getDomainHandler().getSockAddr()) {
+            // it's far cleaner to load up the new content upon server startup
+            // so here we just store a special file at our persist path
+            // and then force a stop of the server so that it can pick it up when it relaunches
+            if (!_persistAbsoluteFilePath.isEmpty()) {
+                replaceContentFromMessageData(message->getMessage());
+            } else {
+                qDebug() << "Cannot perform octree file replacement since current persist file path is not yet known";
+            }
+        } else {
+            qDebug() << "Received an octree file replacement that was not from our domain server - refusing to process";
+        }
+    }
+}
+
+// Message->getMessage() contains a QByteArray representation of the URL to download from
+void OctreeServer::handleOctreeFileReplacementFromURL(QSharedPointer<ReceivedMessage> message) {
+    qInfo() << "Received request to replace content from a url";
+    if (!_isFinished && !_isShuttingDown) {
+        // This call comes from Interface, so we skip our domain server check
+        // but confirm that we have permissions to replace content sets
+        if (DependencyManager::get<NodeList>()->getThisNodeCanReplaceContent()) {
+            if (!_persistAbsoluteFilePath.isEmpty()) {
+                // Convert message data into our URL
+                QString url(message->getMessage());
+                QUrl modelsURL = QUrl(url, QUrl::StrictMode);
+                QNetworkAccessManager& networkAccessManager = NetworkAccessManager::getInstance();
+                QNetworkRequest request(modelsURL);
+                QNetworkReply* reply = networkAccessManager.get(request);
+                connect(reply, &QNetworkReply::finished, [this, reply, modelsURL]() {
+                    QNetworkReply::NetworkError networkError = reply->error();
+                    if (networkError == QNetworkReply::NoError) {
+                        QByteArray contents = reply->readAll();
+                        replaceContentFromMessageData(contents);
+                    } else {
+                        qDebug() << "Error downloading JSON from specified file";
+                    }
+                });
+            } else {
+                qDebug() << "Cannot perform octree file replacement since current persist file path is not yet known";
+            }
+        }
+    }
+}
+
+void OctreeServer::replaceContentFromMessageData(QByteArray content) {
+    //Assume we have compressed data
+    auto compressedOctree = content;
+    QByteArray jsonOctree;
+
+    bool wasCompressed = gunzip(compressedOctree, jsonOctree);
+    if (!wasCompressed) {
+        // the source was not compressed, assume we were sent regular JSON data
+        jsonOctree = compressedOctree;
+    }
+    // check the JSON data to verify it is an object
+    if (QJsonDocument::fromJson(jsonOctree).isObject()) {
+        if (!wasCompressed) {
+            // source was not compressed, we compress it before we write it locally
+            gzip(jsonOctree, compressedOctree);
+        }
+        // write the compressed octree data to a special file
+        auto replacementFilePath = _persistAbsoluteFilePath.append(OctreePersistThread::REPLACEMENT_FILE_EXTENSION);
+        QFile replacementFile(replacementFilePath);
+        if (replacementFile.open(QIODevice::WriteOnly) && replacementFile.write(compressedOctree) != -1) {
+            // we've now written our replacement file, time to take the server down so it can
+            // process it when it comes back up
+            qInfo() << "Wrote octree replacement file to" << replacementFilePath << "- stopping server";
+            setFinished(true);
+        } else {
+            qWarning() << "Could not write replacement octree data to file - refusing to process";
+        }
+    } else {
+        qDebug() << "Received replacement octree file that is invalid - refusing to process";
+    }
 }
 
 bool OctreeServer::readOptionBool(const QString& optionName, const QJsonObject& settingsSectionObject, bool& result) {
@@ -1136,12 +1229,14 @@ void OctreeServer::domainSettingsRequestComplete() {
     auto nodeList = DependencyManager::get<NodeList>();
     
     // we need to ask the DS about agents so we can ping/reply with them
-    nodeList->addNodeTypeToInterestSet(NodeType::Agent);
-    
+    nodeList->addSetOfNodeTypesToNodeInterestSet({ NodeType::Agent, NodeType::EntityScriptServer });
+
     auto& packetReceiver = DependencyManager::get<NodeList>()->getPacketReceiver();
     packetReceiver.registerListener(getMyQueryMessageType(), this, "handleOctreeQueryPacket");
     packetReceiver.registerListener(PacketType::OctreeDataNack, this, "handleOctreeDataNackPacket");
     packetReceiver.registerListener(PacketType::JurisdictionRequest, this, "handleJurisdictionRequestPacket");
+    packetReceiver.registerListener(PacketType::OctreeFileReplacement, this, "handleOctreeFileReplacement");
+    packetReceiver.registerListener(PacketType::OctreeFileReplacementFromUrl, this, "handleOctreeFileReplacementFromURL");
     
     readConfiguration();
     
@@ -1167,25 +1262,25 @@ void OctreeServer::domainSettingsRequestComplete() {
         // If persist filename does not exist, let's see if there is one beside the application binary
         // If there is, let's copy it over to our target persist directory
         QDir persistPath { _persistFilePath };
-        QString persistAbsoluteFilePath = persistPath.absolutePath();
+        _persistAbsoluteFilePath = persistPath.absolutePath();
 
         if (persistPath.isRelative()) {
             // if the domain settings passed us a relative path, make an absolute path that is relative to the
             // default data directory
-            persistAbsoluteFilePath = QDir(ServerPathUtils::getDataFilePath("entities/")).absoluteFilePath(_persistFilePath);
+            _persistAbsoluteFilePath = QDir(PathUtils::getAppDataFilePath("entities/")).absoluteFilePath(_persistFilePath);
         }
 
         static const QString ENTITY_PERSIST_EXTENSION = ".json.gz";
 
         // force the persist file to end with .json.gz
-        if (!persistAbsoluteFilePath.endsWith(ENTITY_PERSIST_EXTENSION, Qt::CaseInsensitive)) {
-            persistAbsoluteFilePath += ENTITY_PERSIST_EXTENSION;
+        if (!_persistAbsoluteFilePath.endsWith(ENTITY_PERSIST_EXTENSION, Qt::CaseInsensitive)) {
+            _persistAbsoluteFilePath += ENTITY_PERSIST_EXTENSION;
         } else {
             // make sure the casing of .json.gz is correct
-            persistAbsoluteFilePath.replace(ENTITY_PERSIST_EXTENSION, ENTITY_PERSIST_EXTENSION, Qt::CaseInsensitive);
+            _persistAbsoluteFilePath.replace(ENTITY_PERSIST_EXTENSION, ENTITY_PERSIST_EXTENSION, Qt::CaseInsensitive);
         }
 
-        if (!QFile::exists(persistAbsoluteFilePath)) {
+        if (!QFile::exists(_persistAbsoluteFilePath)) {
             qDebug() << "Persist file does not exist, checking for existence of persist file next to application";
 
             static const QString OLD_DEFAULT_PERSIST_FILENAME = "resources/models.json.gz";
@@ -1211,7 +1306,7 @@ void OctreeServer::domainSettingsRequestComplete() {
                 pathToCopyFrom = oldDefaultPersistPath;
             }
 
-            QDir persistFileDirectory { QDir::cleanPath(persistAbsoluteFilePath + "/..") };
+            QDir persistFileDirectory { QDir::cleanPath(_persistAbsoluteFilePath + "/..") };
 
             if (!persistFileDirectory.exists()) {
                 qDebug() << "Creating data directory " << persistFileDirectory.absolutePath();
@@ -1219,15 +1314,15 @@ void OctreeServer::domainSettingsRequestComplete() {
             }
 
             if (shouldCopy) {
-                qDebug() << "Old persist file found, copying from " << pathToCopyFrom << " to " << persistAbsoluteFilePath;
+                qDebug() << "Old persist file found, copying from " << pathToCopyFrom << " to " << _persistAbsoluteFilePath;
 
-                QFile::copy(pathToCopyFrom, persistAbsoluteFilePath);
+                QFile::copy(pathToCopyFrom, _persistAbsoluteFilePath);
             } else {
                 qDebug() << "No existing persist file found";
             }
         }
 
-        auto persistFileDirectory = QFileInfo(persistAbsoluteFilePath).absolutePath();
+        auto persistFileDirectory = QFileInfo(_persistAbsoluteFilePath).absolutePath();
         if (_backupDirectoryPath.isEmpty()) {
             // Use the persist file's directory to store backups
             _backupDirectoryPath = persistFileDirectory;
@@ -1238,7 +1333,7 @@ void OctreeServer::domainSettingsRequestComplete() {
             QDir backupDirectory { _backupDirectoryPath };
             QString absoluteBackupDirectory;
             if (backupDirectory.isRelative()) {
-                absoluteBackupDirectory = QDir(ServerPathUtils::getDataFilePath("entities/")).absoluteFilePath(_backupDirectoryPath);
+                absoluteBackupDirectory = QDir(PathUtils::getAppDataFilePath("entities/")).absoluteFilePath(_backupDirectoryPath);
                 absoluteBackupDirectory = QDir(absoluteBackupDirectory).absolutePath();
             } else {
                 absoluteBackupDirectory = backupDirectory.absolutePath();
@@ -1258,7 +1353,7 @@ void OctreeServer::domainSettingsRequestComplete() {
         qDebug() << "Backups will be stored in: " << _backupDirectoryPath;
         
         // now set up PersistThread
-        _persistThread = new OctreePersistThread(_tree, persistAbsoluteFilePath, _backupDirectoryPath, _persistInterval,
+        _persistThread = new OctreePersistThread(_tree, _persistAbsoluteFilePath, _backupDirectoryPath, _persistInterval,
                                                  _wantBackup, _settings, _debugTimestampNow, _persistAsFileType);
         _persistThread->initialize(true);
     }

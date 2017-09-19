@@ -29,8 +29,9 @@ public:
     // methods for getting/setting all properties of an entity
     virtual EntityItemProperties getProperties(EntityPropertyFlags desiredProperties = EntityPropertyFlags()) const override;
     virtual bool setProperties(const EntityItemProperties& properties) override;
+    virtual bool setSubClassProperties(const EntityItemProperties& properties) override;
 
-    // TODO: eventually only include properties changed since the params.lastViewFrustumSent time
+    // TODO: eventually only include properties changed since the params.nodeData->getLastTimeBagEmpty() time
     virtual EntityPropertyFlags getEntityProperties(EncodeBitstreamParams& params) const override;
 
     virtual void appendSubclassData(OctreePacketData* packetData, EncodeBitstreamParams& params,
@@ -54,26 +55,35 @@ public:
     static bool getDrawZoneBoundaries() { return _drawZoneBoundaries; }
     static void setDrawZoneBoundaries(bool value) { _drawZoneBoundaries = value; }
 
-    virtual bool isReadyToComputeShape() override { return false; }
+    virtual bool isReadyToComputeShape() const override { return false; }
     void setShapeType(ShapeType type) override { _shapeType = type; }
     virtual ShapeType getShapeType() const override;
 
-    virtual bool hasCompoundShapeURL() const { return !_compoundShapeURL.isEmpty(); }
-    const QString getCompoundShapeURL() const { return _compoundShapeURL; }
+    virtual bool hasCompoundShapeURL() const;
+    QString getCompoundShapeURL() const;
     virtual void setCompoundShapeURL(const QString& url);
 
-    const KeyLightPropertyGroup& getKeyLightProperties() const { return _keyLightProperties; }
+    KeyLightPropertyGroup getKeyLightProperties() const { return resultWithReadLock<KeyLightPropertyGroup>([&] { return _keyLightProperties; }); }
 
-    void setBackgroundMode(BackgroundMode value) { _backgroundMode = value; }
+    void setBackgroundMode(BackgroundMode value) { _backgroundMode = value; _backgroundPropertiesChanged = true; }
     BackgroundMode getBackgroundMode() const { return _backgroundMode; }
 
-    const SkyboxPropertyGroup& getSkyboxProperties() const { return _skyboxProperties; }
+    SkyboxPropertyGroup getSkyboxProperties() const { return resultWithReadLock<SkyboxPropertyGroup>([&] { return _skyboxProperties; }); }
     const StagePropertyGroup& getStageProperties() const { return _stageProperties; }
 
     bool getFlyingAllowed() const { return _flyingAllowed; }
     void setFlyingAllowed(bool value) { _flyingAllowed = value; }
     bool getGhostingAllowed() const { return _ghostingAllowed; }
     void setGhostingAllowed(bool value) { _ghostingAllowed = value; }
+    QString getFilterURL() const;
+    void setFilterURL(const QString url); 
+
+    bool keyLightPropertiesChanged() const { return _keyLightPropertiesChanged; }
+    bool backgroundPropertiesChanged() const { return _backgroundPropertiesChanged; }
+    bool stagePropertiesChanged() const { return _stagePropertiesChanged; }
+    bool skyboxPropertiesChanged() const { return _skyboxPropertiesChanged; }
+
+    void resetRenderingPropertiesChanged();
 
     virtual bool supportsDetailedRayIntersection() const override { return true; }
     virtual bool findDetailedRayIntersection(const glm::vec3& origin, const glm::vec3& direction,
@@ -87,6 +97,7 @@ public:
     static const QString DEFAULT_COMPOUND_SHAPE_URL;
     static const bool DEFAULT_FLYING_ALLOWED;
     static const bool DEFAULT_GHOSTING_ALLOWED;
+    static const QString DEFAULT_FILTER_URL;
 
 protected:
     KeyLightPropertyGroup _keyLightProperties;
@@ -101,6 +112,13 @@ protected:
 
     bool _flyingAllowed { DEFAULT_FLYING_ALLOWED };
     bool _ghostingAllowed { DEFAULT_GHOSTING_ALLOWED };
+    QString _filterURL { DEFAULT_FILTER_URL };
+
+    // Dirty flags turn true when either keylight properties is changing values.
+    bool _keyLightPropertiesChanged { false };
+    bool _backgroundPropertiesChanged { false };
+    bool _skyboxPropertiesChanged { false };
+    bool _stagePropertiesChanged { false };
 
     static bool _drawZoneBoundaries;
     static bool _zonesArePickable;

@@ -9,6 +9,8 @@
 #ifndef hifi_ui_Menu_h
 #define hifi_ui_Menu_h
 
+#include <functional>
+
 #include <QtCore/QDir>
 #include <QtCore/QPointer>
 #include <QtCore/QStandardPaths>
@@ -90,6 +92,14 @@ public:
                                                     int menuItemLocation = UNSPECIFIED_POSITION,
                                                     const QString& grouping = QString());
 
+    QAction* addCheckableActionToQMenuAndActionHash(MenuWrapper* destinationMenu,
+                                                    const QString& actionName,
+                                                    const std::function<void(bool)>& handler,
+                                                    const QKeySequence& shortcut = 0,
+                                                    const bool checked = false,
+                                                    int menuItemLocation = UNSPECIFIED_POSITION,
+                                                    const QString& grouping = QString());
+
     void removeAction(MenuWrapper* menu, const QString& actionName);
 
 public slots:
@@ -114,6 +124,9 @@ public slots:
 
     void toggleDeveloperMenus();
     void toggleAdvancedMenus();
+
+    bool isInfoViewVisible(const QString& path);
+    void closeInfoView(const QString& path);
     
     void triggerOption(const QString& menuOption);
 

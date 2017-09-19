@@ -26,8 +26,7 @@ ReceivedMessage::ReceivedMessage(const NLPacketList& packetList)
       _sourceID(packetList.getSourceID()),
       _packetType(packetList.getType()),
       _packetVersion(packetList.getVersion()),
-      _senderSockAddr(packetList.getSenderSockAddr()),
-      _isComplete(true)
+      _senderSockAddr(packetList.getSenderSockAddr())
 {
 }
 
@@ -41,6 +40,20 @@ ReceivedMessage::ReceivedMessage(NLPacket& packet)
       _senderSockAddr(packet.getSenderSockAddr()),
       _isComplete(packet.getPacketPosition() == NLPacket::ONLY)
 {
+}
+
+ReceivedMessage::ReceivedMessage(QByteArray byteArray, PacketType packetType, PacketVersion packetVersion,
+                const HifiSockAddr& senderSockAddr, QUuid sourceID) :
+    _data(byteArray),
+    _headData(_data.mid(0, HEAD_DATA_SIZE)),
+    _numPackets(1),
+    _sourceID(sourceID),
+    _packetType(packetType),
+    _packetVersion(packetVersion),
+    _senderSockAddr(senderSockAddr),
+    _isComplete(true)
+{
+
 }
 
 void ReceivedMessage::setFailed() {

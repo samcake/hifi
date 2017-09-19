@@ -18,6 +18,8 @@ Q_DECLARE_LOGGING_CATEGORY(gpugllogging)
 Q_DECLARE_LOGGING_CATEGORY(trace_render_gpu_gl)
 Q_DECLARE_LOGGING_CATEGORY(trace_render_gpu_gl_detail)
 
+#define BUFFER_OFFSET(bytes) ((GLubyte*) nullptr + (bytes))
+
 namespace gpu { namespace gl { 
 
 // Create a fence and inject a GPU wait on the fence
@@ -33,20 +35,6 @@ State::StencilOp stencilOpFromGL(GLenum stencilOp);
 State::BlendOp blendOpFromGL(GLenum blendOp);
 State::BlendArg blendArgFromGL(GLenum blendArg);
 void getCurrentGLState(State::Data& state);
-
-struct ShaderObject {
-    GLuint glshader { 0 };
-    GLuint glprogram { 0 };
-    GLint transformCameraSlot { -1 };
-    GLint transformObjectSlot { -1 };
-};
-
-int makeUniformSlots(GLuint glprogram, const Shader::BindingSet& slotBindings,
-    Shader::SlotSet& uniforms, Shader::SlotSet& textures, Shader::SlotSet& samplers);
-int makeUniformBlockSlots(GLuint glprogram, const Shader::BindingSet& slotBindings, Shader::SlotSet& buffers);
-int makeInputSlots(GLuint glprogram, const Shader::BindingSet& slotBindings, Shader::SlotSet& inputs);
-int makeOutputSlots(GLuint glprogram, const Shader::BindingSet& slotBindings, Shader::SlotSet& outputs);
-void makeProgramBindings(ShaderObject& shaderObject);
 
 enum GLSyncState {
     // The object is currently undergoing no processing, although it's content
@@ -150,6 +138,8 @@ class GLQuery;
 class GLState;
 class GLShader;
 class GLTexture;
+struct ShaderObject;
+
 
 } } // namespace gpu::gl 
 

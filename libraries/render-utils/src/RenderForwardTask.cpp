@@ -15,7 +15,6 @@
 
 #include <PerfStat.h>
 #include <PathUtils.h>
-#include <RenderArgs.h>
 #include <ViewFrustum.h>
 #include <gpu/Context.h>
 
@@ -29,35 +28,37 @@
 using namespace render;
 extern void initForwardPipelines(ShapePlumber& plumber);
 
-RenderForwardTask::RenderForwardTask(RenderFetchCullSortTask::Output items) {
+void RenderForwardTask::build(JobModel& task, const render::Varying& input, render::Varying& output) {
+    auto items = input.get<Input>();
+
     // Prepare the ShapePipelines
     ShapePlumberPointer shapePlumber = std::make_shared<ShapePlumber>();
     initForwardPipelines(*shapePlumber);
 
     // Extract opaques / transparents / lights / metas / overlays / background
-    const auto opaques = items[RenderFetchCullSortTask::OPAQUE_SHAPE];
-    const auto transparents = items[RenderFetchCullSortTask::TRANSPARENT_SHAPE];
-    const auto lights = items[RenderFetchCullSortTask::LIGHT];
-    const auto metas = items[RenderFetchCullSortTask::META];
-    const auto overlayOpaques = items[RenderFetchCullSortTask::OVERLAY_OPAQUE_SHAPE];
-    const auto overlayTransparents = items[RenderFetchCullSortTask::OVERLAY_TRANSPARENT_SHAPE];
-    const auto background = items[RenderFetchCullSortTask::BACKGROUND];
-    const auto spatialSelection = items[RenderFetchCullSortTask::SPATIAL_SELECTION];
+    const auto& opaques = items.get0()[RenderFetchCullSortTask::OPAQUE_SHAPE];
+//    const auto& transparents = items.get0()[RenderFetchCullSortTask::TRANSPARENT_SHAPE];
+//    const auto& lights = items.get0()[RenderFetchCullSortTask::LIGHT];
+//    const auto& metas = items.get0()[RenderFetchCullSortTask::META];
+//    const auto& overlayOpaques = items.get0()[RenderFetchCullSortTask::OVERLAY_OPAQUE_SHAPE];
+//    const auto& overlayTransparents = items.get0()[RenderFetchCullSortTask::OVERLAY_TRANSPARENT_SHAPE];
+    const auto& background = items.get0()[RenderFetchCullSortTask::BACKGROUND];
+//    const auto& spatialSelection = items[1];
 
-    const auto framebuffer = addJob<PrepareFramebuffer>("PrepareFramebuffer");
+    const auto framebuffer = task.addJob<PrepareFramebuffer>("PrepareFramebuffer");
 
-    addJob<Draw>("DrawOpaques", opaques, shapePlumber);
-    addJob<Stencil>("Stencil");
-    addJob<DrawBackground>("DrawBackground", background);
+    task.addJob<Draw>("DrawOpaques", opaques, shapePlumber);
+    task.addJob<Stencil>("Stencil");
+    task.addJob<DrawBackground>("DrawBackground", background);
 
     // Bounds do not draw on stencil buffer, so they must come last
-    addJob<DrawBounds>("DrawBounds", opaques);
+    task.addJob<DrawBounds>("DrawBounds", opaques);
 
     // Blit!
-    addJob<Blit>("Blit", framebuffer);
+    task.addJob<Blit>("Blit", framebuffer);
 }
 
-void PrepareFramebuffer::run(const SceneContextPointer& sceneContext, const RenderContextPointer& renderContext,
+void PrepareFramebuffer::run(const RenderContextPointer& renderContext,
         gpu::FramebufferPointer& framebuffer) {
     auto framebufferCache = DependencyManager::get<FramebufferCache>();
     auto framebufferSize = framebufferCache->getFrameBufferSize();
@@ -73,11 +74,11 @@ void PrepareFramebuffer::run(const SceneContextPointer& sceneContext, const Rend
 
         auto colorFormat = gpu::Element::COLOR_SRGBA_32;
         auto defaultSampler = gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_POINT);
-        auto colorTexture = gpu::TexturePointer(gpu::Texture::create2D(colorFormat, frameSize.x, frameSize.y, defaultSampler));
+        auto colorTexture = gpu::Texture::create2D(colorFormat, frameSize.x, frameSize.y, gpu::Texture::SINGLE_MIP, defaultSampler);
         _framebuffer->setRenderBuffer(0, colorTexture);
 
         auto depthFormat = gpu::Element(gpu::SCALAR, gpu::UINT32, gpu::DEPTH_STENCIL); // Depth24_Stencil8 texel format
-        auto depthTexture = gpu::TexturePointer(gpu::Texture::create2D(depthFormat, frameSize.x, frameSize.y, defaultSampler));
+        auto depthTexture = gpu::Texture::create2D(depthFormat, frameSize.x, frameSize.y, gpu::Texture::SINGLE_MIP, defaultSampler);
         _framebuffer->setDepthStencilBuffer(depthTexture, depthFormat);
     }
 
@@ -98,7 +99,7 @@ void PrepareFramebuffer::run(const SceneContextPointer& sceneContext, const Rend
     framebuffer = _framebuffer;
 }
 
-void Draw::run(const SceneContextPointer& sceneContext, const RenderContextPointer& renderContext,
+void Draw::run(const RenderContextPointer& renderContext,
         const Inputs& items) {
     RenderArgs* args = renderContext->args;
 
@@ -115,7 +116,7 @@ void Draw::run(const SceneContextPointer& sceneContext, const RenderContextPoint
         batch.setModelTransform(Transform());
 
         // Render items
-        renderStateSortShapes(sceneContext, renderContext, _shapePlumber, items, -1);
+        renderStateSortShapes(renderContext, _shapePlumber, items, -1);
     });
     args->_batch = nullptr;
 }
@@ -140,7 +141,7 @@ const gpu::PipelinePointer Stencil::getPipeline() {
     return _stencilPipeline;
 }
 
-void Stencil::run(const SceneContextPointer& sceneContext, const RenderContextPointer& renderContext) {
+void Stencil::run(const RenderContextPointer& renderContext) {
     RenderArgs* args = renderContext->args;
 
     gpu::doInBatch(args->_context, [&](gpu::Batch& batch) {
@@ -156,7 +157,7 @@ void Stencil::run(const SceneContextPointer& sceneContext, const RenderContextPo
     args->_batch = nullptr;
 }
 
-void DrawBackground::run(const SceneContextPointer& sceneContext, const RenderContextPointer& renderContext,
+void DrawBackground::run(const RenderContextPointer& renderContext,
         const Inputs& background) {
     RenderArgs* args = renderContext->args;
 
@@ -175,7 +176,7 @@ void DrawBackground::run(const SceneContextPointer& sceneContext, const RenderCo
         batch.setProjectionTransform(projMat);
         batch.setViewTransform(viewMat);
 
-        renderItems(sceneContext, renderContext, background);
+        renderItems(renderContext, background);
     });
     args->_batch = nullptr;
 }

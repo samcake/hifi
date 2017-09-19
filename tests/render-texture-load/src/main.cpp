@@ -48,6 +48,7 @@
 #include <gpu/gl/GLTexture.h>
 #include <gpu/StandardShaderLib.h>
 
+#include <GenericThread.h>
 #include <AddressManager.h>
 #include <NodeList.h>
 #include <TextureCache.h>
@@ -328,7 +329,7 @@ public:
         installEventFilter(this);
         QThreadPool::globalInstance()->setMaxThreadCount(2);
         QThread::currentThread()->setPriority(QThread::HighestPriority);
-        ResourceManager::init();
+        DependencyManager::set<ResourceManager>();
         setFlags(Qt::MSWindowsOwnDC | Qt::Window | Qt::Dialog | Qt::WindowMinMaxButtonsHint | Qt::WindowTitleHint);
         _size = QSize(800, 600);
         _renderThread._size = _size;
@@ -368,7 +369,7 @@ public:
         DependencyManager::destroy<TextureCache>();
         DependencyManager::destroy<ModelCache>();
         DependencyManager::destroy<GeometryCache>();
-        ResourceManager::cleanup();
+        DependencyManager::get<ResourceManager>()->cleanup();
     }
 
 protected:
@@ -455,7 +456,7 @@ protected:
             return;
         }
         auto texture = _textures[_currentTextureIndex];
-        texture->setMinMip(texture->minMip() + 1);
+        texture->setMinMip(texture->getMinMip() + 1);
     }
 
     void loadTexture() {

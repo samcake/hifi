@@ -34,12 +34,14 @@ void AnimOverlay::buildBoneSet(BoneSet boneSet) {
     case SpineOnlyBoneSet: buildSpineOnlyBoneSet(); break;
     case LeftHandBoneSet: buildLeftHandBoneSet(); break;
     case RightHandBoneSet: buildRightHandBoneSet(); break;
+    case HipsOnlyBoneSet: buildHipsOnlyBoneSet(); break;
+    case BothFeetBoneSet: buildBothFeetBoneSet(); break;
     default:
     case EmptyBoneSet: buildEmptyBoneSet(); break;
     }
 }
 
-const AnimPoseVec& AnimOverlay::evaluate(const AnimVariantMap& animVars, float dt, Triggers& triggersOut) {
+const AnimPoseVec& AnimOverlay::evaluate(const AnimVariantMap& animVars, const AnimContext& context, float dt, Triggers& triggersOut) {
 
     // lookup parameters from animVars, using current instance variables as defaults.
     // NOTE: switching bonesets can be an expensive operation, let's try to avoid it.
@@ -51,8 +53,8 @@ const AnimPoseVec& AnimOverlay::evaluate(const AnimVariantMap& animVars, float d
     _alpha = animVars.lookup(_alphaVar, _alpha);
 
     if (_children.size() >= 2) {
-        auto& underPoses = _children[1]->evaluate(animVars, dt, triggersOut);
-        auto& overPoses = _children[0]->overlay(animVars, dt, triggersOut, underPoses);
+        auto& underPoses = _children[1]->evaluate(animVars, context, dt, triggersOut);
+        auto& overPoses = _children[0]->overlay(animVars, context, dt, triggersOut, underPoses);
 
         if (underPoses.size() > 0 && underPoses.size() == overPoses.size()) {
             _poses.resize(underPoses.size());
@@ -187,6 +189,27 @@ void AnimOverlay::buildRightHandBoneSet() {
         _boneSetVec[i] = 1.0f;
     });
 }
+
+void AnimOverlay::buildHipsOnlyBoneSet() {
+    assert(_skeleton);
+    buildEmptyBoneSet();
+    int hipsJoint = _skeleton->nameToJointIndex("Hips");
+    _boneSetVec[hipsJoint] = 1.0f;
+}
+
+void AnimOverlay::buildBothFeetBoneSet() {
+    assert(_skeleton);
+    buildEmptyBoneSet();
+    int rightFoot = _skeleton->nameToJointIndex("RightFoot");
+    for_each_child_joint(_skeleton, rightFoot, [&](int i) {
+        _boneSetVec[i] = 1.0f;
+    });
+    int leftFoot = _skeleton->nameToJointIndex("LeftFoot");
+    for_each_child_joint(_skeleton, leftFoot, [&](int i) {
+        _boneSetVec[i] = 1.0f;
+    });
+}
+
 
 // for AnimDebugDraw rendering
 const AnimPoseVec& AnimOverlay::getPosesInternal() const {

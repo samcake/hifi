@@ -6,8 +6,8 @@ if (WIN32)
   include(ExternalProject)
   ExternalProject_Add(
     ${EXTERNAL_NAME}
-    URL http://hifi-public.s3.amazonaws.com/dependencies/qtaudio_wasapi6.zip
-    URL_MD5 fcac808c1ba0b0f5b44ea06e2612ebab
+    URL http://hifi-public.s3.amazonaws.com/dependencies/qtaudio_wasapi9.zip
+    URL_MD5 94f4765bdbcd53cd099f349ae031e769
     CONFIGURE_COMMAND ""
     BUILD_COMMAND ""
     INSTALL_COMMAND ""

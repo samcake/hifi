@@ -11,6 +11,7 @@
 
 #include <QObject>
 #include <unordered_set>
+#include <map>
 
 #include <GLMHelpers.h>
 
@@ -27,6 +28,8 @@ public:
     const QString getName() const override { return NAME; }
 
     bool isHandController() const override { return _touch != nullptr; }
+    bool isHeadController() const override { return true; }
+    bool isHeadControllerMounted() const;
     QStringList getSubdeviceNames() override;
 
     bool activate() override;
@@ -74,7 +77,13 @@ private:
 
     private:
         void stopHapticPulse(bool leftHand);
-        void handlePose(float deltaTime, const controller::InputCalibrationData& inputCalibrationData, ovrHandType hand, const ovrPoseStatef& handPose);
+        void handlePose(float deltaTime, const controller::InputCalibrationData& inputCalibrationData,
+                        ovrHandType hand, const ovrPoseStatef& handPose);
+        void handleRotationForUntrackedHand(const controller::InputCalibrationData& inputCalibrationData,
+                                            ovrHandType hand, const ovrPoseStatef& handPose);
+        void handleHeadPose(float deltaTime, const controller::InputCalibrationData& inputCalibrationData,
+                            const ovrPoseStatef& headPose);
+
         int _trackedControllers { 0 };
 
         // perform an action when the TouchDevice mutex is acquired.
@@ -87,9 +96,14 @@ private:
         float _rightHapticDuration { 0.0f };
         float _rightHapticStrength { 0.0f };
         mutable std::recursive_mutex _lock;
+        std::map<int, bool> _lostTracking;
+        std::map<int, quint64> _regainTrackingDeadline;
+        std::map<int, ovrPoseStatef> _lastControllerPose;
 
         friend class OculusControllerManager;
     };
+
+    void checkForConnectedDevices();
 
     ovrSession _session { nullptr };
     ovrInputState _inputState {};

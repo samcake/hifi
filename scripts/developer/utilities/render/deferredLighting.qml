@@ -13,6 +13,7 @@ import "configSlider"
 
 Column {
     spacing: 8
+    property var mainViewTask: Render.getConfig("RenderMainView")
     
     Row {
         spacing: 8
@@ -25,11 +26,12 @@ Column {
                      "Lightmap:LightingModel:enableLightmap",
                      "Background:LightingModel:enableBackground",                      
                      "ssao:AmbientOcclusion:enabled",                      
+                     "Textures:LightingModel:enableMaterialTexturing"                     
                 ]
                 CheckBox {
                     text: modelData.split(":")[0]
-                    checked: Render.getConfig(modelData.split(":")[1])[modelData.split(":")[2]]
-                    onCheckedChanged: { Render.getConfig(modelData.split(":")[1])[modelData.split(":")[2]] = checked }
+                    checked: mainViewTask.getConfig(modelData.split(":")[1])[modelData.split(":")[2]]
+                    onCheckedChanged: { mainViewTask.getConfig(modelData.split(":")[1])[modelData.split(":")[2]] = checked }
                 }
             }
         }
@@ -44,11 +46,12 @@ Column {
                      "Diffuse:LightingModel:enableDiffuse",
                      "Specular:LightingModel:enableSpecular",
                      "Albedo:LightingModel:enableAlbedo",
+                     "Wireframe:LightingModel:enableWireframe"
                 ]
                 CheckBox {
                     text: modelData.split(":")[0]
-                    checked: Render.getConfig(modelData.split(":")[1])[modelData.split(":")[2]]
-                    onCheckedChanged: { Render.getConfig(modelData.split(":")[1])[modelData.split(":")[2]] = checked }
+                    checked: mainViewTask.getConfig(modelData.split(":")[1])[modelData.split(":")[2]]
+                    onCheckedChanged: { mainViewTask.getConfig(modelData.split(":")[1])[modelData.split(":")[2]] = checked }
                 }
             }
         }
@@ -61,12 +64,14 @@ Column {
                      "Directional:LightingModel:enableDirectionalLight",
                      "Point:LightingModel:enablePointLight",
                      "Spot:LightingModel:enableSpotLight",
-                     "Light Contour:LightingModel:showLightContour"
+                     "Light Contour:LightingModel:showLightContour",
+                     "Zone Stack:DrawZoneStack:enabled",
+                     "Shadow:RenderShadowTask:enabled"
                 ]
                 CheckBox {
                     text: modelData.split(":")[0]
-                    checked: Render.getConfig(modelData.split(":")[1])[modelData.split(":")[2]]
-                    onCheckedChanged: { Render.getConfig(modelData.split(":")[1])[modelData.split(":")[2]] = checked }
+                    checked: mainViewTask.getConfig(modelData.split(":")[1])[modelData.split(":")[2]]
+                    onCheckedChanged: { mainViewTask.getConfig(modelData.split(":")[1])[modelData.split(":")[2]] = checked }
                 }
             }
         }
@@ -79,7 +84,7 @@ Column {
             ConfigSlider {
                     label: qsTr(modelData.split(":")[0])
                     integral: false
-                    config: Render.getConfig(modelData.split(":")[1])
+                    config: mainViewTask.getConfig(modelData.split(":")[1])
                     property: modelData.split(":")[2]
                     max: modelData.split(":")[3]
                     min: modelData.split(":")[4]
@@ -103,7 +108,7 @@ Column {
                     ListElement { text: "Filmic"; color: "White" }
                 }
                 width: 200
-                onCurrentIndexChanged: { Render.getConfig("ToneMapping")["curve"] = currentIndex }
+                onCurrentIndexChanged: { mainViewTask.getConfig("ToneMapping")["curve"] = currentIndex }
             }
         }
     }
@@ -116,7 +121,7 @@ Column {
             anchors.left: root.left           
         }
         
-        property var config: Render.getConfig("DebugDeferredBuffer")
+        property var config: mainViewTask.getConfig("DebugDeferredBuffer")
 
         function setDebugMode(mode) {
             framebuffer.config.enabled = (mode != 0);
@@ -148,6 +153,7 @@ Column {
                 ListElement { text: "Mid Normal"; color: "White" }
                 ListElement { text: "Low Curvature"; color: "White" }
                 ListElement { text: "Low Normal"; color: "White" }
+                ListElement { text: "Curvature Occlusion"; color: "White" }
                 ListElement { text: "Debug Scattering"; color: "White" }
                 ListElement { text: "Ambient Occlusion"; color: "White" }
                 ListElement { text: "Ambient Occlusion Blurred"; color: "White" }
@@ -159,12 +165,46 @@ Column {
     }
 
     Row {
-        id: metas
+    Column {
+
         CheckBox {
-            text: "Draw Meta Bounds"
-            checked: Render.getConfig("DrawMetaBounds")["enabled"]
-            onCheckedChanged: { Render.getConfig("DrawMetaBounds")["enabled"] = checked }
+            text: "Opaques"
+            checked: mainViewTask.getConfig("DrawOpaqueBounds")["enabled"]
+            onCheckedChanged: { mainViewTask.getConfig("DrawOpaqueBounds")["enabled"] = checked }
         }
+        CheckBox {
+            text: "Transparents"
+            checked: mainViewTask.getConfig("DrawTransparentBounds")["enabled"]
+            onCheckedChanged: { mainViewTask.getConfig("DrawTransparentBounds")["enabled"] = checked }
+        }
+        CheckBox {
+            text: "Overlay Opaques"
+            checked: mainViewTask.getConfig("DrawOverlayOpaqueBounds")["enabled"]
+            onCheckedChanged: { mainViewTask.getConfig("DrawOverlayOpaqueBounds")["enabled"] = checked }
+        }
+        CheckBox {
+            text: "Overlay Transparents"
+            checked: mainViewTask.getConfig("DrawOverlayTransparentBounds")["enabled"]
+            onCheckedChanged: { mainViewTask.getConfig("DrawOverlayTransparentBounds")["enabled"] = checked }
+        }
+    }
+    Column {
+        CheckBox {
+            text: "Metas"
+            checked: mainViewTask.getConfig("DrawMetaBounds")["enabled"]
+            onCheckedChanged: { mainViewTask.getConfig("DrawMetaBounds")["enabled"] = checked }
+        }   
+        CheckBox {
+            text: "Lights"
+            checked: mainViewTask.getConfig("DrawLightBounds")["enabled"]
+            onCheckedChanged: { mainViewTask.getConfig("DrawLightBounds")["enabled"] = checked; }
+        }
+        CheckBox {
+            text: "Zones"
+            checked: mainViewTask.getConfig("DrawZones")["enabled"]
+            onCheckedChanged: { mainViewTask.getConfig("ZoneRenderer")["enabled"] = checked; mainViewTask.getConfig("DrawZones")["enabled"] = checked; }
+        }
+    }
     }
 }
 

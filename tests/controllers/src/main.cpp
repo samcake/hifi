@@ -116,6 +116,16 @@ int main(int argc, char** argv) {
         InputCalibrationData calibrationData = {
             glm::mat4(),
             glm::mat4(),
+            glm::mat4(),
+            glm::mat4(),
+            glm::mat4(),
+            glm::mat4(),
+            glm::mat4(),
+            glm::mat4(),
+            glm::mat4(),
+            glm::mat4(),
+            glm::mat4(),
+            glm::mat4(),
             glm::mat4()
         };
 
@@ -130,6 +140,16 @@ int main(int argc, char** argv) {
 
     {
         InputCalibrationData calibrationData = {
+            glm::mat4(),
+            glm::mat4(),
+            glm::mat4(),
+            glm::mat4(),
+            glm::mat4(),
+            glm::mat4(),
+            glm::mat4(),
+            glm::mat4(),
+            glm::mat4(),
+            glm::mat4(),
             glm::mat4(),
             glm::mat4(),
             glm::mat4()

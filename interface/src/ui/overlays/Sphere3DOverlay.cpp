@@ -39,30 +39,34 @@ void Sphere3DOverlay::render(RenderArgs* args) {
     auto batch = args->_batch;
 
     if (batch) {
+        // FIXME Start using the _renderTransform instead of calling for Transform and Dimensions from here, do the custom things needed in evalRenderTransform()
         Transform transform = getTransform();
+#ifndef USE_SN_SCALE
+        transform.setScale(1.0f);  // ignore inherited scale from SpatiallyNestable
+#endif
         transform.postScale(getDimensions() * SPHERE_OVERLAY_SCALE);
         batch->setModelTransform(transform);
 
         auto geometryCache = DependencyManager::get<GeometryCache>();
-        auto pipeline = args->_pipeline;
-        if (!pipeline) {
-            pipeline = _isSolid ? geometryCache->getOpaqueShapePipeline() : geometryCache->getWireShapePipeline();
+        auto shapePipeline = args->_shapePipeline;
+        if (!shapePipeline) {
+            shapePipeline = _isSolid ? geometryCache->getOpaqueShapePipeline() : geometryCache->getWireShapePipeline();
         }
 
         if (_isSolid) {
-            geometryCache->renderSolidSphereInstance(*batch, sphereColor, pipeline);
+            geometryCache->renderSolidSphereInstance(args, *batch, sphereColor, shapePipeline);
         } else {
-            geometryCache->renderWireSphereInstance(*batch, sphereColor, pipeline);
+            geometryCache->renderWireSphereInstance(args, *batch, sphereColor, shapePipeline);
         }
     }
 }
 
 const render::ShapeKey Sphere3DOverlay::getShapeKey() {
     auto builder = render::ShapeKey::Builder();
-    if (getAlpha() != 1.0f) {
+    if (isTransparent()) {
         builder.withTranslucent();
     }
-    if (!getIsSolid()) {
+    if (!getIsSolid() || shouldDrawHUDLayer()) {
         builder.withUnlit().withDepthBias();
     }
     return builder.build();

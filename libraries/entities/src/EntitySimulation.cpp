@@ -279,25 +279,25 @@ void EntitySimulation::moveSimpleKinematics(const quint64& now) {
     }
 }
 
-void EntitySimulation::addAction(EntityActionPointer action) {
-    QMutexLocker lock(&_mutex);
-    _actionsToAdd += action;
+void EntitySimulation::addDynamic(EntityDynamicPointer dynamic) {
+    QMutexLocker lock(&_dynamicsMutex);
+    _dynamicsToAdd += dynamic;
 }
 
-void EntitySimulation::removeAction(const QUuid actionID) {
-    QMutexLocker lock(&_mutex);
-    _actionsToRemove += actionID;
+void EntitySimulation::removeDynamic(const QUuid dynamicID) {
+    QMutexLocker lock(&_dynamicsMutex);
+    _dynamicsToRemove += dynamicID;
 }
 
-void EntitySimulation::removeActions(QList<QUuid> actionIDsToRemove) {
-    QMutexLocker lock(&_mutex);
-    foreach(QUuid uuid, actionIDsToRemove) {
-        _actionsToRemove.insert(uuid);
+void EntitySimulation::removeDynamics(QList<QUuid> dynamicIDsToRemove) {
+    QMutexLocker lock(&_dynamicsMutex);
+    foreach(QUuid uuid, dynamicIDsToRemove) {
+        _dynamicsToRemove.insert(uuid);
     }
 }
 
-void EntitySimulation::applyActionChanges() {
-    QMutexLocker lock(&_mutex);
-    _actionsToAdd.clear();
-    _actionsToRemove.clear();
+void EntitySimulation::applyDynamicChanges() {
+    QMutexLocker lock(&_dynamicsMutex);
+    _dynamicsToAdd.clear();
+    _dynamicsToRemove.clear();
 }

@@ -24,17 +24,20 @@
 #include <QtCore/QString>
 
 #include <SharedUtil.h>
-#include <ServerPathUtils.h>
+#include <PathUtils.h>
 
 #include "NetworkLogging.h"
 #include "NodeType.h"
 #include "SendAssetTask.h"
 #include "UploadAssetTask.h"
+#include <ClientServerUtils.h>
 
 static const uint8_t MIN_CORES_FOR_MULTICORE = 4;
 static const uint8_t CPU_AFFINITY_COUNT_HIGH = 2;
 static const uint8_t CPU_AFFINITY_COUNT_LOW = 1;
+#ifdef Q_OS_WIN
 static const int INTERFACE_RUNNING_CHECK_FREQUENCY_MS = 1000;
+#endif
 
 const QString ASSET_SERVER_LOGGING_TARGET_NAME = "asset-server";
 
@@ -159,7 +162,7 @@ void AssetServer::completeSetup() {
     if (assetsPath.isRelative()) {
         // if the domain settings passed us a relative path, make an absolute path that is relative to the
         // default data directory
-        absoluteFilePath = ServerPathUtils::getDataFilePath("assets/" + assetsPathString);
+        absoluteFilePath = PathUtils::getAppDataFilePath("assets/" + assetsPathString);
     }
 
     _resourcesDirectory = QDir(absoluteFilePath);
@@ -190,7 +193,7 @@ void AssetServer::completeSetup() {
             cleanupUnmappedFiles();
         }
 
-        nodeList->addNodeTypeToInterestSet(NodeType::Agent);
+        nodeList->addSetOfNodeTypesToNodeInterestSet({ NodeType::Agent, NodeType::EntityScriptServer });
     } else {
         qCritical() << "Asset Server assignment will not continue because mapping file could not be loaded.";
         setFinished(true);

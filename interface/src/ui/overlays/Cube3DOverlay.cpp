@@ -54,6 +54,7 @@ void Cube3DOverlay::render(RenderArgs* args) {
     glm::vec4 cubeColor(color.red / MAX_COLOR, color.green / MAX_COLOR, color.blue / MAX_COLOR, alpha);
 
     // TODO: handle registration point??
+    // FIXME Start using the _renderTransform instead of calling for Transform from here, do the custom things needed in evalRenderTransform()
     glm::vec3 position = getPosition();
     glm::vec3 dimensions = getDimensions();
     glm::quat rotation = getRotation();
@@ -65,15 +66,15 @@ void Cube3DOverlay::render(RenderArgs* args) {
         transform.setTranslation(position);
         transform.setRotation(rotation);
         auto geometryCache = DependencyManager::get<GeometryCache>();
-        auto pipeline = args->_pipeline;
-        if (!pipeline) {
-            pipeline = _isSolid ? geometryCache->getOpaqueShapePipeline() : geometryCache->getWireShapePipeline();
+        auto shapePipeline = args->_shapePipeline;
+        if (!shapePipeline) {
+            shapePipeline = _isSolid ? geometryCache->getOpaqueShapePipeline() : geometryCache->getWireShapePipeline();
         }
 
         if (_isSolid) {
             transform.setScale(dimensions);
             batch->setModelTransform(transform);
-            geometryCache->renderSolidCubeInstance(*batch, cubeColor, pipeline);
+            geometryCache->renderSolidCubeInstance(args, *batch, cubeColor, shapePipeline);
         } else {
             geometryCache->bindSimpleProgram(*batch, false, false, false, true, true);
             if (getIsDashedLine()) {
@@ -109,7 +110,7 @@ void Cube3DOverlay::render(RenderArgs* args) {
             } else {
                 transform.setScale(dimensions);
                 batch->setModelTransform(transform);
-                geometryCache->renderWireCubeInstance(*batch, cubeColor, pipeline);
+                geometryCache->renderWireCubeInstance(args, *batch, cubeColor, shapePipeline);
             }
         }
     }
@@ -117,10 +118,10 @@ void Cube3DOverlay::render(RenderArgs* args) {
 
 const render::ShapeKey Cube3DOverlay::getShapeKey() {
     auto builder = render::ShapeKey::Builder();
-    if (getAlpha() != 1.0f) {
+    if (isTransparent()) {
         builder.withTranslucent();
     }
-    if (!getIsSolid()) {
+    if (!getIsSolid() || shouldDrawHUDLayer()) {
         builder.withUnlit().withDepthBias();
     }
     return builder.build();

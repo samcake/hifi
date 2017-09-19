@@ -8,22 +8,24 @@
 
 #include "RecordingScriptingInterface.h"
 
+#include <QStandardPaths>
 #include <QtCore/QThread>
+#include <QtCore/QUrl>
+#include <QtScript/QScriptValue>
+#include <QtWidgets/QFileDialog>
 
+#include <shared/QtHelpers.h>
+#include <AssetClient.h>
+#include <AssetUpload.h>
+#include <BuildInfo.h>
 #include <NumericalConstants.h>
+#include <PathUtils.h>
 #include <Transform.h>
 #include <recording/Deck.h>
 #include <recording/Recorder.h>
 #include <recording/Clip.h>
 #include <recording/Frame.h>
 #include <recording/ClipCache.h>
-
-
-#include <QtScript/QScriptValue>
-#include <AssetClient.h>
-#include <AssetUpload.h>
-#include <QtCore/QUrl>
-#include <QtWidgets/QFileDialog>
 
 #include "ScriptEngineLogging.h"
 
@@ -52,30 +54,52 @@ float RecordingScriptingInterface::playerLength() const {
     return _player->length();
 }
 
-bool RecordingScriptingInterface::loadRecording(const QString& url) {
-    using namespace recording;
+void RecordingScriptingInterface::loadRecording(const QString& url, QScriptValue callback) {
+    auto clipLoader = DependencyManager::get<recording::ClipCache>()->getClipLoader(url);
 
-    auto loader = ClipCache::instance().getClipLoader(url);
-    if (!loader->isLoaded()) {
-        QEventLoop loop;
-        QObject::connect(loader.data(), &Resource::loaded, &loop, &QEventLoop::quit);
-        QObject::connect(loader.data(), &Resource::failed, &loop, &QEventLoop::quit);
-        loop.exec();
-    }
+    // hold a strong pointer to the loading clip so that it has a chance to load
+    _clipLoaders.insert(clipLoader);
 
-    if (!loader->isLoaded()) {
-        qWarning() << "Clip failed to load from " << url;
-        return false;
-    }
+    auto weakClipLoader = clipLoader.toWeakRef();
 
-    _player->queueClip(loader->getClip());
-    return true;
+    // when clip loaded, call the callback with the URL and success boolean
+    connect(clipLoader.data(), &recording::NetworkClipLoader::clipLoaded, this,
+            [this, weakClipLoader, url, callback]() mutable {
+
+        if (auto clipLoader = weakClipLoader.toStrongRef()) {
+            qCDebug(scriptengine) << "Loaded recording from" << url;
+
+            _player->queueClip(clipLoader->getClip());
+
+            if (callback.isFunction()) {
+                QScriptValueList args { true, url };
+                callback.call(_scriptEngine->globalObject(), args);
+            }
+
+            // drop our strong pointer to this clip so it is cleaned up
+            _clipLoaders.remove(clipLoader);
+        }
+    });
+
+    // when clip load fails, call the callback with the URL and failure boolean
+    connect(clipLoader.data(), &recording::NetworkClipLoader::failed, this, [this, weakClipLoader, url, callback](QNetworkReply::NetworkError error) mutable {
+        qCDebug(scriptengine) << "Failed to load recording from" << url;
+
+        if (callback.isFunction()) {
+            QScriptValueList args { false, url };
+            callback.call(_scriptEngine->currentContext()->thisObject(), args);
+        }
+
+        if (auto clipLoader = weakClipLoader.toStrongRef()) {
+            // drop out strong pointer to this clip so it is cleaned up
+            _clipLoaders.remove(clipLoader);
+        }
+    });
 }
-
 
 void RecordingScriptingInterface::startPlaying() {
     if (QThread::currentThread() != thread()) {
-        QMetaObject::invokeMethod(this, "startPlaying", Qt::BlockingQueuedConnection);
+        BLOCKING_INVOKE_METHOD(this, "startPlaying");
         return;
     }
 
@@ -92,7 +116,7 @@ void RecordingScriptingInterface::setPlayerAudioOffset(float audioOffset) {
 
 void RecordingScriptingInterface::setPlayerTime(float time) {
     if (QThread::currentThread() != thread()) {
-        QMetaObject::invokeMethod(this, "setPlayerTime", Qt::BlockingQueuedConnection, Q_ARG(float, time));
+        BLOCKING_INVOKE_METHOD(this, "setPlayerTime", Q_ARG(float, time));
         return;
     }
     _player->seek(time);
@@ -124,7 +148,7 @@ void RecordingScriptingInterface::setPlayerUseSkeletonModel(bool useSkeletonMode
 
 void RecordingScriptingInterface::pausePlayer() {
     if (QThread::currentThread() != thread()) {
-        QMetaObject::invokeMethod(this, "pausePlayer", Qt::BlockingQueuedConnection);
+        BLOCKING_INVOKE_METHOD(this, "pausePlayer");
         return;
     }
     _player->pause();
@@ -132,7 +156,7 @@ void RecordingScriptingInterface::pausePlayer() {
 
 void RecordingScriptingInterface::stopPlaying() {
     if (QThread::currentThread() != thread()) {
-        QMetaObject::invokeMethod(this, "stopPlaying", Qt::BlockingQueuedConnection);
+        BLOCKING_INVOKE_METHOD(this, "stopPlaying");
         return;
     }
     _player->stop();
@@ -153,7 +177,7 @@ void RecordingScriptingInterface::startRecording() {
     }
 
     if (QThread::currentThread() != thread()) {
-        QMetaObject::invokeMethod(this, "startRecording", Qt::BlockingQueuedConnection);
+        BLOCKING_INVOKE_METHOD(this, "startRecording");
         return;
     }
 
@@ -166,9 +190,17 @@ void RecordingScriptingInterface::stopRecording() {
     _lastClip->seek(0);
 }
 
+QString RecordingScriptingInterface::getDefaultRecordingSaveDirectory() {
+    QString directory = PathUtils::getAppLocalDataPath() + "Avatar Recordings/";
+    if (!QDir(directory).exists()) {
+        QDir().mkdir(directory);
+    }
+    return directory;
+}
+
 void RecordingScriptingInterface::saveRecording(const QString& filename) {
     if (QThread::currentThread() != thread()) {
-        QMetaObject::invokeMethod(this, "saveRecording", Qt::BlockingQueuedConnection,
+        BLOCKING_INVOKE_METHOD(this, "saveRecording",
             Q_ARG(QString, filename));
         return;
     }
@@ -188,9 +220,11 @@ bool RecordingScriptingInterface::saveRecordingToAsset(QScriptValue getClipAtpUr
     }
 
     if (QThread::currentThread() != thread()) {
-        QMetaObject::invokeMethod(this, "saveRecordingToAsset", Qt::BlockingQueuedConnection,
+        bool result;
+        BLOCKING_INVOKE_METHOD(this, "saveRecordingToAsset",
+            Q_RETURN_ARG(bool, result),
             Q_ARG(QScriptValue, getClipAtpUrl));
-        return false;
+        return result;
     }
 
     if (!_lastClip) {
@@ -224,7 +258,7 @@ bool RecordingScriptingInterface::saveRecordingToAsset(QScriptValue getClipAtpUr
 
 void RecordingScriptingInterface::loadLastRecording() {
     if (QThread::currentThread() != thread()) {
-        QMetaObject::invokeMethod(this, "loadLastRecording", Qt::BlockingQueuedConnection);
+        BLOCKING_INVOKE_METHOD(this, "loadLastRecording");
         return;
     }
 

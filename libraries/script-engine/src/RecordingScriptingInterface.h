@@ -14,10 +14,13 @@
 
 #include <QtCore/QObject>
 
+#include <BaseScriptEngine.h>
 #include <DependencyManager.h>
+#include <recording/ClipCache.h>
 #include <recording/Forward.h>
 #include <recording/Frame.h>
 
+class QScriptEngine;
 class QScriptValue;
 
 class RecordingScriptingInterface : public QObject, public Dependency {
@@ -26,8 +29,10 @@ class RecordingScriptingInterface : public QObject, public Dependency {
 public:
     RecordingScriptingInterface();
 
+    void setScriptEngine(QSharedPointer<BaseScriptEngine> scriptEngine) { _scriptEngine = scriptEngine; }
+
 public slots:
-    bool loadRecording(const QString& url);
+    void loadRecording(const QString& url, QScriptValue callback = QScriptValue());
 
     void startPlaying();
     void pausePlayer();
@@ -61,6 +66,7 @@ public slots:
 
     float recorderElapsed() const;
 
+    QString getDefaultRecordingSaveDirectory();
     void saveRecording(const QString& filename);
     bool saveRecordingToAsset(QScriptValue getClipAtpUrl);
     void loadLastRecording();
@@ -79,6 +85,9 @@ protected:
     Flag _useAttachments { false };
     Flag _useSkeletonModel { false };
     recording::ClipPointer _lastClip;
+
+    QSharedPointer<BaseScriptEngine> _scriptEngine;
+    QSet<recording::NetworkClipLoaderPointer> _clipLoaders;
 };
 
 #endif // hifi_RecordingScriptingInterface_h

@@ -25,8 +25,9 @@
 #include <PointerEvent.h>
 
 #include "Overlay.h"
-#include "OverlayPanel.h"
+
 #include "PanelAttachable.h"
+#include "OverlayPanel.h"
 
 class PickRay;
 
@@ -41,6 +42,8 @@ Q_DECLARE_METATYPE(OverlayPropertyResult);
 QScriptValue OverlayPropertyResultToScriptValue(QScriptEngine* engine, const OverlayPropertyResult& value);
 void OverlayPropertyResultFromScriptValue(const QScriptValue& object, OverlayPropertyResult& value);
 
+const OverlayID UNKNOWN_OVERLAY_ID = OverlayID();
+
 /**jsdoc
  * @typedef Overlays.RayToOverlayIntersectionResult
  * @property {bool} intersects True if the PickRay intersected with a 3D overlay.
@@ -51,10 +54,9 @@ void OverlayPropertyResultFromScriptValue(const QScriptValue& object, OverlayPro
  */
 class RayToOverlayIntersectionResult {
 public:
-    RayToOverlayIntersectionResult();
-    bool intersects;
-    unsigned int overlayID;
-    float distance;
+    bool intersects { false };
+    OverlayID overlayID { UNKNOWN_OVERLAY_ID };
+    float distance { 0 };
     BoxFace face;
     glm::vec3 surfaceNormal;
     glm::vec3 intersection;
@@ -77,32 +79,36 @@ void RayToOverlayIntersectionResultFromScriptValue(const QScriptValue& object, R
  * @namespace Overlays
  */
 
-const unsigned int UNKNOWN_OVERLAY_ID = 0;
-
 class Overlays : public QObject {
     Q_OBJECT
 
-    Q_PROPERTY(unsigned int keyboardFocusOverlay READ getKeyboardFocusOverlay WRITE setKeyboardFocusOverlay)
+    Q_PROPERTY(OverlayID keyboardFocusOverlay READ getKeyboardFocusOverlay WRITE setKeyboardFocusOverlay)
 
 public:
-    Overlays();
+    Overlays() {};
 
     void init();
     void update(float deltatime);
     void renderHUD(RenderArgs* renderArgs);
+    void render3DHUDOverlays(RenderArgs* renderArgs);
     void disable();
     void enable();
 
-    Overlay::Pointer getOverlay(unsigned int id) const;
-    OverlayPanel::Pointer getPanel(unsigned int id) const { return _panels[id]; }
+    Overlay::Pointer getOverlay(OverlayID id) const;
+#if OVERLAY_PANELS
+    OverlayPanel::Pointer getPanel(OverlayID id) const { return _panels[id]; }
+#endif
 
     /// adds an overlay that's already been created
-    unsigned int addOverlay(Overlay* overlay) { return addOverlay(Overlay::Pointer(overlay)); }
-    unsigned int addOverlay(Overlay::Pointer overlay);
+    OverlayID addOverlay(Overlay* overlay) { return addOverlay(Overlay::Pointer(overlay)); }
+    OverlayID addOverlay(const Overlay::Pointer& overlay);
 
-    void mousePressEvent(QMouseEvent* event);
-    void mouseReleaseEvent(QMouseEvent* event);
-    void mouseMoveEvent(QMouseEvent* event);
+    void setOverlayDrawHUDLayer(const OverlayID& id, const bool drawHUDLayer);
+
+    bool mousePressEvent(QMouseEvent* event);
+    bool mouseDoublePressEvent(QMouseEvent* event);
+    bool mouseReleaseEvent(QMouseEvent* event);
+    bool mouseMoveEvent(QMouseEvent* event);
 
     void cleanupAllOverlays();
 
@@ -116,7 +122,7 @@ public slots:
      * @param {Overlays.OverlayProperties} The properties of the overlay that you want to add.
      * @return {Overlays.OverlayID} The ID of the newly created overlay.
      */
-    unsigned int addOverlay(const QString& type, const QVariant& properties);
+    OverlayID addOverlay(const QString& type, const QVariant& properties);
 
     /**jsdoc
      * Create a clone of an existing overlay.
@@ -125,16 +131,16 @@ public slots:
      * @param {Overlays.OverlayID} overlayID The ID of the overlay to clone.
      * @return {Overlays.OverlayID} The ID of the new overlay.
      */
-    unsigned int cloneOverlay(unsigned int id);
+    OverlayID cloneOverlay(OverlayID id);
 
     /**jsdoc
-     * Edit an overlay's properties. 
+     * Edit an overlay's properties.
      *
      * @function Overlays.editOverlay
      * @param {Overlays.OverlayID} overlayID The ID of the overlay to edit.
      * @return {bool} `true` if the overlay was found and edited, otherwise false.
      */
-    bool editOverlay(unsigned int id, const QVariant& properties);
+    bool editOverlay(OverlayID id, const QVariant& properties);
 
     /// edits an overlay updating only the included properties, will return the identified OverlayID in case of
     /// successful edit, if the input id is for an unknown overlay this function will have no effect
@@ -146,7 +152,7 @@ public slots:
      * @function Overlays.deleteOverlay
      * @param {Overlays.OverlayID} overlayID The ID of the overlay to delete.
      */
-    void deleteOverlay(unsigned int id);
+    void deleteOverlay(OverlayID id);
 
     /**jsdoc
      * Get the type of an overlay.
@@ -155,7 +161,7 @@ public slots:
      * @param {Overlays.OverlayID} overlayID The ID of the overlay to get the type of.
      * @return {string} The type of the overlay if found, otherwise the empty string.
      */
-    QString getOverlayType(unsigned int overlayId) const;
+    QString getOverlayType(OverlayID overlayId);
 
     /**jsdoc
     * Get the overlay Script object.
@@ -164,7 +170,7 @@ public slots:
     * @param {Overlays.OverlayID} overlayID The ID of the overlay to get the script object of.
     * @return {Object} The script object for the overlay if found.
     */
-    QObject* getOverlayObject(unsigned int id);
+    QObject* getOverlayObject(OverlayID id);
 
     /**jsdoc
      * Get the ID of the overlay at a particular point on the HUD/screen.
@@ -174,7 +180,7 @@ public slots:
      * @return {Overlays.OverlayID} The ID of the overlay at the point specified.
      *     If no overlay is found, `0` will be returned.
      */
-    unsigned int getOverlayAtPoint(const glm::vec2& point);
+    OverlayID getOverlayAtPoint(const glm::vec2& point);
 
     /**jsdoc
      * Get the value of a an overlay's property.
@@ -185,16 +191,46 @@ public slots:
      * @return {Object} The value of the property. If the overlay or the property could
      *     not be found, `undefined` will be returned.
      */
-    OverlayPropertyResult getProperty(unsigned int id, const QString& property);
+    OverlayPropertyResult getProperty(OverlayID id, const QString& property);
+
+    OverlayPropertyResult getProperties(const OverlayID& id, const QStringList& properties);
+
+    OverlayPropertyResult getOverlaysProperties(const QVariant& overlaysProperties);
 
     /*jsdoc
      * Find the closest 3D overlay hit by a pick ray.
      *
      * @function Overlays.findRayIntersection
      * @param {PickRay} The PickRay to use for finding overlays.
+     * @param {bool} Unused; Exists to match Entity interface
+     * @param {List of Overlays.OverlayID} Whitelist for intersection test.
+     * @param {List of Overlays.OverlayID} Blacklist for intersection test.
+     * @param {bool} Unused; Exists to match Entity interface
+     * @param {bool} Unused; Exists to match Entity interface
      * @return {Overlays.RayToOverlayIntersectionResult} The result of the ray cast.
      */
-    RayToOverlayIntersectionResult findRayIntersection(const PickRay& ray);
+    RayToOverlayIntersectionResult findRayIntersection(const PickRay& ray,
+                                                       bool precisionPicking = false,
+                                                       const QScriptValue& overlayIDsToInclude = QScriptValue(),
+                                                       const QScriptValue& overlayIDsToDiscard = QScriptValue(),
+                                                       bool visibleOnly = false,
+                                                       bool collidableOnly = false);
+
+    // Same as above but with QVectors
+    RayToOverlayIntersectionResult findRayIntersectionVector(const PickRay& ray, bool precisionPicking,
+                                                             const QVector<OverlayID>& overlaysToInclude,
+                                                             const QVector<OverlayID>& overlaysToDiscard,
+                                                             bool visibleOnly = false, bool collidableOnly = false);
+
+    /**jsdoc
+     * Return a list of 3d overlays with bounding boxes that touch the given sphere
+     *
+     * @function Overlays.findOverlays
+     * @param {Vec3} center the point to search from.
+     * @param {float} radius search radius
+     * @return {Overlays.OverlayID[]} list of overlays withing the radius
+     */
+    QVector<QUuid> findOverlays(const glm::vec3& center, float radius);
 
     /**jsdoc
      * Check whether an overlay's assets have been loaded. For example, if the
@@ -204,7 +240,7 @@ public slots:
      * @param {Overlays.OverlayID} The ID of the overlay to check.
      * @return {bool} `true` if the overlay's assets have been loaded, otherwise `false`.
      */
-    bool isLoaded(unsigned int id);
+    bool isLoaded(OverlayID id);
 
     /**jsdoc
      * Calculates the size of the given text in the specified overlay if it is a text overlay.
@@ -216,7 +252,7 @@ public slots:
      * @param {string} The string to measure.
      * @return {Vec2} The size of the text.
      */
-    QSizeF textSize(unsigned int id, const QString& text) const;
+    QSizeF textSize(OverlayID id, const QString& text);
 
     /**jsdoc
      * Get the width of the virtual 2D HUD.
@@ -224,7 +260,7 @@ public slots:
      * @function Overlays.width
      * @return {float} The width of the 2D HUD.
      */
-    float width() const;
+    float width();
 
     /**jsdoc
      * Get the height of the virtual 2D HUD.
@@ -232,42 +268,45 @@ public slots:
      * @function Overlays.height
      * @return {float} The height of the 2D HUD.
      */
-    float height() const;
+    float height();
 
     /// return true if there is an overlay with that id else false
-    bool isAddedOverlay(unsigned int id);
+    bool isAddedOverlay(OverlayID id);
 
-    unsigned int getParentPanel(unsigned int childId) const;
-    void setParentPanel(unsigned int childId, unsigned int panelId);
+#if OVERLAY_PANELS
+    OverlayID getParentPanel(OverlayID childId) const;
+    void setParentPanel(OverlayID childId, OverlayID panelId);
 
     /// adds a panel that has already been created
-    unsigned int addPanel(OverlayPanel::Pointer panel);
+    OverlayID addPanel(OverlayPanel::Pointer panel);
 
     /// creates and adds a panel based on a set of properties
-    unsigned int addPanel(const QVariant& properties);
+    OverlayID addPanel(const QVariant& properties);
 
     /// edit the properties of a panel
-    void editPanel(unsigned int panelId, const QVariant& properties);
+    void editPanel(OverlayID panelId, const QVariant& properties);
 
     /// get a property of a panel
-    OverlayPropertyResult getPanelProperty(unsigned int panelId, const QString& property);
+    OverlayPropertyResult getPanelProperty(OverlayID panelId, const QString& property);
 
     /// deletes a panel and all child overlays
-    void deletePanel(unsigned int panelId);
+    void deletePanel(OverlayID panelId);
 
     /// return true if there is a panel with that id else false
-    bool isAddedPanel(unsigned int id) { return _panels.contains(id); }
+    bool isAddedPanel(OverlayID id) { return _panels.contains(id); }
 
-    void sendMousePressOnOverlay(unsigned int overlayID, const PointerEvent& event);
-    void sendMouseReleaseOnOverlay(unsigned int overlayID, const PointerEvent& event);
-    void sendMouseMoveOnOverlay(unsigned int overlayID, const PointerEvent& event);
+#endif
 
-    void sendHoverEnterOverlay(unsigned int id, PointerEvent event);
-    void sendHoverOverOverlay(unsigned int id, PointerEvent event);
-    void sendHoverLeaveOverlay(unsigned int id, PointerEvent event);
+    void sendMousePressOnOverlay(const OverlayID& overlayID, const PointerEvent& event);
+    void sendMouseReleaseOnOverlay(const OverlayID& overlayID, const PointerEvent& event);
+    void sendMouseMoveOnOverlay(const OverlayID& overlayID, const PointerEvent& event);
 
-    unsigned int getKeyboardFocusOverlay() const;
-    void setKeyboardFocusOverlay(unsigned int id);
+    void sendHoverEnterOverlay(const OverlayID& id, const PointerEvent& event);
+    void sendHoverOverOverlay(const OverlayID& id, const PointerEvent& event);
+    void sendHoverLeaveOverlay(const OverlayID& id, const PointerEvent& event);
+
+    OverlayID getKeyboardFocusOverlay();
+    void setKeyboardFocusOverlay(OverlayID id);
 
 signals:
     /**jsdoc
@@ -276,37 +315,48 @@ signals:
      * @function Overlays.overlayDeleted
      * @param {OverlayID} The ID of the overlay that was deleted.
      */
-    void overlayDeleted(unsigned int id);
-    void panelDeleted(unsigned int id);
+    void overlayDeleted(OverlayID id);
+    void panelDeleted(OverlayID id);
 
-    void mousePressOnOverlay(unsigned int overlayID, const PointerEvent& event);
-    void mouseReleaseOnOverlay(unsigned int overlayID, const PointerEvent& event);
-    void mouseMoveOnOverlay(unsigned int overlayID, const PointerEvent& event);
+    void mousePressOnOverlay(OverlayID overlayID, const PointerEvent& event);
+    void mouseDoublePressOnOverlay(OverlayID overlayID, const PointerEvent& event);
+    void mouseReleaseOnOverlay(OverlayID overlayID, const PointerEvent& event);
+    void mouseMoveOnOverlay(OverlayID overlayID, const PointerEvent& event);
     void mousePressOffOverlay();
+    void mouseDoublePressOffOverlay();
 
-    void hoverEnterOverlay(unsigned int overlayID, const PointerEvent& event);
-    void hoverOverOverlay(unsigned int overlayID, const PointerEvent& event);
-    void hoverLeaveOverlay(unsigned int overlayID, const PointerEvent& event);
+    void hoverEnterOverlay(OverlayID overlayID, const PointerEvent& event);
+    void hoverOverOverlay(OverlayID overlayID, const PointerEvent& event);
+    void hoverLeaveOverlay(OverlayID overlayID, const PointerEvent& event);
 
 private:
     void cleanupOverlaysToDelete();
 
-    QMap<unsigned int, Overlay::Pointer> _overlaysHUD;
-    QMap<unsigned int, Overlay::Pointer> _overlaysWorld;
-    QMap<unsigned int, OverlayPanel::Pointer> _panels;
-    QList<Overlay::Pointer> _overlaysToDelete;
-    unsigned int _nextOverlayID;
+    mutable QMutex _mutex { QMutex::Recursive };
+    QMap<OverlayID, Overlay::Pointer> _overlaysHUD;
+    QMap<OverlayID, Overlay::Pointer> _overlays3DHUD;
+    QMap<OverlayID, Overlay::Pointer> _overlaysWorld;
 
-    QReadWriteLock _lock;
-    QReadWriteLock _deleteLock;
+    render::ShapePlumberPointer _shapePlumber;
+
+#if OVERLAY_PANELS
+    QMap<OverlayID, OverlayPanel::Pointer> _panels;
+#endif
+    QList<Overlay::Pointer> _overlaysToDelete;
+    unsigned int _stackOrder { 1 };
+
+#if OVERLAY_PANELS
     QScriptEngine* _scriptEngine;
+#endif
     bool _enabled = true;
 
-    PointerEvent calculatePointerEvent(Overlay::Pointer overlay, PickRay ray, RayToOverlayIntersectionResult rayPickResult,
+    PointerEvent calculateOverlayPointerEvent(OverlayID overlayID, PickRay ray, RayToOverlayIntersectionResult rayPickResult,
         QMouseEvent* event, PointerEvent::EventType eventType);
 
-    unsigned int _currentClickingOnOverlayID { UNKNOWN_OVERLAY_ID };
-    unsigned int _currentHoverOverOverlayID { UNKNOWN_OVERLAY_ID };
+    OverlayID _currentClickingOnOverlayID { UNKNOWN_OVERLAY_ID };
+    OverlayID _currentHoverOverOverlayID { UNKNOWN_OVERLAY_ID };
+
+    RayToOverlayIntersectionResult findRayIntersectionForMouseEvent(PickRay ray);
 };
 
 #endif // hifi_Overlays_h

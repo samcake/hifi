@@ -16,9 +16,10 @@
 
 #include <PerfStat.h>
 #include <ViewFrustum.h>
-#include <RenderArgs.h>
 
 #include <gpu/Context.h>
+
+#include "Args.h"
 
 #include "drawItemBounds_vert.h"
 #include "drawItemBounds_frag.h"
@@ -103,13 +104,11 @@ void DrawStatus::configure(const Config& config) {
     _showNetwork = config.showNetwork;
 }
 
-void DrawStatus::run(const SceneContextPointer& sceneContext,
-                     const RenderContextPointer& renderContext,
-                     const ItemBounds& inItems) {
+void DrawStatus::run(const RenderContextPointer& renderContext, const ItemBounds& inItems) {
     assert(renderContext->args);
     assert(renderContext->args->hasViewFrustum());
     RenderArgs* args = renderContext->args;
-    auto& scene = sceneContext->_scene;
+    auto& scene = renderContext->_scene;
     const int NUM_STATUS_VEC4_PER_ITEM = 2;
     const int VEC4_LENGTH = 4;
 

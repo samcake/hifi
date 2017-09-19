@@ -13,6 +13,7 @@
 #define hifi_PathUtils_h
 
 #include <QtCore/QObject>
+#include <QtCore/QUrl>
 
 #include "DependencyManager.h"
 
@@ -24,15 +25,26 @@
 class PathUtils : public QObject, public Dependency {
     Q_OBJECT
     SINGLETON_DEPENDENCY
-    Q_PROPERTY(QString resources READ resourcesPath)
+    Q_PROPERTY(QString resources READ resourcesPath CONSTANT)
+    Q_PROPERTY(QUrl defaultScripts READ defaultScriptsLocation CONSTANT)
 public:
     static const QString& resourcesPath();
-    static QString getRootDataDirectory();
+
+    static QString getAppDataPath();
+    static QString getAppLocalDataPath();
+
+    static QString getAppDataFilePath(const QString& filename);
+    static QString getAppLocalDataFilePath(const QString& filename);
+
+    static Qt::CaseSensitivity getFSCaseSensitivity();
+    static QString stripFilename(const QUrl& url);
+    // note: this is FS-case-sensitive version of parentURL.isParentOf(childURL)
+    static bool isDescendantOf(const QUrl& childURL, const QUrl& parentURL);
+    static QUrl defaultScriptsLocation(const QString& newDefault = "");
+
 };
 
 QString fileNameWithoutExtension(const QString& fileName, const QVector<QString> possibleExtensions);
 QString findMostRecentFileExtension(const QString& originalFileName, QVector<QString> possibleExtensions);
-
-QUrl defaultScriptsLocation();
 
 #endif // hifi_PathUtils_h

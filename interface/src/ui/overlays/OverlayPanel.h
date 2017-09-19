@@ -20,7 +20,9 @@
 
 #include "PanelAttachable.h"
 #include "Billboardable.h"
+#include "Overlay.h"
 
+#if OVERLAY_PANELS
 class PropertyBinding {
 public:
     PropertyBinding() {}
@@ -54,10 +56,10 @@ public:
     void setAnchorScale(const glm::vec3& scale) { _anchorTransform.setScale(scale); }
     void setVisible(bool visible) { _visible = visible; }
 
-    const QList<unsigned int>& getChildren() { return _children; }
-    void addChild(unsigned int childId);
-    void removeChild(unsigned int childId);
-    unsigned int popLastChild() { return _children.takeLast(); }
+    const QList<OverlayID>& getChildren() { return _children; }
+    void addChild(OverlayID childId);
+    void removeChild(OverlayID childId);
+    OverlayID popLastChild() { return _children.takeLast(); }
 
     void setProperties(const QVariantMap& properties);
     QVariant getProperty(const QString& property);
@@ -74,9 +76,11 @@ private:
     QUuid _anchorRotationBindEntity;
 
     bool _visible = true;
-    QList<unsigned int> _children;
+    QList<OverlayID> _children;
 
     QScriptEngine* _scriptEngine;
 };
+
+#endif
 
 #endif // hifi_OverlayPanel_h

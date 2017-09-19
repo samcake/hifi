@@ -1,6 +1,6 @@
 //
 //  PhysicalEntitySimulation.cpp
-//  libraries/physcis/src
+//  libraries/physics/src
 //
 //  Created by Andrew Meadows 2015.04.27
 //  Copyright 2015 High Fidelity, Inc.
@@ -130,7 +130,7 @@ void PhysicalEntitySimulation::clearEntitiesInternal() {
     }
 
     // then remove the objects (aka MotionStates) from physics
-    _physicsEngine->removeObjects(_physicalObjects);
+    _physicsEngine->removeSetOfObjects(_physicalObjects);
 
     // delete the MotionStates
     // TODO: after we invert the entities/physics lib dependencies we will let EntityItem delete
@@ -208,6 +208,7 @@ void PhysicalEntitySimulation::getObjectsToAddToPhysics(VectorOfMotionStates& re
         assert(!entity->getPhysicsInfo());
         if (entity->isDead()) {
             prepareEntityForDelete(entity);
+            entityItr = _entitiesToAddToPhysics.erase(entityItr);
         } else if (!entity->shouldBePhysical()) {
             // this entity should no longer be on the internal _entitiesToAddToPhysics
             entityItr = _entitiesToAddToPhysics.erase(entityItr);
@@ -259,13 +260,27 @@ void PhysicalEntitySimulation::getObjectsToChange(VectorOfMotionStates& result) 
     _pendingChanges.clear();
 }
 
-void PhysicalEntitySimulation::handleOutgoingChanges(const VectorOfMotionStates& motionStates) {
+void PhysicalEntitySimulation::handleDeactivatedMotionStates(const VectorOfMotionStates& motionStates) {
+    for (auto stateItr : motionStates) {
+        ObjectMotionState* state = &(*stateItr);
+        assert(state);
+        if (state->getType() == MOTIONSTATE_TYPE_ENTITY) {
+            EntityMotionState* entityState = static_cast<EntityMotionState*>(state);
+            entityState->handleDeactivation();
+            EntityItemPointer entity = entityState->getEntity();
+            _entitiesToSort.insert(entity);
+        }
+    }
+}
+
+void PhysicalEntitySimulation::handleChangedMotionStates(const VectorOfMotionStates& motionStates) {
     QMutexLocker lock(&_mutex);
 
     // walk the motionStates looking for those that correspond to entities
     for (auto stateItr : motionStates) {
         ObjectMotionState* state = &(*stateItr);
-        if (state && state->getType() == MOTIONSTATE_TYPE_ENTITY) {
+        assert(state);
+        if (state->getType() == MOTIONSTATE_TYPE_ENTITY) {
             EntityMotionState* entityState = static_cast<EntityMotionState*>(state);
             EntityItemPointer entity = entityState->getEntity();
             assert(entity.get());
@@ -315,33 +330,41 @@ void PhysicalEntitySimulation::handleCollisionEvents(const CollisionEvents& coll
 }
 
 
-void PhysicalEntitySimulation::addAction(EntityActionPointer action) {
+void PhysicalEntitySimulation::addDynamic(EntityDynamicPointer dynamic) {
     if (_physicsEngine) {
         // FIXME put fine grain locking into _physicsEngine
         {
             QMutexLocker lock(&_mutex);
-            const QUuid& actionID = action->getID();
-            if (_physicsEngine->getActionByID(actionID)) {
-                qCDebug(physics) << "warning -- PhysicalEntitySimulation::addAction -- adding an "
-                    "action that was already in _physicsEngine";
+            const QUuid& dynamicID = dynamic->getID();
+            if (_physicsEngine->getDynamicByID(dynamicID)) {
+                qCDebug(physics) << "warning -- PhysicalEntitySimulation::addDynamic -- adding an "
+                    "dynamic that was already in _physicsEngine";
             }
         }
-        EntitySimulation::addAction(action);
+        EntitySimulation::addDynamic(dynamic);
     }
 }
 
-void PhysicalEntitySimulation::applyActionChanges() {
+void PhysicalEntitySimulation::applyDynamicChanges() {
+    QList<EntityDynamicPointer> dynamicsFailedToAdd;
     if (_physicsEngine) {
-        // FIXME put fine grain locking into _physicsEngine
-        QMutexLocker lock(&_mutex);
-        foreach(QUuid actionToRemove, _actionsToRemove) {
-            _physicsEngine->removeAction(actionToRemove);
+        QMutexLocker lock(&_dynamicsMutex);
+        foreach(QUuid dynamicToRemove, _dynamicsToRemove) {
+            _physicsEngine->removeDynamic(dynamicToRemove);
         }
-        foreach (EntityActionPointer actionToAdd, _actionsToAdd) {
-            if (!_actionsToRemove.contains(actionToAdd->getID())) {
-                _physicsEngine->addAction(actionToAdd);
+        foreach (EntityDynamicPointer dynamicToAdd, _dynamicsToAdd) {
+            if (!_dynamicsToRemove.contains(dynamicToAdd->getID())) {
+                if (!_physicsEngine->addDynamic(dynamicToAdd)) {
+                    dynamicsFailedToAdd += dynamicToAdd;
+                }
             }
         }
+        // applyDynamicChanges will clear _dynamicsToRemove and _dynamicsToAdd
+        EntitySimulation::applyDynamicChanges();
     }
-    EntitySimulation::applyActionChanges();
+
+    // put back the ones that couldn't yet be added
+    foreach (EntityDynamicPointer dynamicFailedToAdd, dynamicsFailedToAdd) {
+        addDynamic(dynamicFailedToAdd);
+    }
 }

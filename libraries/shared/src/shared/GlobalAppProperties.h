@@ -18,6 +18,8 @@ namespace hifi { namespace properties {
     extern const char* OCULUS_STORE;
     extern const char* TEST;
     extern const char* TRACING;
+    extern const char* HMD;
+    extern const char* APP_LOCAL_DATA_PATH;
 
     namespace gl {
         extern const char* BACKEND;

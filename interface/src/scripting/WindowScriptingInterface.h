@@ -18,6 +18,8 @@
 #include <QtScript/QScriptValue>
 #include <QtWidgets/QMessageBox>
 
+#include <DependencyManager.h>
+
 class CustomPromptResult {
 public:
     QVariant value;
@@ -51,13 +53,20 @@ public slots:
     QScriptValue confirm(const QString& message = "");
     QScriptValue prompt(const QString& message = "", const QString& defaultText = "");
     CustomPromptResult customPrompt(const QVariant& config);
+    QScriptValue browseDir(const QString& title = "", const QString& directory = "");
     QScriptValue browse(const QString& title = "", const QString& directory = "",  const QString& nameFilter = "");
     QScriptValue save(const QString& title = "", const QString& directory = "",  const QString& nameFilter = "");
+    QScriptValue browseAssets(const QString& title = "", const QString& directory = "", const QString& nameFilter = "");
     void showAssetServer(const QString& upload = "");
+    QString checkVersion();
     void copyToClipboard(const QString& text);
     void takeSnapshot(bool notify = true, bool includeAnimated = false, float aspectRatio = 0.0f);
+    void takeSecondaryCameraSnapshot();
+    void makeConnection(bool success, const QString& userNameOrError);
+    void displayAnnouncement(const QString& message);
     void shareSnapshot(const QString& path, const QUrl& href = QUrl(""));
     bool isPhysicsEnabled();
+    bool setDisplayTexture(const QString& name);
 
     int openMessageBox(QString title, QString text, int buttons, int defaultButton);
     void updateMessageBox(int id, QString title, QString text, int buttons, int defaultButton);
@@ -70,15 +79,28 @@ signals:
     void domainChanged(const QString& domainHostname);
     void svoImportRequested(const QString& url);
     void domainConnectionRefused(const QString& reasonMessage, int reasonCode, const QString& extraInfo);
-    void snapshotTaken(const QString& pathStillSnapshot, const QString& pathAnimatedSnapshot, bool notify);
-    void snapshotShared(const QString& error);
-    void processingGif();
+    void stillSnapshotTaken(const QString& pathStillSnapshot, bool notify);
+    void snapshotShared(bool isError, const QString& reply);
+    void processingGifStarted(const QString& pathStillSnapshot);
+    void processingGifCompleted(const QString& pathAnimatedSnapshot);
+
+    void connectionAdded(const QString& connectionName);
+    void connectionError(const QString& errorString);
+    void announcement(const QString& message);
 
     void messageBoxClosed(int id, int button);
+
+    // triggered when window size or position changes
+    void geometryChanged(QRect geometry);
 
 private:
     QString getPreviousBrowseLocation() const;
     void setPreviousBrowseLocation(const QString& location);
+
+    QString getPreviousBrowseAssetLocation() const;
+    void setPreviousBrowseAssetLocation(const QString& location);
+
+    void ensureReticleVisible() const;
 
     int createMessageBox(QString title, QString text, int buttons, int defaultButton);
     QHash<int, QQuickItem*> _messageBoxes;

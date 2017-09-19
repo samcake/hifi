@@ -13,11 +13,9 @@
 #define hifi_RenderFetchCullSortTask_h
 
 #include <gpu/Pipeline.h>
-
-#include "Task.h"
 #include "CullTask.h"
 
-class RenderFetchCullSortTask : public render::Task {
+class RenderFetchCullSortTask {
 public:
 
     enum Buckets {
@@ -28,15 +26,17 @@ public:
         OVERLAY_OPAQUE_SHAPE,
         OVERLAY_TRANSPARENT_SHAPE,
         BACKGROUND,
-        SPATIAL_SELECTION,
 
         NUM_BUCKETS
     };
 
-    using Output = std::array<render::Varying, Buckets::NUM_BUCKETS>;
-    using JobModel = ModelO<RenderFetchCullSortTask>;
+    using BucketList = render::VaryingArray<render::ItemBounds, Buckets::NUM_BUCKETS>;
+    using Output = render::VaryingSet2<BucketList, render::ItemSpatialTree::ItemSelection>;
+    using JobModel = render::Task::ModelO<RenderFetchCullSortTask, Output>;
 
-    RenderFetchCullSortTask(render::CullFunctor cullFunctor);
+    RenderFetchCullSortTask() {}
+
+    void build(JobModel& task, const render::Varying& inputs, render::Varying& outputs, render::CullFunctor cullFunctor);
 };
 
 #endif // hifi_RenderFetchCullSortTask_h

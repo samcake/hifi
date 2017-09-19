@@ -80,11 +80,12 @@ void Circle3DOverlay::render(RenderArgs* args) {
 
     Q_ASSERT(args->_batch);
     auto& batch = *args->_batch;
-    if (args->_pipeline) {
-        batch.setPipeline(args->_pipeline->pipeline);
+    if (args->_shapePipeline) {
+        batch.setPipeline(args->_shapePipeline->pipeline);
     }
 
     // FIXME: THe line width of _lineWidth is not supported anymore, we ll need a workaround
+    // FIXME Start using the _renderTransform instead of calling for Transform from here, do the custom things needed in evalRenderTransform()
 
     auto transform = getTransform();
     transform.postScale(glm::vec3(getDimensions(), 1.0f));
@@ -264,10 +265,10 @@ void Circle3DOverlay::render(RenderArgs* args) {
 
 const render::ShapeKey Circle3DOverlay::getShapeKey() {
     auto builder = render::ShapeKey::Builder().withoutCullFace().withUnlit();
-    if (getAlpha() != 1.0f) {
+    if (isTransparent()) {
         builder.withTranslucent();
     }
-    if (!getIsSolid()) {
+    if (!getIsSolid() || shouldDrawHUDLayer()) {
         builder.withUnlit().withDepthBias();
     }
     return builder.build();

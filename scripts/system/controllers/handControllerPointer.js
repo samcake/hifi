@@ -150,15 +150,92 @@ var setReticlePosition = function (point2d) {
     Reticle.setPosition(point2d);
 };
 
-// Generalizations of utilities that work with system and overlay elements.
-function findRayIntersection(pickRay) {
-    // Check 3D overlays and entities. Argument is an object with origin and direction.
-    var result = Overlays.findRayIntersection(pickRay);
-    if (!result.intersects) {
-        result = Entities.findRayIntersection(pickRay, true);
-    }
-    return result;
+// VISUAL AID -----------
+// Same properties as handControllerGrab search sphere
+var LASER_ALPHA = 0.5;
+var LASER_SEARCH_COLOR = {red: 10, green: 10, blue: 255};
+var LASER_TRIGGER_COLOR = {red: 250, green: 10, blue: 10};
+var END_DIAMETER = 0.05;
+var systemLaserOn = false;
+
+var triggerPath = {
+    type: "line3d",
+    color: LASER_TRIGGER_COLOR,
+    ignoreRayIntersection: true,
+    visible: true,
+    alpha: LASER_ALPHA,
+    solid: true,
+    glow: 1.0,
+    drawHUDLayer: true
 }
+var triggerEnd = {
+    type: "sphere",
+    dimensions: {x: END_DIAMETER, y: END_DIAMETER, z: END_DIAMETER},
+    color: LASER_TRIGGER_COLOR,
+    ignoreRayIntersection: true,
+    visible: true,
+    alpha: LASER_ALPHA,
+    solid: true,
+    drawHUDLayer: true
+}
+
+var searchPath = {
+    type: "line3d",
+    color: LASER_SEARCH_COLOR,
+    ignoreRayIntersection: true,
+    visible: true,
+    alpha: LASER_ALPHA,
+    solid: true,
+    glow: 1.0,
+    drawHUDLayer: true
+}
+var searchEnd = {
+    type: "sphere",
+    dimensions: {x: END_DIAMETER, y: END_DIAMETER, z: END_DIAMETER},
+    color: LASER_SEARCH_COLOR,
+    ignoreRayIntersection: true,
+    visible: true,
+    alpha: LASER_ALPHA,
+    solid: true,
+    drawHUDLayer: true
+}
+
+var hudRayStates = [{name: "trigger", path: triggerPath, end: triggerEnd},
+                    {name: "search", path: searchPath, end: searchEnd}];
+// this offset needs to match the one in libraries/display-plugins/src/display-plugins/hmd/HmdDisplayPlugin.cpp:378
+var GRAB_POINT_SPHERE_OFFSET_RIGHT = { x: 0.04, y: 0.13, z: 0.039 };
+var GRAB_POINT_SPHERE_OFFSET_LEFT = { x: -0.04, y: 0.13, z: 0.039 };
+var hudRayRight = LaserPointers.createLaserPointer({
+    joint: "_CAMERA_RELATIVE_CONTROLLER_RIGHTHAND",
+    filter: RayPick.PICK_HUD,
+    posOffset: GRAB_POINT_SPHERE_OFFSET_RIGHT,
+    renderStates: hudRayStates,
+    enabled: true
+});
+var hudRayLeft = LaserPointers.createLaserPointer({
+    joint: "_CAMERA_RELATIVE_CONTROLLER_LEFTHAND",
+    filter: RayPick.PICK_HUD,
+    posOffset: GRAB_POINT_SPHERE_OFFSET_LEFT,
+    renderStates: hudRayStates,
+    enabled: true
+});
+
+// NOTE: keep this offset in sync with scripts/system/librarires/controllers.js:57
+var VERTICAL_HEAD_LASER_OFFSET = 0.1;
+var hudRayHead = LaserPointers.createLaserPointer({
+    joint: "Avatar",
+    filter: RayPick.PICK_HUD,
+    posOffset: {x: 0, y: VERTICAL_HEAD_LASER_OFFSET, z: 0},
+    renderStates: hudRayStates,
+    enabled: true
+});
+
+var mouseRayPick = RayPick.createRayPick({
+    joint: "Mouse",
+    filter: RayPick.PICK_ENTITIES | RayPick.PICK_OVERLAYS,
+    enabled: true
+});
+
 function isPointingAtOverlay(optionalHudPosition2d) {
     return Reticle.pointingAtSystemOverlay || Overlays.getOverlayAtPoint(optionalHudPosition2d || Reticle.position);
 }
@@ -166,15 +243,26 @@ function isPointingAtOverlay(optionalHudPosition2d) {
 // Generalized HUD utilities, with or without HMD:
 // This "var" is for documentation. Do not change the value!
 var PLANAR_PERPENDICULAR_HUD_DISTANCE = 1;
-function calculateRayUICollisionPoint(position, direction) {
+function calculateRayUICollisionPoint(position, direction, isHands) {
     // Answer the 3D intersection of the HUD by the given ray, or falsey if no intersection.
     if (HMD.active) {
-        return HMD.calculateRayUICollisionPoint(position, direction);
+        var laserPointer;
+        if (isHands) {
+            laserPointer = activeHand == Controller.Standard.RightHand ? hudRayRight : hudRayLeft;
+        } else {
+            laserPointer = hudRayHead;
+        }
+        var result = LaserPointers.getPrevRayPickResult(laserPointer);
+        if (result.type != RayPick.INTERSECTED_NONE) {
+            return result.intersection;
+        } else {
+            return null;
+        }
     }
     // interect HUD plane, 1m in front of camera, using formula:
     //   scale = hudNormal dot (hudPoint - position) / hudNormal dot direction
     //   intersection = postion + scale*direction
-    var hudNormal = Quat.getFront(Camera.getOrientation());
+    var hudNormal = Quat.getForward(Camera.getOrientation());
     var hudPoint = Vec3.sum(Camera.getPosition(), hudNormal); // must also scale if PLANAR_PERPENDICULAR_HUD_DISTANCE!=1
     var denominator = Vec3.dot(hudNormal, direction);
     if (denominator === 0) {
@@ -215,7 +303,7 @@ function activeHudPoint2dGamePad() {
     var headPosition = MyAvatar.getHeadPosition();
     var headDirection = Quat.getUp(Quat.multiply(MyAvatar.headOrientation, Quat.angleAxis(-90, { x: 1, y: 0, z: 0 })));
 
-    var hudPoint3d = calculateRayUICollisionPoint(headPosition, headDirection);
+    var hudPoint3d = calculateRayUICollisionPoint(headPosition, headDirection, false);
 
     if (!hudPoint3d) {
         if (Menu.isOptionChecked("Overlays")) { // With our hud resetting strategy, hudPoint3d should be valid here
@@ -241,7 +329,7 @@ function activeHudPoint2d(activeHand) { // if controller is valid, update reticl
     var controllerPosition = controllerPose.position;
     var controllerDirection = Quat.getUp(controllerPose.rotation);
 
-    var hudPoint3d = calculateRayUICollisionPoint(controllerPosition, controllerDirection);
+    var hudPoint3d = calculateRayUICollisionPoint(controllerPosition, controllerDirection, true);
     if (!hudPoint3d) {
         if (Menu.isOptionChecked("Overlays")) { // With our hud resetting strategy, hudPoint3d should be valid here
             print('Controller is parallel to HUD');  // so let us know that our assumptions are wrong.
@@ -355,7 +443,7 @@ function onMouseMove() {
         if (isPointingAtOverlay()) {
             Reticle.depth = hudReticleDistance();
         } else {
-            var result = findRayIntersection(Camera.computePickRay(Reticle.position.x, Reticle.position.y));
+            var result = RayPick.getPrevRayPickResult(mouseRayPick);
             Reticle.depth = result.intersects ? result.distance : APPARENT_MAXIMUM_DEPTH;
         }
     }
@@ -436,18 +524,22 @@ clickMapping.from(function () { return wantsMenu; }).to(Controller.Actions.Conte
 clickMapping.from(Controller.Standard.RightSecondaryThumb).peek().to(function (clicked) {
     if (clicked) {
         activeHudPoint2d(Controller.Standard.RightHand);
+        Messages.sendLocalMessage("toggleHand", Controller.Standard.RightHand);
     }
     wantsMenu = clicked;
 });
 clickMapping.from(Controller.Standard.LeftSecondaryThumb).peek().to(function (clicked) {
     if (clicked) {
         activeHudPoint2d(Controller.Standard.LeftHand);
+        Messages.sendLocalMessage("toggleHand", Controller.Standard.LeftHand);
     }
     wantsMenu = clicked;
 });
 clickMapping.from(Controller.Standard.Start).peek().to(function (clicked) {
     if (clicked) {
         activeHudPoint2dGamePad();
+        var noHands = -1;
+        Messages.sendLocalMessage("toggleHand", Controller.Standard.LeftHand);
       }
 
       wantsMenu = clicked;
@@ -459,6 +551,8 @@ clickMapping.from(Controller.Hardware.Keyboard.RightMouseClicked).peek().to(func
     // We don't want the system code to always do this for us, because, e.g., we do not want to get a mouseMove
     // after the Left/RightSecondaryThumb gives us a context menu. Only from the mouse.
     Script.setTimeout(function () {
+        var noHands = -1;
+        Messages.sendLocalMessage("toggleHand", noHands);
         Reticle.setPosition(Reticle.position);
     }, 0);
 });
@@ -467,34 +561,41 @@ clickMapping.from(rightTrigger.partial).to(makeToggleAction(Controller.Standard.
 clickMapping.from(leftTrigger.partial).to(makeToggleAction(Controller.Standard.LeftHand));
 clickMapping.enable();
 
-// VISUAL AID -----------
-// Same properties as handControllerGrab search sphere
-var LASER_ALPHA = 0.5;
-var LASER_SEARCH_COLOR_XYZW = {x: 10 / 255, y: 10 / 255, z: 255 / 255, w: LASER_ALPHA};
-var LASER_TRIGGER_COLOR_XYZW = {x: 250 / 255, y: 10 / 255, z: 10 / 255, w: LASER_ALPHA};
-var SYSTEM_LASER_DIRECTION = {x: 0, y: 0, z: -1};
-var systemLaserOn = false;
+var HIFI_POINTER_DISABLE_MESSAGE_CHANNEL = "Hifi-Pointer-Disable";
+var isPointerEnabled = true;
+
 function clearSystemLaser() {
     if (!systemLaserOn) {
         return;
     }
-    HMD.disableHandLasers(BOTH_HUD_LASERS);
-    HMD.disableExtraLaser();
+    HMD.deactivateHMDHandMouse();
+    LaserPointers.setRenderState(hudRayRight, "");
+    LaserPointers.setRenderState(hudRayLeft, "");
+    LaserPointers.setRenderState(hudRayHead, "");
     systemLaserOn = false;
     weMovedReticle = true;
 }
 function setColoredLaser() { // answer trigger state if lasers supported, else falsey.
-    var color = (activeTrigger.state === 'full') ? LASER_TRIGGER_COLOR_XYZW : LASER_SEARCH_COLOR_XYZW;
+    var mode = (activeTrigger.state === 'full') ? 'trigger' : 'search';
 
-    if (!HMD.isHandControllerAvailable()) {
-        // NOTE: keep this offset in sync with scripts/system/librarires/controllers.js:57
-        var VERTICAL_HEAD_LASER_OFFSET = 0.1;
-        var position = Vec3.sum(HMD.position, Vec3.multiplyQbyV(HMD.orientation, {x: 0, y: VERTICAL_HEAD_LASER_OFFSET, z: 0}));
-        var orientation = Quat.multiply(HMD.orientation, Quat.angleAxis(-90, { x: 1, y: 0, z: 0 }));
-        return HMD.setExtraLaser(position, true, color, Quat.getUp(orientation));
+    if (!systemLaserOn) {
+        HMD.activateHMDHandMouse();
     }
 
-    return HMD.setHandLasers(activeHudLaser, true, color, SYSTEM_LASER_DIRECTION) && activeTrigger.state;
+    var pose = Controller.getPoseValue(activeHand);
+    if (!pose.valid) {
+        LaserPointers.setRenderState(hudRayRight, "");
+        LaserPointers.setRenderState(hudRayLeft, "");
+        LaserPointers.setRenderState(hudRayHead, mode);
+        return true;
+    }
+
+    var right = activeHand == Controller.Standard.RightHand;
+    LaserPointers.setRenderState(hudRayRight, right ? mode : "");
+    LaserPointers.setRenderState(hudRayLeft, right ? "" : mode);
+    LaserPointers.setRenderState(hudRayHead, "");
+
+    return activeTrigger.state;
 }
 
 // MAIN OPERATIONS -----------
@@ -536,17 +637,18 @@ function update() {
         return off();
     }
 
-
     // If there's a HUD element at the (newly moved) reticle, just make it visible and bail.
-    if (isPointingAtOverlay(hudPoint2d)) {
+    if (isPointingAtOverlay(hudPoint2d) && isPointerEnabled) {
         if (HMD.active) {
             Reticle.depth = hudReticleDistance();
 
-            if (!HMD.isHandControllerAvailable()) {
-                var color = (activeTrigger.state === 'full') ? LASER_TRIGGER_COLOR_XYZW : LASER_SEARCH_COLOR_XYZW;
-                var position = MyAvatar.getHeadPosition();
-                var direction = Quat.getUp(Quat.multiply(MyAvatar.headOrientation, Quat.angleAxis(-90, { x: 1, y: 0, z: 0 })));
-                HMD.setExtraLaser(position, true, color, direction);
+            var pose = Controller.getPoseValue(activeHand);
+            if (!pose.valid) {
+                var mode = (activeTrigger.state === 'full') ? 'trigger' : 'search';
+                if (!systemLaserOn) {
+                    HMD.activateHMDHandMouse();
+                }
+                LaserPointers.setRenderState(hudRayHead, mode);
             }
         }
 
@@ -573,12 +675,32 @@ function checkSettings() {
 }
 checkSettings();
 
+// Enable/disable pointer.
+function handleMessages(channel, message, sender) {
+    if (sender === MyAvatar.sessionUUID && channel === HIFI_POINTER_DISABLE_MESSAGE_CHANNEL) {
+        var data = JSON.parse(message);
+        if (data.pointerEnabled !== undefined) {
+            print("pointerEnabled: " + data.pointerEnabled);
+            isPointerEnabled = data.pointerEnabled;
+        }
+    }
+}
+
+Messages.subscribe(HIFI_POINTER_DISABLE_MESSAGE_CHANNEL);
+Messages.messageReceived.connect(handleMessages);
+
 var settingsChecker = Script.setInterval(checkSettings, SETTINGS_CHANGE_RECHECK_INTERVAL);
 Script.update.connect(update);
 Script.scriptEnding.connect(function () {
+    Messages.unsubscribe(HIFI_POINTER_DISABLE_MESSAGE_CHANNEL);
+    Messages.messageReceived.disconnect(handleMessages);
     Script.clearInterval(settingsChecker);
     Script.update.disconnect(update);
     OffscreenFlags.navigationFocusDisabled = false;
+    LaserPointers.removeLaserPointer(hudRayRight);
+    LaserPointers.removeLaserPointer(hudRayLeft);
+    LaserPointers.removeLaserPointer(hudRayHead);
+    HMD.deactivateHMDHandMouse();
 });
 
 }()); // END LOCAL_SCOPE

@@ -2,7 +2,6 @@ import QtQuick 2.5
 import QtQuick.Controls 1.4
 import QtWebEngine 1.1;
 import Qt.labs.settings 1.0
-import HFWebEngineProfile 1.0
 
 import "../desktop" as OriginalDesktop
 import ".."
@@ -27,11 +26,6 @@ OriginalDesktop.Desktop {
     property alias toolWindow: toolWindow
     ToolWindow { id: toolWindow }
 
-    property var browserProfile: HFWebEngineProfile {
-        id: webviewProfile
-        storageName: "qmlWebEngine"
-    }
-
     Action {
         text: "Open Browser"
         shortcut: "Ctrl+B"
@@ -55,7 +49,9 @@ OriginalDesktop.Desktop {
         // Literal 50 is overwritten by settings from previous session, and sysToolbar.x comes from settings when not constrained.
         x: sysToolbar.x
         y: 50
+        shown: true
     }
+
     Settings {
         id: settings;
         category: "toolbar";
@@ -66,35 +62,14 @@ OriginalDesktop.Desktop {
     }
     property var toolbars: (function (map) { // answer dictionary preloaded with sysToolbar
         map[sysToolbar.objectName] = sysToolbar;
-        return map; })({});
-
+        return map;
+    })({});
 
     Component.onCompleted: {
         WebEngine.settings.javascriptCanOpenWindows = true;
         WebEngine.settings.javascriptCanAccessClipboard = false;
         WebEngine.settings.spatialNavigationEnabled = false;
         WebEngine.settings.localContentCanAccessRemoteUrls = true;
-
-        [ // Allocate the standard buttons in the correct order. They will get images, etc., via scripts.
-            "hmdToggle", "mute", "pal", "bubble", "help",
-            "hudToggle",
-            "com.highfidelity.interface.system.editButton", "marketplace", "snapshot", "goto"
-        ].forEach(function (name) {
-            sysToolbar.addButton({objectName: name});
-        });
-        var toggleHudButton = sysToolbar.findButton("hudToggle");
-        toggleHudButton.imageURL = "../../../icons/hud.svg";
-        toggleHudButton.pinned = true;
-        sysToolbar.updatePinned(); // automatic when adding buttons only IFF button is pinned at creation.
-
-        toggleHudButton.buttonState = Qt.binding(function(){
-            return desktop.pinned ? 1 : 0
-        });
-        toggleHudButton.clicked.connect(function(){
-            console.log("Clicked on hud button")
-            var overlayMenuItem = "Overlays"
-            MenuInterface.setIsOptionChecked(overlayMenuItem, !MenuInterface.isOptionChecked(overlayMenuItem));
-        });
     }
 
     // Accept a download through the webview

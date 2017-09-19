@@ -2,7 +2,7 @@
 
 #include <GLMHelpers.h>
 
-class Camera {
+class SimpleCamera {
 protected:
     float fov { 60.0f };
     float znear { DEFAULT_NEAR_CLIP }, zfar { DEFAULT_FAR_CLIP };
@@ -42,7 +42,7 @@ public:
 
     std::bitset<KEYS_SIZE> keys;
 
-    Camera() {
+    SimpleCamera() {
         matrices.perspective = glm::perspective(glm::radians(fov), aspect, znear, zfar);
     }
 
@@ -123,16 +123,16 @@ public:
 
     void update(float deltaTime) {
         if (moving()) {
-            glm::vec3 camFront = getOrientation() * Vectors::FRONT;
+            glm::vec3 camForward = getOrientation() * Vectors::FRONT;
             glm::vec3 camRight = getOrientation() * Vectors::RIGHT;
             glm::vec3 camUp = getOrientation() * Vectors::UP;
             float moveSpeed = deltaTime * movementSpeed;
 
             if (keys[FORWARD]) {
-                position += camFront * moveSpeed;
+                position += camForward * moveSpeed;
             }
             if (keys[BACK]) {
-                position -= camFront * moveSpeed;
+                position -= camForward * moveSpeed;
             }
             if (keys[LEFT]) {
                 position -= camRight * moveSpeed;

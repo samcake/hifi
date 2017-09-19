@@ -114,6 +114,10 @@ static bool isWithin(float value, float corner, float size) {
     return value >= corner && value <= corner + size;
 }
 
+bool AABox::contains(const Triangle& triangle) const {
+    return contains(triangle.v0) && contains(triangle.v1) && contains(triangle.v2);
+}
+
 bool AABox::contains(const glm::vec3& point) const {
     return isWithin(point.x, _corner.x, _scale.x) &&
         isWithin(point.y, _corner.y, _scale.y) &&
@@ -360,7 +364,7 @@ glm::vec3 AABox::getClosestPointOnFace(const glm::vec3& point, BoxFace face) con
 
         case MIN_Z_FACE:
             return glm::clamp(point, glm::vec3(_corner.x, _corner.y, _corner.z),
-                glm::vec3(_corner.x + _scale.z, _corner.y + _scale.y, _corner.z));
+                glm::vec3(_corner.x + _scale.x, _corner.y + _scale.y, _corner.z));
 
         default: //quiet windows warnings
         case MAX_Z_FACE:
@@ -435,6 +439,38 @@ glm::vec3 AABox::getClosestPointOnFace(const glm::vec4& origin, const glm::vec4&
     // last resort or all inside: clamp origin to face
     return getClosestPointOnFace(glm::vec3(origin), face);
 }
+
+bool AABox::touchesAAEllipsoid(const glm::vec3& center, const glm::vec3& radials) const {
+    // handle case where ellipsoid's alix-aligned box doesn't touch this AABox
+    if (_corner.x - radials.x > center.x ||
+        _corner.y - radials.y > center.y ||
+        _corner.z - radials.z > center.z ||
+        _corner.x + _scale.x + radials.x < center.x ||
+        _corner.y + _scale.y + radials.y < center.y ||
+        _corner.z + _scale.z + radials.z < center.z) {
+        return false;
+    }
+
+    // handle case where ellipsoid is entirely inside this AABox
+    if (contains(center)) {
+        return true;
+    }
+
+    for (int i = 0; i < FACE_COUNT; i++) {
+        glm::vec3 closest = getClosestPointOnFace(center, (BoxFace)i) - center;
+        float x = closest.x;
+        float y = closest.y;
+        float z = closest.z;
+        float a = radials.x;
+        float b = radials.y;
+        float c = radials.z;
+        if (x*x/(a*a) + y*y/(b*b) + z*z/(c*c) < 1.0f) {
+            return true;
+        }
+    }
+    return false;
+}
+
 
 glm::vec4 AABox::getPlane(BoxFace face) const {
     switch (face) {
@@ -589,4 +625,41 @@ void AABox::transform(const glm::mat4& matrix) {
     auto newCenter = transformPoint(matrix, center);
     _corner = newCenter - newDir;
     _scale = newDir * 2.0f;
+}
+
+AABox AABox::getOctreeChild(OctreeChild child) const {
+    AABox result(*this); // self
+    switch (child) {
+        case topLeftNear:
+            result._corner.y += _scale.y / 2.0f;
+            break;
+        case topLeftFar:
+            result._corner.y += _scale.y / 2.0f;
+            result._corner.z += _scale.z / 2.0f;
+            break;
+        case topRightNear:
+            result._corner.y += _scale.y / 2.0f;
+            result._corner.x += _scale.x / 2.0f;
+            break;
+        case topRightFar:
+            result._corner.y += _scale.y / 2.0f;
+            result._corner.x += _scale.x / 2.0f;
+            result._corner.z += _scale.z / 2.0f;
+            break;
+        case bottomLeftNear:
+            // _corner = same as parent
+            break;
+        case bottomLeftFar:
+            result._corner.z += _scale.z / 2.0f;
+            break;
+        case bottomRightNear:
+            result._corner.x += _scale.x / 2.0f;
+            break;
+        case bottomRightFar:
+            result._corner.x += _scale.x / 2.0f;
+            result._corner.z += _scale.z / 2.0f;
+            break;
+    }
+    result._scale /= 2.0f; // everything is half the scale
+    return result;
 }

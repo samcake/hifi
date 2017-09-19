@@ -17,6 +17,7 @@
 #include <QMetaEnum>
 
 #include <SharedUtil.h>
+#include <StatTracker.h>
 
 #include "NetworkAccessManager.h"
 #include "NetworkLogging.h"
@@ -49,6 +50,8 @@ void HTTPResourceRequest::cleanupTimer() {
 }
 
 void HTTPResourceRequest::doSend() {
+    DependencyManager::get<StatTracker>()->incrementStat(STAT_HTTP_REQUEST_STARTED);
+
     QNetworkRequest networkRequest(_url);
     networkRequest.setAttribute(QNetworkRequest::FollowRedirectsAttribute, true);
     networkRequest.setHeader(QNetworkRequest::UserAgentHeader, HIGH_FIDELITY_USER_AGENT);
@@ -58,6 +61,18 @@ void HTTPResourceRequest::doSend() {
     } else {
         networkRequest.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
     }
+
+    if (_byteRange.isSet()) {
+        QString byteRange;
+        if (_byteRange.fromInclusive < 0) {
+            byteRange = QString("bytes=%1").arg(_byteRange.fromInclusive);
+        } else {
+            // HTTP byte ranges are inclusive on the `to` end: [from, to]
+            byteRange = QString("bytes=%1-%2").arg(_byteRange.fromInclusive).arg(_byteRange.toExclusive - 1);
+        }
+        networkRequest.setRawHeader("Range", byteRange.toLatin1());
+    }
+    networkRequest.setAttribute(QNetworkRequest::HttpPipeliningAllowedAttribute, false);
 
     _reply = NetworkAccessManager::getInstance().get(networkRequest);
     
@@ -72,12 +87,60 @@ void HTTPResourceRequest::onRequestFinished() {
     Q_ASSERT(_reply);
 
     cleanupTimer();
-    
+
+    // Content-Range headers have the form: 
+    //
+    //   Content-Range: <unit> <range-start>-<range-end>/<size>
+    //   Content-Range: <unit> <range-start>-<range-end>/*
+    //   Content-Range: <unit> */<size>
+    //
+    auto parseContentRangeHeader = [](QString contentRangeHeader) -> std::pair<bool, uint64_t> {
+        auto unitRangeParts = contentRangeHeader.split(' ');
+        if (unitRangeParts.size() != 2) {
+            return { false, 0 };
+        }
+
+        auto rangeSizeParts = unitRangeParts[1].split('/');
+        if (rangeSizeParts.size() != 2) {
+            return { false, 0 };
+        }
+
+        auto sizeStr = rangeSizeParts[1];
+        if (sizeStr == "*") {
+            return { true, 0 };
+        } else {
+            bool ok;
+            auto size = sizeStr.toLong(&ok);
+            return { ok, size };
+        }
+    };
+
     switch(_reply->error()) {
         case QNetworkReply::NoError:
             _data = _reply->readAll();
             _loadedFromCache = _reply->attribute(QNetworkRequest::SourceIsFromCacheAttribute).toBool();
             _result = Success;
+
+            if (_byteRange.isSet()) {
+                auto statusCode = _reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+                if (statusCode == 206) {
+                    _rangeRequestSuccessful = true;
+                    auto contentRangeHeader = _reply->rawHeader("Content-Range");
+                    bool success;
+                    uint64_t size;
+                    std::tie(success, size) = parseContentRangeHeader(contentRangeHeader);
+                    if (success) {
+                        _totalSizeOfResource = size;
+                    } else {
+                        qWarning(networking) << "Error parsing content-range header: " << contentRangeHeader;
+                        _totalSizeOfResource = 0;
+                    }
+                } else {
+                    _rangeRequestSuccessful = false;
+                    _totalSizeOfResource = _data.size();
+                }
+            }
+
             break;
 
         case QNetworkReply::TimeoutError:
@@ -118,6 +181,17 @@ void HTTPResourceRequest::onRequestFinished() {
     
     _state = Finished;
     emit finished();
+
+    auto statTracker = DependencyManager::get<StatTracker>();
+    if (_result == Success) {
+        statTracker->incrementStat(STAT_HTTP_REQUEST_SUCCESS);
+
+        if (loadedFromCache()) {
+            statTracker->incrementStat(STAT_HTTP_REQUEST_CACHE);
+        }
+    } else {
+        statTracker->incrementStat(STAT_HTTP_REQUEST_FAILED);
+    }
 }
 
 void HTTPResourceRequest::onDownloadProgress(qint64 bytesReceived, qint64 bytesTotal) {
@@ -127,9 +201,15 @@ void HTTPResourceRequest::onDownloadProgress(qint64 bytesReceived, qint64 bytesT
     _sendTimer->start();
 
     emit progress(bytesReceived, bytesTotal);
+	
+    // Recording HTTP bytes downloaded in stats
+    DependencyManager::get<StatTracker>()->updateStat(STAT_HTTP_RESOURCE_TOTAL_BYTES, bytesReceived);
+	
+	
 }
 
 void HTTPResourceRequest::onTimeout() {
+    qDebug() << "Timeout: " << _url << ":" << _reply->isFinished();
     Q_ASSERT(_state == InProgress);
     _reply->disconnect(this);
     _reply->abort();
@@ -141,4 +221,6 @@ void HTTPResourceRequest::onTimeout() {
     _result = Timeout;
     _state = Finished;
     emit finished();
+
+    DependencyManager::get<StatTracker>()->incrementStat(STAT_HTTP_REQUEST_FAILED);
 }

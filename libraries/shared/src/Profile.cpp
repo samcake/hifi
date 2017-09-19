@@ -10,6 +10,7 @@
 
 Q_LOGGING_CATEGORY(trace_app, "trace.app")
 Q_LOGGING_CATEGORY(trace_app_detail, "trace.app.detail")
+Q_LOGGING_CATEGORY(trace_metadata, "trace.metadata")
 Q_LOGGING_CATEGORY(trace_network, "trace.network")
 Q_LOGGING_CATEGORY(trace_parse, "trace.parse")
 Q_LOGGING_CATEGORY(trace_render, "trace.render")
@@ -18,6 +19,8 @@ Q_LOGGING_CATEGORY(trace_render_gpu, "trace.render.gpu")
 Q_LOGGING_CATEGORY(trace_resource, "trace.resource")
 Q_LOGGING_CATEGORY(trace_resource_network, "trace.resource.network")
 Q_LOGGING_CATEGORY(trace_resource_parse, "trace.resource.parse")
+Q_LOGGING_CATEGORY(trace_script, "trace.script")
+Q_LOGGING_CATEGORY(trace_script_entities, "trace.script.entities")
 Q_LOGGING_CATEGORY(trace_simulation, "trace.simulation")
 Q_LOGGING_CATEGORY(trace_simulation_detail, "trace.simulation.detail")
 Q_LOGGING_CATEGORY(trace_simulation_animation, "trace.simulation.animation")
@@ -31,7 +34,7 @@ Q_LOGGING_CATEGORY(trace_simulation_physics_detail, "trace.simulation.physics.de
 #endif
 
 static bool tracingEnabled() {
-    return DependencyManager::get<tracing::Tracer>()->isEnabled();
+    return DependencyManager::isSet<tracing::Tracer>() && DependencyManager::get<tracing::Tracer>()->isEnabled();
 }
 
 Duration::Duration(const QLoggingCategory& category, const QString& name, uint32_t argbColor, uint64_t payload, const QVariantMap& baseArgs) : _name(name), _category(category) {

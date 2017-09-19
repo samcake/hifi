@@ -32,10 +32,11 @@ public:
     };
 
     static const int DEFAULT_PERSIST_INTERVAL;
+    static const QString REPLACEMENT_FILE_EXTENSION;
 
     OctreePersistThread(OctreePointer tree, const QString& filename, const QString& backupDirectory,
                         int persistInterval = DEFAULT_PERSIST_INTERVAL, bool wantBackup = false,
-                        const QJsonObject& settings = QJsonObject(), bool debugTimestampNow = false, QString persistAsFileType="svo");
+                        const QJsonObject& settings = QJsonObject(), bool debugTimestampNow = false, QString persistAsFileType="json.gz");
 
     bool isInitialLoadComplete() const { return _initialLoadComplete; }
     quint64 getLoadElapsedTime() const { return _loadTimeUSecs; }
@@ -60,6 +61,7 @@ protected:
     bool getMostRecentBackup(const QString& format, QString& mostRecentBackupFileName, QDateTime& mostRecentBackupTime);
     quint64 getMostRecentBackupTimeInUsecs(const QString& format);
     void parseSettings(const QJsonObject& settings);
+    void possiblyReplaceContent();
 
 private:
     OctreePointer _tree;

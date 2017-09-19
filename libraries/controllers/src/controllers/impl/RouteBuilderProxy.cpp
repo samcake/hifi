@@ -24,8 +24,14 @@
 #include "filters/DeadZoneFilter.h"
 #include "filters/HysteresisFilter.h"
 #include "filters/InvertFilter.h"
+#include "filters/NotFilter.h"
 #include "filters/PulseFilter.h"
 #include "filters/ScaleFilter.h"
+#include "filters/TranslateFilter.h"
+#include "filters/TransformFilter.h"
+#include "filters/PostTransformFilter.h"
+#include "filters/RotateFilter.h"
+#include "filters/LowVelocityFilter.h"
 #include "conditionals/AndConditional.h"
 
 using namespace controller;
@@ -103,6 +109,31 @@ QObject* RouteBuilderProxy::deadZone(float min) {
     return this;
 }
 
+QObject* RouteBuilderProxy::translate(glm::vec3 translate) {
+    addFilter(std::make_shared<TranslateFilter>(translate));
+    return this;
+}
+
+QObject* RouteBuilderProxy::transform(glm::mat4 transform) {
+    addFilter(std::make_shared<TransformFilter>(transform));
+    return this;
+}
+
+QObject* RouteBuilderProxy::postTransform(glm::mat4 transform) {
+    addFilter(std::make_shared<PostTransformFilter>(transform));
+    return this;
+}
+
+QObject* RouteBuilderProxy::rotate(glm::quat rotation) {
+    addFilter(std::make_shared<RotateFilter>(rotation));
+    return this;
+}
+
+QObject* RouteBuilderProxy::lowVelocity(float rotationConstant, float translationConstant) {
+    addFilter(std::make_shared<LowVelocityFilter>(rotationConstant, translationConstant));
+    return this;
+}
+
 QObject* RouteBuilderProxy::constrainToInteger() {
     addFilter(std::make_shared<ConstrainToIntegerFilter>());
     return this;
@@ -115,6 +146,11 @@ QObject* RouteBuilderProxy::constrainToPositiveInteger() {
 
 QObject* RouteBuilderProxy::pulse(float interval) {
     addFilter(std::make_shared<PulseFilter>(interval));
+    return this;
+}
+
+QObject* RouteBuilderProxy::logicalNot() {
+    addFilter(std::make_shared<NotFilter>());
     return this;
 }
 

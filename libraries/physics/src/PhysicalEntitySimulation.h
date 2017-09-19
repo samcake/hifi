@@ -1,6 +1,6 @@
 //
 //  PhysicalEntitySimulation.h
-//  libraries/physcis/src
+//  libraries/physics/src
 //
 //  Created by Andrew Meadows 2015.04.27
 //  Copyright 2015 High Fidelity, Inc.
@@ -27,15 +27,15 @@ class PhysicalEntitySimulation;
 using PhysicalEntitySimulationPointer = std::shared_ptr<PhysicalEntitySimulation>;
 using SetOfEntityMotionStates = QSet<EntityMotionState*>;
 
-class PhysicalEntitySimulation :public EntitySimulation {
+class PhysicalEntitySimulation : public EntitySimulation {
 public:
     PhysicalEntitySimulation();
     ~PhysicalEntitySimulation();
 
     void init(EntityTreePointer tree, PhysicsEnginePointer engine, EntityEditPacketSender* packetSender);
 
-    virtual void addAction(EntityActionPointer action) override;
-    virtual void applyActionChanges() override;
+    virtual void addDynamic(EntityDynamicPointer dynamic) override;
+    virtual void applyDynamicChanges() override;
 
     virtual void takeEntitiesToDelete(VectorOfEntities& entitiesToDelete) override;
 
@@ -56,7 +56,8 @@ public:
     void setObjectsToChange(const VectorOfMotionStates& objectsToChange);
     void getObjectsToChange(VectorOfMotionStates& result);
 
-    void handleOutgoingChanges(const VectorOfMotionStates& motionStates);
+    void handleDeactivatedMotionStates(const VectorOfMotionStates& motionStates);
+    void handleChangedMotionStates(const VectorOfMotionStates& motionStates);
     void handleCollisionEvents(const CollisionEvents& collisionEvents);
 
     EntityEditPacketSender* getPacketSender() { return _entityPacketSender; }
@@ -67,7 +68,7 @@ private:
     SetOfEntities _entitiesToAddToPhysics;
 
     SetOfEntityMotionStates _pendingChanges; // EntityMotionStates already in PhysicsEngine that need their physics changed
-    SetOfEntityMotionStates _outgoingChanges; // EntityMotionStates for which we need to send updates to entity-server
+    SetOfEntityMotionStates _outgoingChanges; // EntityMotionStates for which we may need to send updates to entity-server
 
     SetOfMotionStates _physicalObjects; // MotionStates of entities in PhysicsEngine
 

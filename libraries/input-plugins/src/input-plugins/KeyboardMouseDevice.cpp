@@ -25,6 +25,10 @@ void KeyboardMouseDevice::pluginUpdate(float deltaTime, const controller::InputC
     auto userInputMapper = DependencyManager::get<controller::UserInputMapper>();
     userInputMapper->withLock([&, this]() {
         _inputDevice->update(deltaTime, inputCalibrationData);
+        eraseMouseClicked();
+
+        _inputDevice->_axisStateMap[MOUSE_AXIS_X] = _lastCursor.x();
+        _inputDevice->_axisStateMap[MOUSE_AXIS_Y] = _lastCursor.y();
     });
 
     // For touch event, we need to check that the last event is not too long ago
@@ -73,7 +77,8 @@ void KeyboardMouseDevice::mousePressEvent(QMouseEvent* event) {
     _mousePressTime = usecTimestampNow();
     _mouseMoved = false;
 
-    eraseMouseClicked();
+    _mousePressPos = event->pos();
+    _clickDeadspotActive = true;
 }
 
 void KeyboardMouseDevice::mouseReleaseEvent(QMouseEvent* event) {
@@ -84,9 +89,11 @@ void KeyboardMouseDevice::mouseReleaseEvent(QMouseEvent* event) {
     // input for this button we might want to add some small tolerance to this so if you do a small drag it 
     // still counts as a click.
     static const int CLICK_TIME = USECS_PER_MSEC * 500; // 500 ms to click
-    if (!_mouseMoved && (usecTimestampNow() - _mousePressTime < CLICK_TIME)) {
+    if (_clickDeadspotActive && (usecTimestampNow() - _mousePressTime < CLICK_TIME)) {
         _inputDevice->_buttonPressedMap.insert(_inputDevice->makeInput((Qt::MouseButton) event->button(), true).getChannel());
     }
+
+    _clickDeadspotActive = false;
 }
 
 void KeyboardMouseDevice::eraseMouseClicked() {
@@ -109,9 +116,13 @@ void KeyboardMouseDevice::mouseMoveEvent(QMouseEvent* event) {
     // outside of the application window, because we don't get MouseEvents when the cursor is outside
     // of the application window.
     _lastCursor = currentPos;
+
     _mouseMoved = true;
 
-    eraseMouseClicked();
+    const int CLICK_EVENT_DEADSPOT = 6; // pixels
+    if (_clickDeadspotActive && (_mousePressPos - currentPos).manhattanLength() > CLICK_EVENT_DEADSPOT) {
+        _clickDeadspotActive = false;
+    }
 }
 
 void KeyboardMouseDevice::wheelEvent(QWheelEvent* event) {
@@ -225,6 +236,7 @@ controller::Input::NamedVector KeyboardMouseDevice::InputDevice::getAvailableInp
         availableInputs.append(Input::NamedPair(makeInput(Qt::Key_Shift), "Shift"));
         availableInputs.append(Input::NamedPair(makeInput(Qt::Key_PageUp), QKeySequence(Qt::Key_PageUp).toString()));
         availableInputs.append(Input::NamedPair(makeInput(Qt::Key_PageDown), QKeySequence(Qt::Key_PageDown).toString()));
+        availableInputs.append(Input::NamedPair(makeInput(Qt::Key_Tab), QKeySequence(Qt::Key_Tab).toString()));
 
         availableInputs.append(Input::NamedPair(makeInput(Qt::LeftButton), "LeftMouseButton"));
         availableInputs.append(Input::NamedPair(makeInput(Qt::MiddleButton), "MiddleMouseButton"));
@@ -238,6 +250,9 @@ controller::Input::NamedVector KeyboardMouseDevice::InputDevice::getAvailableInp
         availableInputs.append(Input::NamedPair(makeInput(MOUSE_AXIS_X_NEG), "MouseMoveLeft"));
         availableInputs.append(Input::NamedPair(makeInput(MOUSE_AXIS_Y_POS), "MouseMoveUp"));
         availableInputs.append(Input::NamedPair(makeInput(MOUSE_AXIS_Y_NEG), "MouseMoveDown"));
+
+        availableInputs.append(Input::NamedPair(makeInput(MOUSE_AXIS_X), "MouseX"));
+        availableInputs.append(Input::NamedPair(makeInput(MOUSE_AXIS_Y), "MouseY"));
 
         availableInputs.append(Input::NamedPair(makeInput(MOUSE_AXIS_WHEEL_Y_POS), "MouseWheelRight"));
         availableInputs.append(Input::NamedPair(makeInput(MOUSE_AXIS_WHEEL_Y_NEG), "MouseWheelLeft"));

@@ -16,6 +16,8 @@
 #include <QtCore/QBuffer>
 #include <QtCore/QThread>
 
+#include <ThreadHelpers.h>
+
 #include "NetworkLogging.h"
 #include "NodeList.h"
 #include "PacketReceiver.h"
@@ -30,22 +32,23 @@ MessagesClient::MessagesClient() {
     connect(nodeList.data(), &LimitedNodeList::nodeActivated, this, &MessagesClient::handleNodeActivated);
 }
 
-void MessagesClient::init() {
-    if (QThread::currentThread() != thread()) {
-        QMetaObject::invokeMethod(this, "init", Qt::BlockingQueuedConnection);
-    }
-}
-
-void MessagesClient::decodeMessagesPacket(QSharedPointer<ReceivedMessage> receivedMessage, QString& channel, QString& message, QUuid& senderID) {
+void MessagesClient::decodeMessagesPacket(QSharedPointer<ReceivedMessage> receivedMessage, QString& channel, 
+                                                bool& isText, QString& message, QByteArray& data, QUuid& senderID) {
     quint16 channelLength;
     receivedMessage->readPrimitive(&channelLength);
     auto channelData = receivedMessage->read(channelLength);
     channel = QString::fromUtf8(channelData);
 
-    quint16 messageLength;
+    receivedMessage->readPrimitive(&isText);
+
+    quint32 messageLength;
     receivedMessage->readPrimitive(&messageLength);
     auto messageData = receivedMessage->read(messageLength);
-    message = QString::fromUtf8(messageData);
+    if (isText) {
+        message = QString::fromUtf8(messageData);
+    } else {
+        data = messageData;
+    }
 
     QByteArray bytesSenderID = receivedMessage->read(NUM_BYTES_RFC4122_UUID);
     if (bytesSenderID.length() == NUM_BYTES_RFC4122_UUID) {
@@ -64,10 +67,33 @@ std::unique_ptr<NLPacketList> MessagesClient::encodeMessagesPacket(QString chann
     packetList->writePrimitive(channelLength);
     packetList->write(channelUtf8);
 
+    bool isTextMessage = true;
+    packetList->writePrimitive(isTextMessage);
+
     auto messageUtf8 = message.toUtf8();
-    quint16 messageLength = messageUtf8.length();
+    quint32 messageLength = messageUtf8.length();
     packetList->writePrimitive(messageLength);
     packetList->write(messageUtf8);
+
+    packetList->write(senderID.toRfc4122());
+
+    return packetList;
+}
+
+std::unique_ptr<NLPacketList> MessagesClient::encodeMessagesDataPacket(QString channel, QByteArray data, QUuid senderID) {
+    auto packetList = NLPacketList::create(PacketType::MessagesData, QByteArray(), true, true);
+
+    auto channelUtf8 = channel.toUtf8();
+    quint16 channelLength = channelUtf8.length();
+    packetList->writePrimitive(channelLength);
+    packetList->write(channelUtf8);
+
+    bool isTextMessage = false;
+    packetList->writePrimitive(isTextMessage);
+
+    quint32 dataLength = data.length();
+    packetList->writePrimitive(dataLength);
+    packetList->write(data);
 
     packetList->write(senderID.toRfc4122());
 
@@ -77,9 +103,15 @@ std::unique_ptr<NLPacketList> MessagesClient::encodeMessagesPacket(QString chann
 
 void MessagesClient::handleMessagesPacket(QSharedPointer<ReceivedMessage> receivedMessage, SharedNodePointer senderNode) {
     QString channel, message;
+    QByteArray data;
+    bool isText { false };
     QUuid senderID;
-    decodeMessagesPacket(receivedMessage, channel, message, senderID);
-    emit messageReceived(channel, message, senderID, false);
+    decodeMessagesPacket(receivedMessage, channel, isText, message, data, senderID);
+    if (isText) {
+        emit messageReceived(channel, message, senderID, false);
+    } else {
+        emit dataReceived(channel, data, senderID, false);
+    }
 }
 
 void MessagesClient::sendMessage(QString channel, QString message, bool localOnly) {
@@ -93,6 +125,22 @@ void MessagesClient::sendMessage(QString channel, QString message, bool localOnl
         if (messagesMixer) {
             QUuid senderID = nodeList->getSessionUUID();
             auto packetList = encodeMessagesPacket(channel, message, senderID);
+            nodeList->sendPacketList(std::move(packetList), *messagesMixer);
+        }
+    }
+}
+
+void MessagesClient::sendData(QString channel, QByteArray data, bool localOnly) {
+    auto nodeList = DependencyManager::get<NodeList>();
+    if (localOnly) {
+        QUuid senderID = nodeList->getSessionUUID();
+        emit dataReceived(channel, data, senderID, true);
+    } else {
+        SharedNodePointer messagesMixer = nodeList->soloNodeOfType(NodeType::MessagesMixer);
+
+        if (messagesMixer) {
+            QUuid senderID = nodeList->getSessionUUID();
+            auto packetList = encodeMessagesDataPacket(channel, data, senderID);
             nodeList->sendPacketList(std::move(packetList), *messagesMixer);
         }
     }
@@ -132,4 +180,8 @@ void MessagesClient::handleNodeActivated(SharedNodePointer node) {
             subscribe(channel);
         }
     }
+}
+
+void MessagesClient::startThread() {
+    moveToNewNamedThread(this, "Messages Client Thread");
 }

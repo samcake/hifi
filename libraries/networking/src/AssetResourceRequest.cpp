@@ -13,12 +13,14 @@
 
 #include <QtCore/QLoggingCategory>
 
+#include <Trace.h>
+#include <Profile.h>
+#include <StatTracker.h>
+
 #include "AssetClient.h"
 #include "AssetUtils.h"
 #include "MappingRequest.h"
 #include "NetworkLogging.h"
-#include <Trace.h>
-#include <Profile.h>
 
 static const int DOWNLOAD_PROGRESS_LOG_INTERVAL_SECONDS = 5;
 
@@ -40,16 +42,18 @@ AssetResourceRequest::~AssetResourceRequest() {
     }
 }
 
-bool AssetResourceRequest::urlIsAssetHash() const {
+bool AssetResourceRequest::urlIsAssetHash(const QUrl& url) {
     static const QString ATP_HASH_REGEX_STRING { "^atp:([A-Fa-f0-9]{64})(\\.[\\w]+)?$" };
 
     QRegExp hashRegex { ATP_HASH_REGEX_STRING };
-    return hashRegex.exactMatch(_url.toString());
+    return hashRegex.exactMatch(url.toString());
 }
 
 void AssetResourceRequest::doSend() {
+    DependencyManager::get<StatTracker>()->incrementStat(STAT_ATP_REQUEST_STARTED);
+
     // We'll either have a hash or an ATP path to a file (that maps to a hash)
-    if (urlIsAssetHash()) {
+    if (urlIsAssetHash(_url)) {
         // We've detected that this is a hash - simply use AssetClient to request that asset
         auto parts = _url.path().split(".", QString::SkipEmptyParts);
         auto hash = parts.length() > 0 ? parts[0] : "";
@@ -65,11 +69,16 @@ void AssetResourceRequest::doSend() {
 }
 
 void AssetResourceRequest::requestMappingForPath(const AssetPath& path) {
+    auto statTracker = DependencyManager::get<StatTracker>();
+    statTracker->incrementStat(STAT_ATP_MAPPING_REQUEST_STARTED);
+
     auto assetClient = DependencyManager::get<AssetClient>();
     _assetMappingRequest = assetClient->createGetMappingRequest(path);
 
     // make sure we'll hear about the result of the get mapping request
     connect(_assetMappingRequest, &GetMappingRequest::finished, this, [this, path](GetMappingRequest* request){
+        auto statTracker = DependencyManager::get<StatTracker>();
+        
         Q_ASSERT(_state == InProgress);
         Q_ASSERT(request == _assetMappingRequest);
 
@@ -79,6 +88,8 @@ void AssetResourceRequest::requestMappingForPath(const AssetPath& path) {
                 qCDebug(networking) << "Got mapping for:" << path << "=>" << request->getHash();
 
                 requestHash(request->getHash());
+
+                statTracker->incrementStat(STAT_ATP_MAPPING_REQUEST_SUCCESS);
 
                 break;
             default: {
@@ -100,6 +111,9 @@ void AssetResourceRequest::requestMappingForPath(const AssetPath& path) {
                 _state = Finished;
                 emit finished();
 
+                statTracker->incrementStat(STAT_ATP_MAPPING_REQUEST_FAILED);
+                statTracker->incrementStat(STAT_ATP_REQUEST_FAILED);
+
                 break;
             }
         }
@@ -114,7 +128,7 @@ void AssetResourceRequest::requestMappingForPath(const AssetPath& path) {
 void AssetResourceRequest::requestHash(const AssetHash& hash) {
     // Make request to atp
     auto assetClient = DependencyManager::get<AssetClient>();
-    _assetRequest = assetClient->createRequest(hash);
+    _assetRequest = assetClient->createRequest(hash, _byteRange);
 
     connect(_assetRequest, &AssetRequest::progress, this, &AssetResourceRequest::onDownloadProgress);
     connect(_assetRequest, &AssetRequest::finished, this, [this](AssetRequest* req) {
@@ -140,9 +154,25 @@ void AssetResourceRequest::requestHash(const AssetHash& hash) {
                 _result = Error;
                 break;
         }
-        
+
+        auto statTracker = DependencyManager::get<StatTracker>();
+
+        if (_assetRequest->loadedFromCache()) {
+            _loadedFromCache = true;
+        }
+
         _state = Finished;
         emit finished();
+
+        if (_result == Success) {
+            statTracker->incrementStat(STAT_ATP_REQUEST_SUCCESS);
+
+            if (loadedFromCache()) {
+                statTracker->incrementStat(STAT_ATP_REQUEST_CACHE);
+            }
+        } else {
+            statTracker->incrementStat(STAT_ATP_REQUEST_FAILED);
+        }
 
         _assetRequest->deleteLater();
         _assetRequest = nullptr;
@@ -157,6 +187,9 @@ void AssetResourceRequest::onDownloadProgress(qint64 bytesReceived, qint64 bytes
     emit progress(bytesReceived, bytesTotal);
 
     auto now = p_high_resolution_clock::now();
+	
+    // Recording ATP bytes downloaded in stats
+    DependencyManager::get<StatTracker>()->updateStat(STAT_ATP_RESOURCE_TOTAL_BYTES, bytesReceived);
 
     // if we haven't received the full asset check if it is time to output progress to log
     // we do so every X seconds to assist with ATP download tracking
@@ -171,6 +204,5 @@ void AssetResourceRequest::onDownloadProgress(qint64 bytesReceived, qint64 bytes
 
         _lastProgressDebug = now;
     }
-
 }
 

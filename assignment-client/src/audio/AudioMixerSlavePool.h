@@ -16,9 +16,9 @@
 #include <mutex>
 #include <vector>
 
-#include <tbb/concurrent_queue.h>
-
 #include <QThread>
+
+#include <TBBHelpers.h>
 
 #include "AudioMixerSlave.h"
 
@@ -43,6 +43,7 @@ private:
     bool try_pop(SharedNodePointer& node);
 
     AudioMixerSlavePool& _pool;
+    void (AudioMixerSlave::*_function)(const SharedNodePointer& node) { nullptr };
     bool _stop { false };
 };
 
@@ -60,8 +61,11 @@ public:
     AudioMixerSlavePool(int numThreads = QThread::idealThreadCount()) { setNumThreads(numThreads); }
     ~AudioMixerSlavePool() { resize(0); }
 
+    // process packets on slave threads
+    void processPackets(ConstIter begin, ConstIter end);
+
     // mix on slave threads
-    void mix(ConstIter begin, ConstIter end, unsigned int frame);
+    void mix(ConstIter begin, ConstIter end, unsigned int frame, float throttlingRatio);
 
     // iterate over all slaves
     void each(std::function<void(AudioMixerSlave& slave)> functor);
@@ -70,6 +74,7 @@ public:
     int numThreads() { return _numThreads; }
 
 private:
+    void run(ConstIter begin, ConstIter end);
     void resize(int numThreads);
 
     std::vector<std::unique_ptr<AudioMixerSlaveThread>> _slaves;
@@ -82,6 +87,8 @@ private:
     Mutex _mutex;
     ConditionVariable _slaveCondition;
     ConditionVariable _poolCondition;
+    void (AudioMixerSlave::*_function)(const SharedNodePointer& node);
+    std::function<void(AudioMixerSlave&)> _configure;
     int _numThreads { 0 };
     int _numStarted { 0 }; // guarded by _mutex
     int _numFinished { 0 }; // guarded by _mutex
@@ -90,6 +97,7 @@ private:
     // frame state
     Queue _queue;
     unsigned int _frame { 0 };
+    float _throttlingRatio { 0.0f };
     ConstIter _begin;
     ConstIter _end;
 };

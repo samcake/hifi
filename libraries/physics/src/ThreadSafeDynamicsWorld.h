@@ -49,12 +49,18 @@ public:
     float getLocalTimeAccumulation() const { return m_localTime; }
 
     const VectorOfMotionStates& getChangedMotionStates() const { return _changedMotionStates; }
+    const VectorOfMotionStates& getDeactivatedMotionStates() const { return _deactivatedStates; }
+
+    void addChangedMotionState(ObjectMotionState* motionState) { _changedMotionStates.push_back(motionState); }
 
 private:
     // call this instead of non-virtual btDiscreteDynamicsWorld::synchronizeSingleMotionState()
     void synchronizeMotionState(btRigidBody* body);
 
     VectorOfMotionStates _changedMotionStates;
+    VectorOfMotionStates _deactivatedStates;
+    SetOfMotionStates _activeStates;
+    SetOfMotionStates _lastActiveStates;
 };
 
 #endif // hifi_ThreadSafeDynamicsWorld_h
