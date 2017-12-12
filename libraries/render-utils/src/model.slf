@@ -15,6 +15,8 @@
 
 <@include model/Material.slh@>
 
+<@include gpu/Paint.slh@>
+
 <@include MaterialTextures.slh@>
 <$declareMaterialTextures(ALBEDO, ROUGHNESS, _SCRIBE_NULL, _SCRIBE_NULL, EMISSIVE, OCCLUSION)$>
 
@@ -44,6 +46,14 @@ void main(void) {
 
     vec3 emissive = getMaterialEmissive(mat);
     <$evalMaterialEmissive(emissiveTex, emissive, matKey, emissive)$>;
+
+    float gridA = paintGrid( _texCoord0, vec2( -0.00125, -0.00125 ), vec2( 0.25, 0.25 ), vec2( 0.01, 0.01 ) );
+    float gridB = paintGrid( _texCoord0, vec2( -0.0003125, -0.0003125 ), vec2( 0.0625, 0.0625 ), vec2( 0.01, 0.01 ) );
+    float gridC = paintGrid( _texCoord0, vec2( -0.0000781, -0.0000781 ), vec2( 0.015625, 0.015625 ), vec2( 0.01, 0.01 ) );
+
+    albedo = gridC * vec3(0.353, 0.431, 0.475) + (1 - gridC)* albedo;
+    albedo = gridB * vec3(0.710, 0.424, 0.388) + (1 - gridB)* albedo;
+    albedo = gridA * vec3(0.812, 0.820, 0.776) + (1 - gridA)* albedo;
 
     float scattering = getMaterialScattering(mat);
 
