@@ -46,9 +46,7 @@ Rectangle {
                          "Emissive:LightingModel:enableEmissive", 
                          "Lightmap:LightingModel:enableLightmap",
                          "Background:LightingModel:enableBackground",                      
-                         "ssao:AmbientOcclusion:enabled",                      
-                         "Textures:LightingModel:enableMaterialTexturing",                     
-                         "Texcoords:LightingModel:showTexcoord"                     
+                         "ssao:AmbientOcclusion:enabled"                     
                     ]
                     HifiControls.CheckBox {
                         boxSize: 20
@@ -121,8 +119,7 @@ Rectangle {
             }
         }
         Repeater {
-                model: [ "Main Grid Scale:LightingModel:majorGrid:0.0:10.0"
-                              ]
+                model: [ "Main Grid Scale:LightingModel:majorGrid:10.0:0.0" ]
                 ConfigSlider {
                         label: qsTr(modelData.split(":")[0])
                         integral: false
@@ -130,9 +127,6 @@ Rectangle {
                         property: modelData.split(":")[2]
                         max: modelData.split(":")[3]
                         min: modelData.split(":")[4]
-
-                        anchors.left: parent.left
-                        anchors.right: parent.right 
                 }
             }
         Separator {}          
