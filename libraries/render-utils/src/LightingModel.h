@@ -77,40 +77,7 @@ public:
 
 protected:
 
-
-    // Class describing the uniform buffer with the transform info common to the AO shaders
-    // It s changing every frame
-  /*  class Parameters {
-    public:
-        float enableUnlit{ 1.0f };
-        float enableEmissive{ 1.0f };
-        float enableLightmap{ 1.0f };
-        float enableBackground{ 1.0f };
-
-        float enableScattering{ 1.0f };
-        float enableDiffuse{ 1.0f };
-        float enableSpecular{ 1.0f };
-        float enableAlbedo{ 1.0f };
-
-        float enableAmbientLight{ 1.0f };
-        float enableDirectionalLight{ 1.0f };
-        float enablePointLight{ 1.0f };
-        float enableSpotLight{ 1.0f };
-
-        float showLightContour { 0.0f }; // false by default
-        float enableObscurance{ 1.0f };
-        float enableMaterialTexturing { 1.0f };
-        float enableWireframe { 0.0f }; // false by default
-
-        float showTexcoord{ 0.0f }; // false by default
-        float majorGrid{ 1.0f };
-        float spareA{ 1.0f };
-        float spareB{ 0.0f }; // false by default
-
-
-        Parameters() {}
-    };*/
-
+    // Include the LightingModelParameters declaration
 #include "LightingModel_shared.slh"
     using LightingModelBuffer = gpu::StructBuffer<LightingModelParameters>;
 
