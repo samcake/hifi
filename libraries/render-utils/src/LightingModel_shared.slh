@@ -1,0 +1,43 @@
+// glsl / C++ compatible source as interface for highlight
+#ifdef __cplusplus
+#   define TVEC2 glm::vec2
+#   define TVEC3 glm::vec3
+#   define TVEC4 glm::vec4
+#else
+#   define TVEC2 vec2
+#   define TVEC3 vec3
+#   define TVEC4 vec4
+#endif
+
+struct LightingModelParameters
+{
+    float enableUnlit;
+    float enableEmissive;
+    float enableLightmap;
+    float enableBackground;
+
+    float enableScattering;
+    float enableDiffuse;
+    float enableSpecular;
+    float enableAlbedo;
+
+    float enableAmbientLight;
+    float enableDirectionalLight;
+    float enablePointLight;
+    float enableSpotLight;
+
+    float showLightContour; // false by default
+    float enableObscurance;
+    float enableMaterialTexturing;
+    float enableWireframe; // false by default
+
+    float showTexcoord; // false by default
+    float majorGrid;
+    float spareA;
+    float spareB;
+};
+
+// <@if 1@>
+// Trigger Scribe include 
+// <@endif@> <!def that !> 
+//

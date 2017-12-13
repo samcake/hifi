@@ -47,7 +47,8 @@ Rectangle {
                          "Lightmap:LightingModel:enableLightmap",
                          "Background:LightingModel:enableBackground",                      
                          "ssao:AmbientOcclusion:enabled",                      
-                         "Textures:LightingModel:enableMaterialTexturing"                     
+                         "Textures:LightingModel:enableMaterialTexturing",                     
+                         "Texcoords:LightingModel:showTexcoord"                     
                     ]
                     HifiControls.CheckBox {
                         boxSize: 20
@@ -100,6 +101,40 @@ Rectangle {
                 }
             }
         }
+        Separator {}                 
+        Row { 
+            anchors.left: parent.left
+            anchors.right: parent.right 
+
+            spacing: 10
+            Repeater {
+                model: [                      
+                        "Textures:LightingModel:enableMaterialTexturing",                     
+                        "Texcoords:LightingModel:showTexcoord"                     
+                ]
+                HifiControls.CheckBox {
+                    boxSize: 20
+                    text: modelData.split(":")[0]
+                    checked: render.mainViewTask.getConfig(modelData.split(":")[1])[modelData.split(":")[2]]
+                    onCheckedChanged: { render.mainViewTask.getConfig(modelData.split(":")[1])[modelData.split(":")[2]] = checked }
+                }
+            }
+        }
+        Repeater {
+                model: [ "Main Grid Scale:LightingModel:majorGrid:0.0:10.0"
+                              ]
+                ConfigSlider {
+                        label: qsTr(modelData.split(":")[0])
+                        integral: false
+                        config: render.mainViewTask.getConfig(modelData.split(":")[1])
+                        property: modelData.split(":")[2]
+                        max: modelData.split(":")[3]
+                        min: modelData.split(":")[4]
+
+                        anchors.left: parent.left
+                        anchors.right: parent.right 
+                }
+            }
         Separator {}          
         Column {
             anchors.left: parent.left

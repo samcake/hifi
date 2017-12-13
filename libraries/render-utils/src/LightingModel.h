@@ -67,6 +67,12 @@ public:
     void setWireframe(bool enable);
     bool isWireframeEnabled() const;
 
+    void setShowTexcoord(bool enable);
+    bool isShowTexcoordEnabled() const;
+
+    void setTexcoordMajorGrid(float scale);
+    float getTexcoordMajorGrid() const;
+
     UniformBufferView getParametersBuffer() const { return _parametersBuffer; }
 
 protected:
@@ -74,7 +80,7 @@ protected:
 
     // Class describing the uniform buffer with the transform info common to the AO shaders
     // It s changing every frame
-    class Parameters {
+  /*  class Parameters {
     public:
         float enableUnlit{ 1.0f };
         float enableEmissive{ 1.0f };
@@ -86,22 +92,31 @@ protected:
         float enableSpecular{ 1.0f };
         float enableAlbedo{ 1.0f };
 
-
         float enableAmbientLight{ 1.0f };
         float enableDirectionalLight{ 1.0f };
         float enablePointLight{ 1.0f };
         float enableSpotLight{ 1.0f };
 
         float showLightContour { 0.0f }; // false by default
-
         float enableObscurance{ 1.0f };
-
         float enableMaterialTexturing { 1.0f };
         float enableWireframe { 0.0f }; // false by default
 
+        float showTexcoord{ 0.0f }; // false by default
+        float majorGrid{ 1.0f };
+        float spareA{ 1.0f };
+        float spareB{ 0.0f }; // false by default
+
+
         Parameters() {}
-    };
-    UniformBufferView _parametersBuffer;
+    };*/
+
+#include "LightingModel_shared.slh"
+    using LightingModelBuffer = gpu::StructBuffer<LightingModelParameters>;
+
+    LightingModelBuffer _parametersBuffer;
+
+    static void resetParameters(LightingModelParameters& params);
 };
 
 using LightingModelPointer = std::shared_ptr<LightingModel>;
@@ -116,14 +131,13 @@ class MakeLightingModelConfig : public render::Job::Config {
     Q_PROPERTY(bool enableEmissive MEMBER enableEmissive NOTIFY dirty)
     Q_PROPERTY(bool enableLightmap MEMBER enableLightmap NOTIFY dirty)
     Q_PROPERTY(bool enableBackground MEMBER enableBackground NOTIFY dirty)
-
     Q_PROPERTY(bool enableObscurance MEMBER enableObscurance NOTIFY dirty)
 
     Q_PROPERTY(bool enableScattering MEMBER enableScattering NOTIFY dirty)
     Q_PROPERTY(bool enableDiffuse MEMBER enableDiffuse NOTIFY dirty)
     Q_PROPERTY(bool enableSpecular MEMBER enableSpecular NOTIFY dirty)
-    Q_PROPERTY(bool enableAlbedo MEMBER enableAlbedo NOTIFY dirty)
 
+    Q_PROPERTY(bool enableAlbedo MEMBER enableAlbedo NOTIFY dirty)
     Q_PROPERTY(bool enableMaterialTexturing MEMBER enableMaterialTexturing NOTIFY dirty)
 
     Q_PROPERTY(bool enableAmbientLight MEMBER enableAmbientLight NOTIFY dirty)
@@ -131,8 +145,11 @@ class MakeLightingModelConfig : public render::Job::Config {
     Q_PROPERTY(bool enablePointLight MEMBER enablePointLight NOTIFY dirty)
     Q_PROPERTY(bool enableSpotLight MEMBER enableSpotLight NOTIFY dirty)
 
-    Q_PROPERTY(bool enableWireframe MEMBER enableWireframe NOTIFY dirty)
     Q_PROPERTY(bool showLightContour MEMBER showLightContour NOTIFY dirty)
+    Q_PROPERTY(bool enableWireframe MEMBER enableWireframe NOTIFY dirty)
+
+    Q_PROPERTY(bool showTexcoord MEMBER showTexcoord NOTIFY dirty)
+    Q_PROPERTY(float majorGrid MEMBER majorGrid NOTIFY dirty)
 
 public:
     MakeLightingModelConfig() : render::Job::Config() {} // Make Lighting Model is always on
@@ -157,7 +174,10 @@ public:
 
     bool showLightContour { false }; // false by default
 
-    bool enableWireframe { false }; // false by default
+    bool enableWireframe{ false }; // false by default
+
+    bool showTexcoord{ false }; // false by default
+    float majorGrid{ 1.0 }; // false by default
 
 signals:
     void dirty();

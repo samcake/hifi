@@ -13,65 +13,76 @@
 
 <@func declareLightingModel()@>
 
-struct LightingModel {
+<@include LightingModel_shared.slh@>
+
+/*struct LightingModel {
     vec4 _UnlitEmissiveLightmapBackground;
     vec4 _ScatteringDiffuseSpecularAlbedo;
     vec4 _AmbientDirectionalPointSpot;
     vec4 _ShowContourObscuranceWireframe;
-};
+};*/
 
 uniform lightingModelBuffer{
-    LightingModel lightingModel;
+    LightingModelParameters lightingModel;
 };
 
 float isUnlitEnabled() {
-    return lightingModel._UnlitEmissiveLightmapBackground.x;
+    return lightingModel.enableUnlit;
 }
 float isEmissiveEnabled() {
-    return lightingModel._UnlitEmissiveLightmapBackground.y;
+    return lightingModel.enableEmissive;
 }
 float isLightmapEnabled() {
-    return lightingModel._UnlitEmissiveLightmapBackground.z;
+    return lightingModel.enableLightmap;
 }
 float isBackgroundEnabled() {
-    return lightingModel._UnlitEmissiveLightmapBackground.w;
-}
-float isObscuranceEnabled() {
-    return lightingModel._ShowContourObscuranceWireframe.y;
+    return lightingModel.enableBackground;
 }
 
 float isScatteringEnabled() {
-    return lightingModel._ScatteringDiffuseSpecularAlbedo.x;
+    return lightingModel.enableScattering;
 }
 float isDiffuseEnabled() {
-    return lightingModel._ScatteringDiffuseSpecularAlbedo.y;
+    return lightingModel.enableDiffuse;
 }
 float isSpecularEnabled() {
-    return lightingModel._ScatteringDiffuseSpecularAlbedo.z;
+    return lightingModel.enableSpecular;
 }
 float isAlbedoEnabled() {
-    return lightingModel._ScatteringDiffuseSpecularAlbedo.w;
+    return lightingModel.enableAlbedo;
 }
 
 float isAmbientEnabled() {
-    return lightingModel._AmbientDirectionalPointSpot.x;
+    return lightingModel.enableAmbientLight;
 }
 float isDirectionalEnabled() {
-    return lightingModel._AmbientDirectionalPointSpot.y;
+    return lightingModel.enableDirectionalLight;
 }
 float isPointEnabled() {
-    return lightingModel._AmbientDirectionalPointSpot.z;
+    return lightingModel.enablePointLight;
 }
 float isSpotEnabled() {
-    return lightingModel._AmbientDirectionalPointSpot.w;
+    return lightingModel.enableSpotLight;
 }
 
 float isShowLightContour() {
-    return lightingModel._ShowContourObscuranceWireframe.x;
+    return lightingModel.showLightContour;
+}
+float isObscuranceEnabled() {
+    return lightingModel.enableObscurance;
+}
+float isWireframeEnabled() {
+    return lightingModel.enableWireframe;
+}
+float isMaterialTexturingEnabled() {
+    return lightingModel.enableMaterialTexturing;
 }
 
-float isWireframeEnabled() {
-    return lightingModel._ShowContourObscuranceWireframe.z;
+float isShowTexcoord() {
+    return lightingModel.showTexcoord;
+}
+float textureMajorGrid() {
+    return lightingModel.majorGrid;
 }
 
 <@endfunc@>

@@ -10,147 +10,193 @@
 //
 #include "LightingModel.h"
 
+void LightingModel::resetParameters(LightingModelParameters& params) {
+
+    params.enableUnlit = 1.0f;
+    params.enableEmissive = 1.0f;
+    params.enableLightmap = 1.0f;
+    params.enableBackground = 1.0f;
+
+    params.enableScattering = 1.0f;
+    params.enableDiffuse = 1.0f;
+    params.enableSpecular = 1.0f;
+    params.enableAlbedo = 1.0f;
+
+    params.enableAmbientLight = 1.0f;
+    params.enableDirectionalLight = 1.0f;
+    params.enablePointLight = 1.0f;
+    params.enableSpotLight = 1.0f;
+
+    params.showLightContour = 0.0f; // false by default
+    params.enableObscurance = 1.0f;
+    params.enableMaterialTexturing = 1.0f;
+    params.enableWireframe = 0.0f; // false by default
+
+    params.showTexcoord = 0.0f; // false by default
+    params.majorGrid = 1.0f;
+
+}
+
 LightingModel::LightingModel() {
-    Parameters parameters;
-    _parametersBuffer = gpu::BufferView(std::make_shared<gpu::Buffer>(sizeof(Parameters), (const gpu::Byte*) &parameters));
+    _parametersBuffer = gpu::StructBuffer<LightingModelParameters>();
+    resetParameters(_parametersBuffer.edit());
 }
 
 void LightingModel::setUnlit(bool enable) {
     if (enable != isUnlitEnabled()) {
-        _parametersBuffer.edit<Parameters>().enableUnlit = (float) enable;
+        _parametersBuffer.edit().enableUnlit = (float) enable;
     }
 }
 bool LightingModel::isUnlitEnabled() const {
-    return (bool)_parametersBuffer.get<Parameters>().enableUnlit;
+    return (bool)_parametersBuffer.get().enableUnlit;
 }
 
 void LightingModel::setEmissive(bool enable) {
     if (enable != isEmissiveEnabled()) {
-        _parametersBuffer.edit<Parameters>().enableEmissive = (float)enable;
+        _parametersBuffer.edit().enableEmissive = (float)enable;
     }
 }
 bool LightingModel::isEmissiveEnabled() const {
-    return (bool)_parametersBuffer.get<Parameters>().enableEmissive;
+    return (bool)_parametersBuffer.get().enableEmissive;
 }
 void LightingModel::setLightmap(bool enable) {
     if (enable != isLightmapEnabled()) {
-        _parametersBuffer.edit<Parameters>().enableLightmap = (float)enable;
+        _parametersBuffer.edit().enableLightmap = (float)enable;
     }
 }
 bool LightingModel::isLightmapEnabled() const {
-    return (bool)_parametersBuffer.get<Parameters>().enableLightmap;
+    return (bool)_parametersBuffer.get().enableLightmap;
 }
 
 void LightingModel::setBackground(bool enable) {
     if (enable != isBackgroundEnabled()) {
-        _parametersBuffer.edit<Parameters>().enableBackground = (float)enable;
+        _parametersBuffer.edit().enableBackground = (float)enable;
     }
 }
 bool LightingModel::isBackgroundEnabled() const {
-    return (bool)_parametersBuffer.get<Parameters>().enableBackground;
+    return (bool)_parametersBuffer.get().enableBackground;
 }
 void LightingModel::setObscurance(bool enable) {
     if (enable != isObscuranceEnabled()) {
-        _parametersBuffer.edit<Parameters>().enableObscurance = (float)enable;
+        _parametersBuffer.edit().enableObscurance = (float)enable;
     }
 }
 bool LightingModel::isObscuranceEnabled() const {
-    return (bool)_parametersBuffer.get<Parameters>().enableObscurance;
+    return (bool)_parametersBuffer.get().enableObscurance;
 }
 
 void LightingModel::setScattering(bool enable) {
     if (enable != isScatteringEnabled()) {
-        _parametersBuffer.edit<Parameters>().enableScattering = (float)enable;
+        _parametersBuffer.edit().enableScattering = (float)enable;
     }
 }
 bool LightingModel::isScatteringEnabled() const {
-    return (bool)_parametersBuffer.get<Parameters>().enableScattering;
+    return (bool)_parametersBuffer.get().enableScattering;
 }
 
 void LightingModel::setDiffuse(bool enable) {
     if (enable != isDiffuseEnabled()) {
-        _parametersBuffer.edit<Parameters>().enableDiffuse = (float)enable;
+        _parametersBuffer.edit().enableDiffuse = (float)enable;
     }
 }
 bool LightingModel::isDiffuseEnabled() const {
-    return (bool)_parametersBuffer.get<Parameters>().enableDiffuse;
+    return (bool)_parametersBuffer.get().enableDiffuse;
 }
 void LightingModel::setSpecular(bool enable) {
     if (enable != isSpecularEnabled()) {
-        _parametersBuffer.edit<Parameters>().enableSpecular = (float)enable;
+        _parametersBuffer.edit().enableSpecular = (float)enable;
     }
 }
 bool LightingModel::isSpecularEnabled() const {
-    return (bool)_parametersBuffer.get<Parameters>().enableSpecular;
+    return (bool)_parametersBuffer.get().enableSpecular;
 }
 void LightingModel::setAlbedo(bool enable) {
     if (enable != isAlbedoEnabled()) {
-        _parametersBuffer.edit<Parameters>().enableAlbedo = (float)enable;
+        _parametersBuffer.edit().enableAlbedo = (float)enable;
     }
 }
 bool LightingModel::isAlbedoEnabled() const {
-    return (bool)_parametersBuffer.get<Parameters>().enableAlbedo;
+    return (bool)_parametersBuffer.get().enableAlbedo;
 }
 
 void LightingModel::setMaterialTexturing(bool enable) {
     if (enable != isMaterialTexturingEnabled()) {
-        _parametersBuffer.edit<Parameters>().enableMaterialTexturing = (float)enable;
+        _parametersBuffer.edit().enableMaterialTexturing = (float)enable;
     }
 }
 bool LightingModel::isMaterialTexturingEnabled() const {
-    return (bool)_parametersBuffer.get<Parameters>().enableMaterialTexturing;
+    return (bool)_parametersBuffer.get().enableMaterialTexturing;
 }
 
 void LightingModel::setAmbientLight(bool enable) {
     if (enable != isAmbientLightEnabled()) {
-        _parametersBuffer.edit<Parameters>().enableAmbientLight = (float)enable;
+        _parametersBuffer.edit().enableAmbientLight = (float)enable;
     }
 }
 bool LightingModel::isAmbientLightEnabled() const {
-    return (bool)_parametersBuffer.get<Parameters>().enableAmbientLight;
+    return (bool)_parametersBuffer.get().enableAmbientLight;
 }
 void LightingModel::setDirectionalLight(bool enable) {
     if (enable != isDirectionalLightEnabled()) {
-        _parametersBuffer.edit<Parameters>().enableDirectionalLight = (float)enable;
+        _parametersBuffer.edit().enableDirectionalLight = (float)enable;
     }
 }
 bool LightingModel::isDirectionalLightEnabled() const {
-    return (bool)_parametersBuffer.get<Parameters>().enableDirectionalLight;
+    return (bool)_parametersBuffer.get().enableDirectionalLight;
 }
 void LightingModel::setPointLight(bool enable) {
     if (enable != isPointLightEnabled()) {
-        _parametersBuffer.edit<Parameters>().enablePointLight = (float)enable;
+        _parametersBuffer.edit().enablePointLight = (float)enable;
     }
 }
 bool LightingModel::isPointLightEnabled() const {
-    return (bool)_parametersBuffer.get<Parameters>().enablePointLight;
+    return (bool)_parametersBuffer.get().enablePointLight;
 }
 void LightingModel::setSpotLight(bool enable) {
     if (enable != isSpotLightEnabled()) {
-        _parametersBuffer.edit<Parameters>().enableSpotLight = (float)enable;
+        _parametersBuffer.edit().enableSpotLight = (float)enable;
     }
 }
 bool LightingModel::isSpotLightEnabled() const {
-    return (bool)_parametersBuffer.get<Parameters>().enableSpotLight;
+    return (bool)_parametersBuffer.get().enableSpotLight;
 }
 
 void LightingModel::setShowLightContour(bool enable) {
     if (enable != isShowLightContourEnabled()) {
-        _parametersBuffer.edit<Parameters>().showLightContour = (float)enable;
+        _parametersBuffer.edit().showLightContour = (float)enable;
     }
 }
 bool LightingModel::isShowLightContourEnabled() const {
-    return (bool)_parametersBuffer.get<Parameters>().showLightContour;
+    return (bool)_parametersBuffer.get().showLightContour;
 }
 
 void LightingModel::setWireframe(bool enable) {
     if (enable != isWireframeEnabled()) {
-        _parametersBuffer.edit<Parameters>().enableWireframe = (float)enable;
+        _parametersBuffer.edit().enableWireframe = (float)enable;
     }
 }
 bool LightingModel::isWireframeEnabled() const {
-    return (bool)_parametersBuffer.get<Parameters>().enableWireframe;
+    return (bool)_parametersBuffer.get().enableWireframe;
 }
+
+void LightingModel::setShowTexcoord(bool enable) {
+    if (enable != isShowTexcoordEnabled()) {
+        _parametersBuffer.edit().showTexcoord = (float)enable;
+    }
+}
+bool LightingModel::isShowTexcoordEnabled() const {
+    return (bool)_parametersBuffer.get().showTexcoord;
+}
+
+void LightingModel::setTexcoordMajorGrid(float majorGrid) {
+    if (majorGrid != getTexcoordMajorGrid()) {
+        _parametersBuffer.edit().majorGrid = (float)majorGrid;
+    }
+}
+float LightingModel::getTexcoordMajorGrid() const {
+    return (float)_parametersBuffer.get().majorGrid;
+}
+
 MakeLightingModel::MakeLightingModel() {
     _lightingModel = std::make_shared<LightingModel>();
 }
@@ -177,6 +223,9 @@ void MakeLightingModel::configure(const Config& config) {
 
     _lightingModel->setShowLightContour(config.showLightContour);
     _lightingModel->setWireframe(config.enableWireframe);
+
+    _lightingModel->setShowTexcoord(config.showTexcoord);
+    _lightingModel->setTexcoordMajorGrid(config.majorGrid);
 }
 
 void MakeLightingModel::run(const render::RenderContextPointer& renderContext, LightingModelPointer& lightingModel) {
