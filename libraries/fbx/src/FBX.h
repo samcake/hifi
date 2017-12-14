@@ -197,6 +197,11 @@ public:
     FBXTexture lightmapTexture;
     glm::vec2 lightmapParams{ 0.0f, 1.0f };
 
+    struct {
+        glm::vec2 offset{ 0.0f, 0.0f };
+        glm::vec2 scale{ 1.0f, 1.0f };
+
+    } decalParams;
 
     bool isPBSMaterial{ false };
     // THe use XXXMap are not really used to drive which map are going or not, debug only

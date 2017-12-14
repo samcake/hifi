@@ -35,6 +35,8 @@ void LightingModel::resetParameters(LightingModelParameters& params) {
     params.showTexcoord = 0.0f; // false by default
     params.majorGrid = 1.0f;
 
+
+
 }
 
 LightingModel::LightingModel() {
@@ -197,6 +199,38 @@ float LightingModel::getTexcoordMajorGrid() const {
     return (float)_parametersBuffer.get().majorGrid;
 }
 
+
+void LightingModel::setDecal(bool enable) {
+    if (enable != isDecalEnabled()) {
+        _parametersBuffer.edit().enableDecal = (float)enable;
+    }
+}
+bool LightingModel::isDecalEnabled() const {
+    return (bool)_parametersBuffer.get().enableDecal;
+}
+
+void LightingModel::setDecalOffset(const glm::vec2& offset) {
+    if (offset != getDecalOffset()) {
+        _parametersBuffer.edit().decalOffsetScale.x = offset.x;
+        _parametersBuffer.edit().decalOffsetScale.y = offset.y;
+    }
+}
+glm::vec2 LightingModel::getDecalOffset() const {
+    return glm::vec2(_parametersBuffer.get().decalOffsetScale.x, _parametersBuffer.get().decalOffsetScale.y);
+}
+
+void LightingModel::setDecalScale(const glm::vec2& scale) {
+    if (scale != getDecalScale()) {
+        _parametersBuffer.edit().decalOffsetScale.z = scale.x;
+        _parametersBuffer.edit().decalOffsetScale.w = scale.y;
+    }
+}
+glm::vec2 LightingModel::getDecalScale() const {
+    return glm::vec2(_parametersBuffer.get().decalOffsetScale.z, _parametersBuffer.get().decalOffsetScale.w);
+}
+
+
+
 MakeLightingModel::MakeLightingModel() {
     _lightingModel = std::make_shared<LightingModel>();
 }
@@ -226,6 +260,11 @@ void MakeLightingModel::configure(const Config& config) {
 
     _lightingModel->setShowTexcoord(config.showTexcoord);
     _lightingModel->setTexcoordMajorGrid(config.majorGrid);
+
+    _lightingModel->setDecal(config.enableDecal);
+    _lightingModel->setDecalOffset(glm::vec2(config.decalOffsetX, config.decalOffsetY));
+    _lightingModel->setDecalScale(glm::vec2(config.decalScaleX, config.decalScaleY));
+
 }
 
 void MakeLightingModel::run(const render::RenderContextPointer& renderContext, LightingModelPointer& lightingModel) {

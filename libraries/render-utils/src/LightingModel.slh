@@ -85,6 +85,18 @@ float textureMajorGrid() {
     return lightingModel.majorGrid;
 }
 
+float isDecalEnabled() {
+    return lightingModel.enableDecal;
+}
+
+vec2 getDecalOffset() {
+    return lightingModel.decalOffsetScale.xy;
+}
+
+vec2 getDecalScale() {
+    return lightingModel.decalOffsetScale.zw;
+}
+
 <@endfunc@>
 <$declareLightingModel()$>
 

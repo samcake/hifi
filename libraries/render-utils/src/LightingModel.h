@@ -73,6 +73,15 @@ public:
     void setTexcoordMajorGrid(float scale);
     float getTexcoordMajorGrid() const;
 
+    void setDecal(bool enable);
+    bool isDecalEnabled() const;
+
+    void setDecalOffset(const glm::vec2& offset);
+    glm::vec2 getDecalOffset() const;
+
+    void setDecalScale(const glm::vec2& scale);
+    glm::vec2 getDecalScale() const;
+
     UniformBufferView getParametersBuffer() const { return _parametersBuffer; }
 
 protected:
@@ -118,6 +127,12 @@ class MakeLightingModelConfig : public render::Job::Config {
     Q_PROPERTY(bool showTexcoord MEMBER showTexcoord NOTIFY dirty)
     Q_PROPERTY(float majorGrid MEMBER majorGrid NOTIFY dirty)
 
+    Q_PROPERTY(bool enableDecal MEMBER enableDecal NOTIFY dirty)
+    Q_PROPERTY(float decalOffsetX MEMBER decalOffsetX NOTIFY dirty)
+    Q_PROPERTY(float decalOffsetY MEMBER decalOffsetY NOTIFY dirty)
+    Q_PROPERTY(float decalScaleX MEMBER decalScaleX NOTIFY dirty)
+    Q_PROPERTY(float decalScaleY MEMBER decalScaleY NOTIFY dirty)
+
 public:
     MakeLightingModelConfig() : render::Job::Config() {} // Make Lighting Model is always on
 
@@ -145,6 +160,12 @@ public:
 
     bool showTexcoord{ false }; // false by default
     float majorGrid{ 1.0 }; // false by default
+
+    bool enableDecal{ true };
+    float decalOffsetX{ 0.0 };
+    float decalOffsetY{ 0.0 };
+    float decalScaleX{ 1.0 };
+    float decalScaleY{ 1.0 };
 
 signals:
     void dirty();

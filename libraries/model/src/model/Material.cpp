@@ -145,6 +145,11 @@ void Material::setTextureMap(MapChannel channel, const TextureMapPointer& textur
         _texMapArrayBuffer.edit<TexMapArraySchema>()._lightmapParams = (textureMap ? glm::vec4(textureMap->getLightmapOffsetScale(), 0.0, 0.0) : glm::vec4(0.0, 1.0, 0.0, 0.0));
     }
 
+    if (channel == MaterialKey::DECAL_MAP) {
+        // update the decal quad
+        _texMapArrayBuffer.edit<TexMapArraySchema>()._decalParams = (textureMap ? textureMap->getDecalOffsetScale() : glm::vec4(0.4, 0.4, 0.2, 0.2));
+    }
+
     _schemaBuffer.edit<Schema>()._key = (uint32)_key._flags.to_ulong();
 
 }

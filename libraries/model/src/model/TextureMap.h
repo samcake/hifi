@@ -36,11 +36,16 @@ public:
     void setLightmapOffsetScale(float offset, float scale);
     const glm::vec2& getLightmapOffsetScale() const { return _lightmapOffsetScale; }
 
+    void setDecalOffsetScale(const glm::vec2& offset, const glm::vec2& scale);
+    const glm::vec4& getDecalOffsetScale() const { return _decalOffsetScale; }
+
 protected:
     gpu::TextureSourcePointer _textureSource;
 
     Transform _texcoordTransform;
     glm::vec2 _lightmapOffsetScale{ 0.0f, 1.0f };
+
+    glm::vec4 _decalOffsetScale{ 0.25f, 0.25f, 0.5f, 0.5f };
 
     bool _useAlphaChannel{ false };
 };

@@ -129,7 +129,41 @@ Rectangle {
                         min: modelData.split(":")[4]
                 }
             }
-        Separator {}          
+        Separator {}
+        Row { 
+            anchors.left: parent.left
+            anchors.right: parent.right 
+
+            spacing: 10
+            Repeater {
+                model: [                      
+                        "Decal:LightingModel:enableDecal"                    
+                ]
+                HifiControls.CheckBox {
+                    boxSize: 20
+                    text: modelData.split(":")[0]
+                    checked: render.mainViewTask.getConfig(modelData.split(":")[1])[modelData.split(":")[2]]
+                    onCheckedChanged: { render.mainViewTask.getConfig(modelData.split(":")[1])[modelData.split(":")[2]] = checked }
+                }
+            }
+        }
+        Repeater {
+                model: [ 
+                    "Offset X:LightingModel:decalOffsetX:1.0:0.0",
+                    "Offset Y:LightingModel:decalOffsetY:1.0:0.0",
+                    "Scale X:LightingModel:decalScaleX:1.0:0.0",
+                    "Scale Y:LightingModel:decalScaleY:1.0:0.0"                    
+                ]
+                ConfigSlider {
+                        label: qsTr(modelData.split(":")[0])
+                        integral: false
+                        config: render.mainViewTask.getConfig(modelData.split(":")[1])
+                        property: modelData.split(":")[2]
+                        max: modelData.split(":")[3]
+                        min: modelData.split(":")[4]
+                }
+            }
+        Separator {}                      
         Column {
             anchors.left: parent.left
             anchors.right: parent.right 

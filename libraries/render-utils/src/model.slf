@@ -11,7 +11,6 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 
-<@include LightingModel.slh@>
 
 <@include DeferredBufferWrite.slh@>
 
@@ -23,6 +22,7 @@
 
 <@include MaterialTextures.slh@>
 <$declareMaterialTextures(ALBEDO, ROUGHNESS, _SCRIBE_NULL, _SCRIBE_NULL, EMISSIVE, OCCLUSION)$>
+<$declareMaterialTexturesDecal()$>
 
 in vec4 _position;
 in vec3 _normal;
@@ -32,6 +32,7 @@ in vec2 _texCoord1;
 
 
 void main(void) {
+    vec2 uv = _texCoord0;
     Material mat = getMaterial();
     int matKey = getMaterialKey(mat);
     <$fetchMaterialTexturesCoord0(matKey, _texCoord0, albedoTex, roughnessTex, _SCRIBE_NULL, _SCRIBE_NULL, emissiveTex)$>
@@ -44,6 +45,8 @@ void main(void) {
     vec3 albedo = getMaterialAlbedo(mat);
     <$evalMaterialAlbedo(albedoTex, albedo, matKey, albedo)$>;
     albedo *= _color;
+
+    <$evalMaterialDecal(matKey, _texCoord0, albedo, decal)$>;
 
     float roughness = getMaterialRoughness(mat);
     <$evalMaterialRoughness(roughnessTex, roughness, matKey, roughness)$>;
@@ -66,6 +69,11 @@ void main(void) {
         }
         albedo = gridA * majorColor + (1 - gridA)* albedo;
         emissive = gridA * majorColor + (1 - gridA)* emissive;
+
+     //   vec2 decalParamsOffset = getTexMapArray()._decalParams.xy;
+     //   vec2 decalParamsScale = getTexMapArray()._decalParams.xy;
+
+     //   albedo = vec3(uv, 0.0);
     }
 
     float scattering = getMaterialScattering(mat);

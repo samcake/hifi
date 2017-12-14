@@ -601,8 +601,10 @@ NetworkMaterial::NetworkMaterial(const FBXMaterial& material, const QUrl& textur
     }
 
     if (!material.decalTexture.filename.isEmpty()) {
-        auto map = fetchTextureMap(textureBaseUrl, material.decalTexture, image::TextureUsage::ALBEDO_TEXTURE, MapChannel::ALBEDO_MAP);
-     //   setTextureMap(MapChannel::SCATTERING_MAP, map);
+        auto map = fetchTextureMap(textureBaseUrl, material.decalTexture, image::TextureUsage::ALBEDO_TEXTURE, MapChannel::DECAL_MAP);
+        
+        map->setDecalOffsetScale(material.decalParams.offset, material.decalParams.scale);
+        setTextureMap(MapChannel::DECAL_MAP, map);
     }
 
     if (!material.lightmapTexture.filename.isEmpty()) {

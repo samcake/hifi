@@ -34,7 +34,10 @@ struct LightingModelParameters
     float showTexcoord; // false by default
     float majorGrid;
     float spareA;
-    float spareB;
+    float enableDecal;
+
+    TVEC4 decalOffsetScale;
+
 };
 
 // <@if 1@>

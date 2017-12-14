@@ -48,6 +48,7 @@ public:
         OCCLUSION_MAP_BIT,
         LIGHTMAP_MAP_BIT,
         SCATTERING_MAP_BIT,
+        DECAL_MAP_BIT,
 
         NUM_FLAGS,
     };
@@ -62,6 +63,7 @@ public:
         OCCLUSION_MAP,
         LIGHTMAP_MAP,
         SCATTERING_MAP,
+        DECAL_MAP,
 
         NUM_MAP_CHANNELS,
     };
@@ -159,6 +161,9 @@ public:
     void setScatteringMap(bool value) { _flags.set(SCATTERING_MAP_BIT, value); }
     bool isScatteringMap() const { return _flags[SCATTERING_MAP_BIT]; }
 
+    void setDecalMap(bool value) { _flags.set(DECAL_MAP_BIT, value); }
+    bool isDecalMap() const { return _flags[DECAL_MAP_BIT]; }
+
     void setMapChannel(MapChannel channel, bool value) { _flags.set(EMISSIVE_MAP_BIT + channel, value); }
     bool isMapChannel(MapChannel channel) const { return _flags[EMISSIVE_MAP_BIT + channel]; }
 
@@ -238,6 +243,8 @@ public:
         Builder& withoutScatteringMap()       { _value.reset(MaterialKey::SCATTERING_MAP_BIT); _mask.set(MaterialKey::SCATTERING_MAP_BIT); return (*this); }
         Builder& withScatteringMap()        { _value.set(MaterialKey::SCATTERING_MAP_BIT);  _mask.set(MaterialKey::SCATTERING_MAP_BIT); return (*this); }
 
+        Builder& withoutDecalMap() { _value.reset(MaterialKey::DECAL_MAP_BIT); _mask.set(MaterialKey::DECAL_MAP_BIT); return (*this); }
+        Builder& withDecalMap() { _value.set(MaterialKey::DECAL_MAP_BIT);  _mask.set(MaterialKey::DECAL_MAP_BIT); return (*this); }
 
         // Convenient standard keys that we will keep on using all over the place
         static MaterialFilter opaqueAlbedo() { return Builder().withAlbedo().withoutTranslucentFactor().build(); }
@@ -342,6 +349,7 @@ public:
     public:
         glm::mat4 _texcoordTransforms[NUM_TEXCOORD_TRANSFORMS];
         glm::vec4 _lightmapParams{ 0.0, 1.0, 0.0, 0.0 };
+        glm::vec4 _decalParams{ 0.4, 0.4, 0.6, 0.6 };
         TexMapArraySchema() {}
     };
 

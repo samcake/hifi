@@ -248,6 +248,7 @@ public:
             ROUGHNESS,
             OCCLUSION,
             SCATTERING,
+            DECAL,
             LIGHT_AMBIENT,
             FADE_MASK,
         };

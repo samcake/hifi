@@ -333,10 +333,29 @@ void FBXReader::consolidateFBXMaterials(const QVariantHash& mapping) {
 
 
             if (materialOptions.contains("decalMap")) {
-                QByteArray scatteringMap = materialOptions.value("decalMap").toVariant().toByteArray();
+                QByteArray decalMap = materialOptions.value("decalMap").toVariant().toByteArray();
                 material.decalTexture = FBXTexture();
                 material.decalTexture.name = material.name + ".decalMap";
-                material.decalTexture.filename = scatteringMap;
+                material.decalTexture.filename = decalMap;
+            }
+
+            if (materialOptions.contains("decalParams")) {
+                QJsonObject decalJSON = materialOptions.value("decalParams").toObject();
+                if (decalJSON.contains("offsetX")) {
+                    QJsonValue value = decalJSON.value("offsetX");
+                    if (value.isDouble()) {
+                        material.decalParams.offset.x = (float) value.toDouble();
+                    }
+                }
+                if (decalJSON.contains("offsetY")) {
+                    material.decalParams.offset.y = (float)decalJSON.value("offsetY").toDouble();
+                }
+                if (decalJSON.contains("scaleX")) {
+                    material.decalParams.scale.x = (float)decalJSON.value("scaleX").toDouble();
+                }
+                if (decalJSON.contains("scaleY")) {
+                    material.decalParams.scale.y = (float)decalJSON.value("scaleY").toDouble();
+                }
             }
         }
 

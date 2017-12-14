@@ -60,6 +60,7 @@ const int NORMAL_MAP_BIT                = 0x00002000;
 const int OCCLUSION_MAP_BIT             = 0x00004000;
 const int LIGHTMAP_MAP_BIT              = 0x00008000;
 const int SCATTERING_MAP_BIT            = 0x00010000;
+const int DECAL_MAP_BIT                 = 0x00020000;
 
 
 <@endif@>

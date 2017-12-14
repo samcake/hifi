@@ -19,6 +19,7 @@ const int MAX_TEXCOORDS = 2;
 struct TexMapArray { 
     mat4 _texcoordTransforms[MAX_TEXCOORDS];
     vec4 _lightmapParams;
+    vec4 _decalParams;
 };
 
 uniform texMapArrayBuffer {
@@ -102,7 +103,6 @@ float fetchScatteringMap(vec2 uv) {
 
 <@endfunc@>
 
-
 <@func fetchMaterialTexturesCoord0(matKey, texcoord0, albedo, roughness, normal, metallic, emissive, scattering)@>
 <@if albedo@>
     vec4 <$albedo$> = (((<$matKey$> & (ALBEDO_MAP_BIT | OPACITY_MASK_MAP_BIT | OPACITY_TRANSLUCENT_MAP_BIT)) != 0) ? fetchAlbedoMap(<$texcoord0$>) : vec4(1.0));
@@ -144,6 +144,30 @@ vec3 fetchLightmapMap(vec2 uv) {
     vec2 emissiveParams = getTexMapArray()._lightmapParams.xy;
     return (vec3(emissiveParams.x) + emissiveParams.y * texture(emissiveMap, uv).rgb);
 }
+<@endfunc@>
+
+
+
+<@func declareMaterialTexturesDecal()@>
+
+<$declareMaterialTexMapArrayBuffer()$>
+
+<@include LightingModel.slh@>
+
+uniform sampler2D decalMap;
+vec4 fetchDecalMap(vec2 uv) {
+    vec2 decalUV = (uv - getDecalOffset()) / getDecalScale();
+    return texture(decalMap, decalUV);
+}
+
+<@endfunc@>
+
+
+<@func evalMaterialDecal(matKey, texcoord0, albedo, decal)@> 
+    vec4 <$decal$> = (((<$matKey$> & DECAL_MAP_BIT) != 0) ? fetchDecalMap(<$texcoord0$>) : vec4(0.0));
+    if (bool(isDecalEnabled())) {
+        <$albedo$> = mix(<$albedo$>.rgb, <$decal$>.rgb, <$decal$>.a);
+    }
 <@endfunc@>
 
 <@func tangentToViewSpace(fetchedNormal, interpolatedNormal, interpolatedTangent, normal)@>

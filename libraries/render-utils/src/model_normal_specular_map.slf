@@ -18,6 +18,7 @@
 
 <@include MaterialTextures.slh@>
 <$declareMaterialTextures(ALBEDO, ROUGHNESS, NORMAL, METALLIC, EMISSIVE, OCCLUSION)$>
+<$declareMaterialTexturesDecal()$>
 
 in vec4 _position;
 in vec2 _texCoord0;
@@ -39,6 +40,8 @@ void main(void) {
     vec3 albedo = getMaterialAlbedo(mat);
     <$evalMaterialAlbedo(albedoTex, albedo, matKey, albedo)$>;
     albedo *= _color;
+
+    <$evalMaterialDecal(matKey, _texCoord0, albedo, decal)$>;
 
     float roughness = getMaterialRoughness(mat);
     <$evalMaterialRoughness(roughnessTex, roughness, matKey, roughness)$>;

@@ -155,6 +155,8 @@ void MeshPartPayload::bindMaterial(gpu::Batch& batch, const ShapePipeline::Locat
         batch.setResourceTexture(ShapePipeline::Slot::MAP::OCCLUSION, textureCache->getWhiteTexture());
         batch.setResourceTexture(ShapePipeline::Slot::MAP::SCATTERING, textureCache->getWhiteTexture());
         batch.setResourceTexture(ShapePipeline::Slot::MAP::EMISSIVE_LIGHTMAP, textureCache->getBlackTexture());
+        batch.setResourceTexture(ShapePipeline::Slot::MAP::DECAL, textureCache->getWhiteTexture());
+
         return;
     }
 
@@ -225,6 +227,19 @@ void MeshPartPayload::bindMaterial(gpu::Batch& batch, const ShapePipeline::Locat
             // texcoord are assumed to be the same has albedo
         } else {
             batch.setResourceTexture(ShapePipeline::Slot::MAP::SCATTERING, textureCache->getWhiteTexture());
+        }
+    }
+
+    // Scattering map
+    if (materialKey.isDecalMap()) {
+        auto itr = textureMaps.find(model::MaterialKey::DECAL_MAP);
+        if (itr != textureMaps.end() && itr->second->isDefined()) {
+            batch.setResourceTexture(ShapePipeline::Slot::MAP::DECAL, itr->second->getTextureView());
+
+            // texcoord are assumed to be the same has albedo
+        }
+        else {
+            batch.setResourceTexture(ShapePipeline::Slot::MAP::DECAL, textureCache->getWhiteTexture());
         }
     }
 
