@@ -58,6 +58,9 @@ void FBXMaterial::getTextureNames(QSet<QString>& textureList) const {
     if (!scatteringTexture.isNull()) {
         textureList.insert(scatteringTexture.name);
     }
+    if (!decalTexture.isNull()) {
+        textureList.insert(decalTexture.name);
+    }
     if (!lightmapTexture.isNull()) {
         textureList.insert(lightmapTexture.name);
     }
@@ -74,6 +77,7 @@ void FBXMaterial::setMaxNumPixelsPerTexture(int maxNumPixels) {
     emissiveTexture.maxNumPixels = maxNumPixels;
     occlusionTexture.maxNumPixels = maxNumPixels;
     scatteringTexture.maxNumPixels = maxNumPixels;
+    decalTexture.maxNumPixels = maxNumPixels;
     lightmapTexture.maxNumPixels = maxNumPixels;
 }
 
@@ -325,6 +329,14 @@ void FBXReader::consolidateFBXMaterials(const QVariantHash& mapping) {
                 material.scatteringTexture = FBXTexture();
                 material.scatteringTexture.name = material.name + ".scatteringMap";
                 material.scatteringTexture.filename = scatteringMap;
+            }
+
+
+            if (materialOptions.contains("decalMap")) {
+                QByteArray scatteringMap = materialOptions.value("decalMap").toVariant().toByteArray();
+                material.decalTexture = FBXTexture();
+                material.decalTexture.name = material.name + ".decalMap";
+                material.decalTexture.filename = scatteringMap;
             }
         }
 

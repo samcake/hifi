@@ -1326,6 +1326,7 @@ void GLTFReader::fbxDebugDump(const FBXGeometry& fbxgeo) {
         qCDebug(modelformat) << "  emissiveTexture =" << mat.emissiveTexture.filename;
         qCDebug(modelformat) << "  occlusionTexture =" << mat.occlusionTexture.filename;
         qCDebug(modelformat) << "  scatteringTexture =" << mat.scatteringTexture.filename;
+        qCDebug(modelformat) << "  decalTexture =" << mat.decalTexture.filename;
         qCDebug(modelformat) << "  lightmapTexture =" << mat.lightmapTexture.filename;
 
         qCDebug(modelformat) << "  lightmapParams =" << mat.lightmapParams;

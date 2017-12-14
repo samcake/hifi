@@ -193,6 +193,7 @@ public:
     FBXTexture emissiveTexture;
     FBXTexture occlusionTexture;
     FBXTexture scatteringTexture;
+    FBXTexture decalTexture;
     FBXTexture lightmapTexture;
     glm::vec2 lightmapParams{ 0.0f, 1.0f };
 

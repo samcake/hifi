@@ -600,6 +600,11 @@ NetworkMaterial::NetworkMaterial(const FBXMaterial& material, const QUrl& textur
         setTextureMap(MapChannel::SCATTERING_MAP, map);
     }
 
+    if (!material.decalTexture.filename.isEmpty()) {
+        auto map = fetchTextureMap(textureBaseUrl, material.decalTexture, image::TextureUsage::ALBEDO_TEXTURE, MapChannel::ALBEDO_MAP);
+     //   setTextureMap(MapChannel::SCATTERING_MAP, map);
+    }
+
     if (!material.lightmapTexture.filename.isEmpty()) {
         auto map = fetchTextureMap(textureBaseUrl, material.lightmapTexture, image::TextureUsage::LIGHTMAP_TEXTURE, MapChannel::LIGHTMAP_MAP);
         _lightmapTransform = material.lightmapTexture.transform;
