@@ -156,17 +156,27 @@ vec3 fetchLightmapMap(vec2 uv) {
 
 uniform sampler2D decalMap;
 vec4 fetchDecalMap(vec2 uv) {
-    vec2 decalUV = (uv - getDecalOffset()) / getDecalScale();
-    return texture(decalMap, decalUV);
+    return texture(decalMap, uv);
 }
 
 <@endfunc@>
 
 
 <@func evalMaterialDecal(matKey, texcoord0, albedo, decal)@> 
-    vec4 <$decal$> = (((<$matKey$> & DECAL_MAP_BIT) != 0) ? fetchDecalMap(<$texcoord0$>) : vec4(0.0));
-    if (bool(isDecalEnabled())) {
-        <$albedo$> = mix(<$albedo$>.rgb, <$decal$>.rgb, <$decal$>.a);
+    if (bool(isDecalEnabled()) && ((<$matKey$> & DECAL_MAP_BIT) != 0)) {
+        vec4 rect = getDecalRect();
+        vec4 rectSrc = getTexMapArray()._decalParams;
+        rect = rectSrc + rect; 
+        vec2 decalUV = (<$texcoord0$> - rect.xy) / (rect.zw - rect.xy);
+        float inside = float(decalUV.x > 0.0  && decalUV.x < 1.0)  * float(decalUV.y > 0.0  && decalUV.y < 1.0);
+        if (inside > 0) {
+            vec4 <$decal$> = fetchDecalMap(decalUV);
+            <$albedo$> = mix(<$albedo$>.rgb, <$decal$>.rgb, <$decal$>.a);
+        }
+        if (bool((1.0 - inside) * isShowDecalTexcoord())) {
+            float outline = clamp(0.125 - dot(decalUV - vec2(0.5), decalUV - vec2(0.5)), 0.0, 1.0);
+            <$albedo$> = mix(<$albedo$>.rgb, vec3(1.0, 0.5, 0.2), outline);
+        }
     }
 <@endfunc@>
 

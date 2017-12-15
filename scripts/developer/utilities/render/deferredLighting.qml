@@ -137,7 +137,8 @@ Rectangle {
             spacing: 10
             Repeater {
                 model: [                      
-                        "Decal:LightingModel:enableDecal"                    
+                        "Decal:LightingModel:enableDecal",                    
+                        "Decal Texcoord:LightingModel:showDecalTexcoord"                    
                 ]
                 HifiControls.CheckBox {
                     boxSize: 20
@@ -149,10 +150,11 @@ Rectangle {
         }
         Repeater {
                 model: [ 
-                    "Offset X:LightingModel:decalOffsetX:1.0:0.0",
-                    "Offset Y:LightingModel:decalOffsetY:1.0:0.0",
-                    "Scale X:LightingModel:decalScaleX:1.0:0.0",
-                    "Scale Y:LightingModel:decalScaleY:1.0:0.0"                    
+                    "Scale:LightingModel:decalRectScale:1.0:0.0",
+                    "Left:LightingModel:decalRectLeft:1.0:-1.0",
+                    "Rigth:LightingModel:decalRectRight:1.0:-1.0",
+                    "Bottom:LightingModel:decalRectBottom:1.0:-1.0",
+                    "Top:LightingModel:decalRectTop:1.0:-1.0"                    
                 ]
                 ConfigSlider {
                         label: qsTr(modelData.split(":")[0])

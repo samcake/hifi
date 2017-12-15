@@ -34,8 +34,10 @@ void LightingModel::resetParameters(LightingModelParameters& params) {
 
     params.showTexcoord = 0.0f; // false by default
     params.majorGrid = 1.0f;
+    params.showDecalTexcoord = 0.0f;  // false by default
+    params.enableDecal = 1.0f;
 
-
+    params.decalRect = glm::vec4(0.0f);
 
 }
 
@@ -199,6 +201,14 @@ float LightingModel::getTexcoordMajorGrid() const {
     return (float)_parametersBuffer.get().majorGrid;
 }
 
+void LightingModel::setShowDecalTexcoord(bool enable) {
+    if (enable != isShowDecalTexcoordEnabled()) {
+        _parametersBuffer.edit().showDecalTexcoord = (float)enable;
+    }
+}
+bool LightingModel::isShowDecalTexcoordEnabled() const {
+    return (bool)_parametersBuffer.get().showDecalTexcoord;
+}
 
 void LightingModel::setDecal(bool enable) {
     if (enable != isDecalEnabled()) {
@@ -209,25 +219,15 @@ bool LightingModel::isDecalEnabled() const {
     return (bool)_parametersBuffer.get().enableDecal;
 }
 
-void LightingModel::setDecalOffset(const glm::vec2& offset) {
-    if (offset != getDecalOffset()) {
-        _parametersBuffer.edit().decalOffsetScale.x = offset.x;
-        _parametersBuffer.edit().decalOffsetScale.y = offset.y;
+void LightingModel::setDecalRect(const glm::vec4& rect) {
+    if (rect != getDecalRect()) {
+        _parametersBuffer.edit().decalRect = rect;
     }
 }
-glm::vec2 LightingModel::getDecalOffset() const {
-    return glm::vec2(_parametersBuffer.get().decalOffsetScale.x, _parametersBuffer.get().decalOffsetScale.y);
+glm::vec4 LightingModel::getDecalRect() const {
+    return _parametersBuffer.get().decalRect;
 }
 
-void LightingModel::setDecalScale(const glm::vec2& scale) {
-    if (scale != getDecalScale()) {
-        _parametersBuffer.edit().decalOffsetScale.z = scale.x;
-        _parametersBuffer.edit().decalOffsetScale.w = scale.y;
-    }
-}
-glm::vec2 LightingModel::getDecalScale() const {
-    return glm::vec2(_parametersBuffer.get().decalOffsetScale.z, _parametersBuffer.get().decalOffsetScale.w);
-}
 
 
 
@@ -261,9 +261,10 @@ void MakeLightingModel::configure(const Config& config) {
     _lightingModel->setShowTexcoord(config.showTexcoord);
     _lightingModel->setTexcoordMajorGrid(config.majorGrid);
 
+    _lightingModel->setShowDecalTexcoord(config.showDecalTexcoord);
+
     _lightingModel->setDecal(config.enableDecal);
-    _lightingModel->setDecalOffset(glm::vec2(config.decalOffsetX, config.decalOffsetY));
-    _lightingModel->setDecalScale(glm::vec2(config.decalScaleX, config.decalScaleY));
+    _lightingModel->setDecalRect(config.decalRectScale * glm::vec4(config.decalRectLeft, config.decalRectBottom, config.decalRectRight, config.decalRectTop));
 
 }
 

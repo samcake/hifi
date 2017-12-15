@@ -198,8 +198,8 @@ public:
     glm::vec2 lightmapParams{ 0.0f, 1.0f };
 
     struct {
-        glm::vec2 offset{ 0.0f, 0.0f };
-        glm::vec2 scale{ 1.0f, 1.0f };
+        glm::vec2 leftBottom{ 0.0f, 0.0f };
+        glm::vec2 rightTop{ 1.0f, 1.0f };
 
     } decalParams;
 

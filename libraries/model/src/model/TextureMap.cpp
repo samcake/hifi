@@ -42,6 +42,6 @@ void TextureMap::setLightmapOffsetScale(float offset, float scale) {
     _lightmapOffsetScale.y = scale;
 }
 
-void TextureMap::setDecalOffsetScale(const glm::vec2& offset, const glm::vec2& scale) {
-    _decalOffsetScale = glm::vec4(offset, scale);
+void TextureMap::setDecalRect(const glm::vec2& leftBottom, const glm::vec2& rightTop) {
+    _decalLeftBottomRightTop = glm::vec4(leftBottom, rightTop);
 }

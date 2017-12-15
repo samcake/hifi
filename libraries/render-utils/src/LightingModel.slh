@@ -84,17 +84,16 @@ float isShowTexcoord() {
 float textureMajorGrid() {
     return lightingModel.majorGrid;
 }
+float isShowDecalTexcoord() {
+    return lightingModel.showDecalTexcoord;
+}
 
 float isDecalEnabled() {
     return lightingModel.enableDecal;
 }
 
-vec2 getDecalOffset() {
-    return lightingModel.decalOffsetScale.xy;
-}
-
-vec2 getDecalScale() {
-    return lightingModel.decalOffsetScale.zw;
+vec4 getDecalRect() {
+    return lightingModel.decalRect;
 }
 
 <@endfunc@>

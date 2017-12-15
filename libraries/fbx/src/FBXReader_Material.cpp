@@ -341,20 +341,20 @@ void FBXReader::consolidateFBXMaterials(const QVariantHash& mapping) {
 
             if (materialOptions.contains("decalParams")) {
                 QJsonObject decalJSON = materialOptions.value("decalParams").toObject();
-                if (decalJSON.contains("offsetX")) {
-                    QJsonValue value = decalJSON.value("offsetX");
+                if (decalJSON.contains("rectLeft")) {
+                    QJsonValue value = decalJSON.value("rectLeft");
                     if (value.isDouble()) {
-                        material.decalParams.offset.x = (float) value.toDouble();
+                        material.decalParams.leftBottom.x = (float) value.toDouble();
                     }
                 }
-                if (decalJSON.contains("offsetY")) {
-                    material.decalParams.offset.y = (float)decalJSON.value("offsetY").toDouble();
+                if (decalJSON.contains("rectBottom")) {
+                    material.decalParams.leftBottom.y = (float)decalJSON.value("rectBottom").toDouble();
                 }
-                if (decalJSON.contains("scaleX")) {
-                    material.decalParams.scale.x = (float)decalJSON.value("scaleX").toDouble();
+                if (decalJSON.contains("rectRight")) {
+                    material.decalParams.rightTop.x = (float)decalJSON.value("rectRight").toDouble();
                 }
-                if (decalJSON.contains("scaleY")) {
-                    material.decalParams.scale.y = (float)decalJSON.value("scaleY").toDouble();
+                if (decalJSON.contains("rectTop")) {
+                    material.decalParams.rightTop.y = (float)decalJSON.value("rectTop").toDouble();
                 }
             }
         }
