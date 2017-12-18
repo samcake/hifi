@@ -1,9 +1,31 @@
 #include "GLShaders.h"
 
 #include "GLLogging.h"
+#include <sstream>
 
 namespace gl {
 
+std::vector<std::string> splitStringLines(const std::string& src) {
+    std::vector<std::string> lines;
+    std::istringstream srcStream(src);
+    std::string currentLine;
+    while (!srcStream.eof()) {
+        getline(srcStream, currentLine);
+        lines.emplace_back(currentLine);
+    }
+    return lines;
+}
+
+std::string getStringLineNum(const std::string& src, int lineNum, int offset = 0) {
+    std::istringstream srcStream(src);
+    int currentNum = offset;
+    std::string currentLine;
+    while (!srcStream.eof() && (currentNum < lineNum)) {
+        getline(srcStream, currentLine);
+        currentNum++;
+    }
+    return currentLine;
+}
 
 #ifdef SEPARATE_PROGRAM
     bool compileShader(GLenum shaderDomain, const std::string& shaderSource, const std::string& defines, GLuint &shaderObject, GLuint &programObject, std::string& error) {
@@ -68,7 +90,26 @@ namespace gl {
             qCWarning(glLogging) << s;
         }
         qCWarning(glLogging) << "GLShader::compileShader - errors:";
-        qCWarning(glLogging) << temp;
+
+        std::istringstream errorStream(temp);
+        std::string line;
+        std::string  srcDefine(srcstr[0]);
+        std::string  srcCode(srcstr[1]);
+        auto definesLines = splitStringLines(srcDefine);
+        auto srcLines = splitStringLines(srcCode);
+
+
+        while (!errorStream.eof()) {
+            std::getline(errorStream, line);
+            qCWarning(glLogging) << line.c_str();
+
+            if ((line[0] == '0') && (line[1] == '(')) {
+                int srcLineNum = std::stoi(line.substr(2)) - definesLines.size();
+                if (srcLineNum >= 0 && srcLineNum < srcLines.size()) {
+                    qCWarning(glLogging) << srcLines[srcLineNum].c_str();
+                }
+            }
+        }
 
         error = std::string(temp);
         delete[] temp;
