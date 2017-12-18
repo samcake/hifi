@@ -164,18 +164,15 @@ vec4 evalDecalTexcoord(vec2 uv) {
     vec4 rectSrc = getTexMapArray()._decalParams;
     rect = rectSrc + rect; 
     vec2 decalUV = (uv - rect.xy) / (rect.zw - rect.xy);
-//    vec2 insideUV = - step(decalUV, vec2(1.0)) + step(decalUV, vec2(0.0));
-    vec2 insideUV = step(decalUV, vec2(0.0));
-    return vec4(decalUV, insideUV);
+    //vec2 insideUV = step(decalUV, vec2(0.0)) && (decalUV.x < 1.0)), -float(decalUV.y < 0.0) + 1.0 + float(decalUV.y > 1.0));
+    return vec4(decalUV, 1.0, 1.0);
 }
 <@endfunc@>
 
-// * float(decalUV.z*decalUV.w == 1.0)
 <@func evalMaterialDecal(matKey, texcoord0, albedo, decal)@>
     vec4 decalUV = evalDecalTexcoord(<$texcoord0$>);
     if (((<$matKey$> & DECAL_MAP_BIT) != 0) && bool(isDecalEnabled())) {
         vec4 <$decal$> = fetchDecalMap(decalUV.xy);
-         <$decal$> = mix(<$decal$>.rgba, vec4(1.0, 0.0, 0.0, 1.0), 0.5 * decalUV.z * decalUV.w);
         <$albedo$> = mix(<$albedo$>.rgb, <$decal$>.rgb, <$decal$>.a);
     }
 <@endfunc@>
