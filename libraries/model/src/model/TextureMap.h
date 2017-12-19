@@ -36,7 +36,7 @@ public:
     void setLightmapOffsetScale(float offset, float scale);
     const glm::vec2& getLightmapOffsetScale() const { return _lightmapOffsetScale; }
 
-    void setDecalRect(const glm::vec2& leftBottom, const glm::vec2& rightTop);
+    void setDecalRect(float left, float bottom, float right, float top);
     const glm::vec4& getDecalRect() const { return _decalLeftBottomRightTop; }
 
 protected:
@@ -45,7 +45,7 @@ protected:
     Transform _texcoordTransform;
     glm::vec2 _lightmapOffsetScale{ 0.0f, 1.0f };
 
-    glm::vec4 _decalLeftBottomRightTop{ 0.25f, 0.25f, 0.5f, 0.5f };
+    glm::vec4 _decalLeftBottomRightTop{ 0.0f, 0.0f, 1.0f, 1.0f};
 
     bool _useAlphaChannel{ false };
 };

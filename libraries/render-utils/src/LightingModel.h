@@ -79,7 +79,7 @@ public:
     void setDecal(bool enable);
     bool isDecalEnabled() const;
 
-    void setDecalRect(const glm::vec4& rectLBRT);
+    void setDecalRect(const glm::vec4& rect);
     glm::vec4 getDecalRect() const;
 
     UniformBufferView getParametersBuffer() const { return _parametersBuffer; }
@@ -129,10 +129,10 @@ class MakeLightingModelConfig : public render::Job::Config {
     Q_PROPERTY(bool showDecalTexcoord MEMBER showDecalTexcoord NOTIFY dirty)
 
     Q_PROPERTY(bool enableDecal MEMBER enableDecal NOTIFY dirty)
-    Q_PROPERTY(float decalRectLeft MEMBER decalRectLeft NOTIFY dirty)
-    Q_PROPERTY(float decalRectBottom MEMBER decalRectBottom NOTIFY dirty)
-    Q_PROPERTY(float decalRectRight MEMBER decalRectRight NOTIFY dirty)
-    Q_PROPERTY(float decalRectTop MEMBER decalRectTop NOTIFY dirty)
+    Q_PROPERTY(float decalRectTX MEMBER decalRectTX NOTIFY dirty)
+    Q_PROPERTY(float decalRectTY MEMBER decalRectTY NOTIFY dirty)
+    Q_PROPERTY(float decalRectSX MEMBER decalRectSX NOTIFY dirty)
+    Q_PROPERTY(float decalRectSY MEMBER decalRectSY NOTIFY dirty)
     Q_PROPERTY(float decalRectScale MEMBER decalRectScale NOTIFY dirty)
 
 public:
@@ -165,10 +165,10 @@ public:
     bool showDecalTexcoord{ false }; // false by default
 
     bool  enableDecal{ true };
-    float decalRectLeft{ 0.0 };
-    float decalRectBottom{ 0.0 };
-    float decalRectRight{ 0.0 };
-    float decalRectTop{ 0.0 };
+    float decalRectTX{ 0.0 };
+    float decalRectTY{ 0.0 };
+    float decalRectSX{ 0.0 };
+    float decalRectSY{ 0.0 };
     float decalRectScale{ 1.0 };
 
 signals:

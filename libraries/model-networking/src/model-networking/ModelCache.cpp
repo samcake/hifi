@@ -603,7 +603,7 @@ NetworkMaterial::NetworkMaterial(const FBXMaterial& material, const QUrl& textur
     if (!material.decalTexture.filename.isEmpty()) {
         auto map = fetchTextureMap(textureBaseUrl, material.decalTexture, image::TextureUsage::ALBEDO_TEXTURE, MapChannel::DECAL_MAP);
         
-        map->setDecalRect(material.decalParams.leftBottom, material.decalParams.rightTop);
+        map->setDecalRect(material.decalParams.leftBottom.x, material.decalParams.leftBottom.y, material.decalParams.rightTop.x, material.decalParams.rightTop.y);
         setTextureMap(MapChannel::DECAL_MAP, map);
     }
 

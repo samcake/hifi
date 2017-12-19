@@ -264,7 +264,7 @@ void MakeLightingModel::configure(const Config& config) {
     _lightingModel->setShowDecalTexcoord(config.showDecalTexcoord);
 
     _lightingModel->setDecal(config.enableDecal);
-    _lightingModel->setDecalRect(config.decalRectScale * glm::vec4(config.decalRectLeft, config.decalRectBottom, config.decalRectRight, config.decalRectTop));
+    _lightingModel->setDecalRect(glm::vec4(config.decalRectTX, config.decalRectTY, config.decalRectSX * config.decalRectScale, config.decalRectSY * config.decalRectScale));
 
 }
 

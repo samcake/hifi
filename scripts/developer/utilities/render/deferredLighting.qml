@@ -151,10 +151,10 @@ Rectangle {
         Repeater {
                 model: [ 
                     "Scale:LightingModel:decalRectScale:1.0:0.0",
-                    "Left:LightingModel:decalRectLeft:1.0:-1.0",
-                    "Rigth:LightingModel:decalRectRight:1.0:-1.0",
-                    "Bottom:LightingModel:decalRectBottom:1.0:-1.0",
-                    "Top:LightingModel:decalRectTop:1.0:-1.0"                    
+                    "Offset X:LightingModel:decalRectTX:1.0:-1.0",
+                    "Offset Y:LightingModel:decalRectTY:1.0:-1.0",
+                    "Scale X:LightingModel:decalRectSX:1.0:-1.0",
+                    "Scale Y:LightingModel:decalRectSY:1.0:-1.0"                    
                 ]
                 ConfigSlider {
                         label: qsTr(modelData.split(":")[0])

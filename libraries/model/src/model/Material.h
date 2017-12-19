@@ -349,7 +349,7 @@ public:
     public:
         glm::mat4 _texcoordTransforms[NUM_TEXCOORD_TRANSFORMS];
         glm::vec4 _lightmapParams{ 0.0, 1.0, 0.0, 0.0 };
-        glm::vec4 _decalParams{ 0.4, 0.4, 0.6, 0.6 };
+        glm::vec4 _decalParams{ 0.0, 0.0, 1.0, 1.0 };
         TexMapArraySchema() {}
     };
 

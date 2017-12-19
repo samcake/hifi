@@ -43,16 +43,28 @@ Item {
         text: root.label
         enabled: true
         anchors.left: root.left
-        anchors.right: root.horizontalCenter
+        width: root.width * 2.0 / 5.0
         anchors.verticalCenter: root.verticalCenter
+    }
+
+    HifiControls.Slider {
+        id: sliderControl
+        stepSize: root.integral ? 1.0 : 0.0
+        anchors.left: labelControl.right
+        width: root.width * 2.0 / 5.0
+        anchors.verticalCenter: root.verticalCenter
+
+        onValueChanged: { root.valueChanged(value) }
     }
 
     HifiControls.Label {
         id: labelValue
         text: sliderControl.value.toFixed(root.integral ? 0 : 2)
+        anchors.left: sliderControl.right
         anchors.right: root.right
-        anchors.bottom: root.bottom
-        anchors.bottomMargin: 0
+        anchors.rightMargin: 0
+        anchors.verticalCenter: root.verticalCenter
+        horizontalAlignment: Text.AlignHCenter
     }
 
     Binding {
@@ -63,15 +75,4 @@ Item {
         when: false
     }
 
-    HifiControls.Slider {
-        id: sliderControl
-        stepSize: root.integral ? 1.0 : 0.0
-        anchors.left: root.horizontalCenter
-        anchors.right: root.right
-        anchors.rightMargin: 0
-        anchors.top: root.top
-        anchors.topMargin: 0
-
-        onValueChanged: { root.valueChanged(value) }
-    }
 }
