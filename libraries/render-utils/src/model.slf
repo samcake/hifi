@@ -16,13 +16,11 @@
 
 <@include model/Material.slh@>
 
-<@include gpu/Paint.slh@>
-<@include gpu/Color.slh@>
-<$declareColorWheel()$>
-
 <@include MaterialTextures.slh@>
 <$declareMaterialTextures(ALBEDO, ROUGHNESS, _SCRIBE_NULL, _SCRIBE_NULL, EMISSIVE, OCCLUSION)$>
 <$declareMaterialTexturesDecal()$>
+
+
 
 in vec4 _position;
 in vec3 _normal;
@@ -53,28 +51,6 @@ void main(void) {
 
     vec3 emissive = getMaterialEmissive(mat);
     <$evalMaterialEmissive(emissiveTex, emissive, matKey, emissive)$>;
-
-    if (bool(isShowTexcoord())) {
-        const vec2 MAJOR_OFFSET = vec2( -0.00125 );
-        const vec2 MAJOR_SCALE = vec2( 0.25 );
-        const vec2 MAJOR_EDGE = vec2( 0.01 );
-
-        vec2 majorScale = textureMajorGrid() * MAJOR_SCALE;
-        vec2 major = vec2( paintStripe(_texCoord0.x, MAJOR_OFFSET.x, majorScale.x, MAJOR_EDGE.x), paintStripe(_texCoord0.y, MAJOR_OFFSET.y, majorScale.y, MAJOR_EDGE.y));
-        float gridA = max(major.x, major.y);
-
-        vec3 majorColor = vec3(0.812, 0.820, 0.776);
-        if (major.y >= major.x) {
-            majorColor = vec3(_texCoord0, 0.0);
-        }
-        albedo = gridA * majorColor + (1 - gridA)* albedo;
-        emissive = gridA * majorColor + (1 - gridA)* emissive;
-
-     //   vec2 decalParamsOffset = getTexMapArray()._decalParams.xy;
-     //   vec2 decalParamsScale = getTexMapArray()._decalParams.xy;
-
-     //   albedo = vec3(uv, 0.0);
-    }
 
     float scattering = getMaterialScattering(mat);
 
