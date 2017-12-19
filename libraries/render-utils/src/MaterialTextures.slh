@@ -171,10 +171,13 @@ vec4 evalDecalTexcoord(vec2 uv) {
 <@endfunc@>
 
 <@func evalMaterialDecal(matKey, texcoord0, albedo, decal)@>
-    vec4 decalUVi = evalDecalTexcoord(<$texcoord0$>);
-    vec4 <$decal$> = (((<$matKey$> & DECAL_MAP_BIT) != 0) ? fetchDecalMap(decalUVi.xy) : vec4(0.0));
-    if (bool(isDecalEnabled())) {
+    if (bool(isDecalEnabled()) && ((<$matKey$> & DECAL_MAP_BIT) != 0)) {
+        vec4 decalUVi = evalDecalTexcoord(<$texcoord0$>);
+        vec4 <$decal$> = (true ? fetchDecalMap(decalUVi.xy) : vec4(0.0));
         <$albedo$> = mix(<$albedo$>.rgb, <$decal$>.rgb, <$decal$>.a);
+        if (bool(isShowDecalTexcoord())) {
+            <$albedo$> = mix(<$albedo$>.rgb, vec3(1.0, 0.0, 0.0), decalUVi.z);
+        }
     }
 <@endfunc@>
 
