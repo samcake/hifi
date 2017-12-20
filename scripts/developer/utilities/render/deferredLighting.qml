@@ -119,7 +119,7 @@ Rectangle {
             }
         }
         Repeater {
-                model: [ "Main Grid Scale:LightingModel:majorGrid:10.0:0.0" ]
+                model: [ "Main Grid Scale:LightingModel:majorGrid:100.0:0.0" ]
                 ConfigSlider {
                         label: qsTr(modelData.split(":")[0])
                         integral: false
