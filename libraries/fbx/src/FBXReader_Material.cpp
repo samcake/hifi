@@ -133,6 +133,10 @@ void FBXReader::consolidateFBXMaterials(const QVariantHash& mapping) {
     QJsonDocument materialMapDocument = QJsonDocument::fromJson(materialMapString.toUtf8());
     QJsonObject materialMap = materialMapDocument.object();
 
+    if (!materialMap.empty()) {
+        qCDebug(modelformat) << "Material Map found in fst file";
+    }
+
     for (QHash<QString, FBXMaterial>::iterator it = _fbxMaterials.begin(); it != _fbxMaterials.end(); it++) {
         FBXMaterial& material = (*it);
 
