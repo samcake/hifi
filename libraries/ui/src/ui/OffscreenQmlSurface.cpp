@@ -674,6 +674,7 @@ void OffscreenQmlSurface::create() {
 
     _qmlContext = new QQmlContext(qmlEngine->rootContext());
     _qmlContext->setBaseUrl(QUrl{ PathUtils::qmlBasePath() });
+    _qmlContext->setBaseUrl(QUrl{ PathUtils::qmlBasePath() });
     _qmlContext->setContextProperty("offscreenWindow", QVariant::fromValue(getWindow()));
     _qmlContext->setContextProperty("eventBridge", this);
     _qmlContext->setContextProperty("webEntity", this);
