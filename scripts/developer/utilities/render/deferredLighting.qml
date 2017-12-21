@@ -155,7 +155,7 @@ Rectangle {
                     "Offset X:LightingModel:decalRectTX:1.0:-1.0",
                     "Offset Y:LightingModel:decalRectTY:1.0:-1.0",
                     "Scale X:LightingModel:decalRectSX:1.0:-1.0",
-                    "Scale Y:LightingModel:decalRectSY:1.0:-1.0"                    
+                    "Scale Y:LightingModel:decalRectSY:1.0:-1.0",                  
                     "Rotate [deg]:LightingModel:decalRotation:180.0:-180.0"                    
                 ]
                 ConfigSlider {

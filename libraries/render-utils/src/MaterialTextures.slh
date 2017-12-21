@@ -206,15 +206,15 @@ vec4 evalDecalTexcoord(vec2 coord) {
     vec2 decalX = getDecalRotation();
     vec2 decalY = vec2(-decalX.y, decalX.x);
     
-    vec2 coordT = coord - center;
-    vec2 coordR = vec2(dot(coordT, decalX), dot(coordT, decalY));
-    vec2 decalUV = (coordR - dim) / (dim + dim);
+  //  vec2 coordT = coord - center;
+  //  vec2 coordR = vec2(dot(coordT, decalX), dot(coordT, decalY));
+  //  vec2 decalUV = (coordR - dim) / (dim + dim);
 
-    //vec4 rect = vec4(center - dim , center + dim); 
-    //vec2 decalUV = (coord - rect.xy) / (rect.zw - rect.xy);
+    vec4 rect = vec4(center - dim , center + dim); 
+    vec2 decalUV = (coord - rect.xy) / (rect.zw - rect.xy);
+    return vec4(decalUV, step(rect.xy, coord) - step(rect.zw, coord));
 
-    //return vec4(decalUV, step(rect.xy, coord) - step(rect.zw, coord));
-    return vec4(decalUV, step(vec2(0.0), decalUV) - step(vec2(1.0), decalUV));
+ //   return vec4(decalUV, step(vec2(0.0), decalUV) - step(vec2(1.0), decalUV));
 }
 
 <@endfunc@>
