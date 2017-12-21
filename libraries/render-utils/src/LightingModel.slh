@@ -93,6 +93,10 @@ float getDecalAlpha() {
     return lightingModel.decalAlpha;
 }
 
+vec2 getDecalRotation() {
+    return vec2(lightingModel.decalRotCos, lightingModel.decalRotSin);
+}
+
 <@endfunc@>
 <$declareLightingModel()$>
 

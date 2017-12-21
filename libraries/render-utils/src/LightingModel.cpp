@@ -40,6 +40,9 @@ void LightingModel::resetParameters(LightingModelParameters& params) {
     params.decalRect = glm::vec4(0.0f);
 
     params.decalAlpha = 1.0;
+    params.decalRotation = 0.0;
+    params.decalRotation = 0.0;
+    params.decalRotation = 0.0;
 
 }
 
@@ -239,7 +242,16 @@ float LightingModel::getDecalAlpha() const {
     return _parametersBuffer.get().decalAlpha;
 }
 
-
+void LightingModel::setDecalRotation(float rotation) {
+    if (rotation != getDecalRotation()) {
+        _parametersBuffer.edit().decalRotation = rotation;
+        _parametersBuffer.edit().decalRotCos = cosf(rotation);
+        _parametersBuffer.edit().decalRotSin = sinf(rotation);
+    }
+}
+float LightingModel::getDecalRotation() const {
+    return _parametersBuffer.get().decalRotation;
+}
 
 MakeLightingModel::MakeLightingModel() {
     _lightingModel = std::make_shared<LightingModel>();
@@ -276,6 +288,7 @@ void MakeLightingModel::configure(const Config& config) {
     _lightingModel->setDecal(config.enableDecal);
     _lightingModel->setDecalRect(glm::vec4(config.decalRectTX, config.decalRectTY, config.decalRectSX * config.decalRectScale, config.decalRectSY * config.decalRectScale));
     _lightingModel->setDecalAlpha(config.decalAlpha);
+    _lightingModel->setDecalRotation(glm::radians(config.decalRotation));
 
 }
 

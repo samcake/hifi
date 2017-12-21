@@ -104,7 +104,7 @@ std::string getStringLineNum(const std::string& src, int lineNum, int offset = 0
             qCWarning(glLogging) << line.c_str();
 
             if ((line[0] == '0') && (line[1] == '(')) {
-                int srcLineNum = std::stoi(line.substr(2)) - definesLines.size();
+                int srcLineNum = (int)(std::stoi(line.substr(2)) - definesLines.size());
                 if (srcLineNum >= 0 && srcLineNum < srcLines.size()) {
                     qCWarning(glLogging) << srcLines[srcLineNum].c_str();
                 }

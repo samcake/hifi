@@ -85,6 +85,9 @@ public:
     void setDecalAlpha(float alpha);
     float LightingModel::getDecalAlpha() const;
 
+    void setDecalRotation(float rotation);
+    float LightingModel::getDecalRotation() const;
+
     UniformBufferView getParametersBuffer() const { return _parametersBuffer; }
 
 protected:
@@ -138,6 +141,7 @@ class MakeLightingModelConfig : public render::Job::Config {
     Q_PROPERTY(float decalRectSY MEMBER decalRectSY NOTIFY dirty)
     Q_PROPERTY(float decalRectScale MEMBER decalRectScale NOTIFY dirty)
     Q_PROPERTY(float decalAlpha MEMBER decalAlpha NOTIFY dirty)
+    Q_PROPERTY(float decalRotation MEMBER decalRotation NOTIFY dirty)
 
 public:
     MakeLightingModelConfig() : render::Job::Config() {} // Make Lighting Model is always on
@@ -175,6 +179,7 @@ public:
     float decalRectSY{ 0.0 };
     float decalRectScale{ 1.0 };
     float decalAlpha{ 1.0 };
+    float decalRotation{ 0.0 };
 
 signals:
     void dirty();

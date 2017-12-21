@@ -39,9 +39,9 @@ struct LightingModelParameters
     TVEC4 decalRect;
 
     float decalAlpha;
-    float spare0;
-    float spare1;
-    float spare2;
+    float decalRotation;
+    float decalRotCos;
+    float decalRotSin;
 
 };
 
