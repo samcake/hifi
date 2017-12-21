@@ -82,6 +82,9 @@ public:
     void setDecalRect(const glm::vec4& rect);
     glm::vec4 getDecalRect() const;
 
+    void setDecalAlpha(float alpha);
+    float LightingModel::getDecalAlpha() const;
+
     UniformBufferView getParametersBuffer() const { return _parametersBuffer; }
 
 protected:
@@ -134,6 +137,7 @@ class MakeLightingModelConfig : public render::Job::Config {
     Q_PROPERTY(float decalRectSX MEMBER decalRectSX NOTIFY dirty)
     Q_PROPERTY(float decalRectSY MEMBER decalRectSY NOTIFY dirty)
     Q_PROPERTY(float decalRectScale MEMBER decalRectScale NOTIFY dirty)
+    Q_PROPERTY(float decalAlpha MEMBER decalAlpha NOTIFY dirty)
 
 public:
     MakeLightingModelConfig() : render::Job::Config() {} // Make Lighting Model is always on
@@ -170,6 +174,7 @@ public:
     float decalRectSX{ 0.0 };
     float decalRectSY{ 0.0 };
     float decalRectScale{ 1.0 };
+    float decalAlpha{ 1.0 };
 
 signals:
     void dirty();

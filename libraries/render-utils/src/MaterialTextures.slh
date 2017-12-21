@@ -219,7 +219,7 @@ vec4 evalDecalTexcoord(vec2 coord) {
 
     if (bool(isDecalEnabled() * decalUVi.z * decalUVi.w) && ((<$matKey$> & DECAL_MAP_BIT) != 0)) {
         vec4 <$decal$> = fetchDecalMap(decalUVi.xy);
-        <$albedo$> = mix(<$albedo$>.rgb, <$decal$>.rgb, <$decal$>.a);
+        <$albedo$> = mix(<$albedo$>.rgb, <$decal$>.rgb, <$decal$>.a * getDecalAlpha());
 
         if (bool(isShowDecalTexcoord())) {
             <$evalShowTexcoord(decalUVi.xy, $albedo$)$>;

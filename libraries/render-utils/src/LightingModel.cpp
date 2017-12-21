@@ -39,6 +39,8 @@ void LightingModel::resetParameters(LightingModelParameters& params) {
 
     params.decalRect = glm::vec4(0.0f);
 
+    params.decalAlpha = 1.0;
+
 }
 
 LightingModel::LightingModel() {
@@ -228,6 +230,14 @@ glm::vec4 LightingModel::getDecalRect() const {
     return _parametersBuffer.get().decalRect;
 }
 
+void LightingModel::setDecalAlpha(float alpha) {
+    if (alpha != getDecalAlpha()) {
+        _parametersBuffer.edit().decalAlpha = alpha;
+    }
+}
+float LightingModel::getDecalAlpha() const {
+    return _parametersBuffer.get().decalAlpha;
+}
 
 
 
@@ -265,6 +275,7 @@ void MakeLightingModel::configure(const Config& config) {
 
     _lightingModel->setDecal(config.enableDecal);
     _lightingModel->setDecalRect(glm::vec4(config.decalRectTX, config.decalRectTY, config.decalRectSX * config.decalRectScale, config.decalRectSY * config.decalRectScale));
+    _lightingModel->setDecalAlpha(config.decalAlpha);
 
 }
 

@@ -15,13 +15,6 @@
 
 <@include LightingModel_shared.slh@>
 
-/*struct LightingModel {
-    vec4 _UnlitEmissiveLightmapBackground;
-    vec4 _ScatteringDiffuseSpecularAlbedo;
-    vec4 _AmbientDirectionalPointSpot;
-    vec4 _ShowContourObscuranceWireframe;
-};*/
-
 uniform lightingModelBuffer{
     LightingModelParameters lightingModel;
 };
@@ -94,6 +87,10 @@ float isDecalEnabled() {
 
 vec4 getDecalRect() {
     return lightingModel.decalRect;
+}
+
+float getDecalAlpha() {
+    return lightingModel.decalAlpha;
 }
 
 <@endfunc@>

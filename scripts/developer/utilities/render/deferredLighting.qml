@@ -150,6 +150,7 @@ Rectangle {
         }
         Repeater {
                 model: [ 
+                    "Alpha:LightingModel:decalAlpha:1.0:0.0",               
                     "Scale:LightingModel:decalRectScale:1.0:0.0",
                     "Offset X:LightingModel:decalRectTX:1.0:-1.0",
                     "Offset Y:LightingModel:decalRectTY:1.0:-1.0",
