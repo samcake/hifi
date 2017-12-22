@@ -41,8 +41,8 @@ void LightingModel::resetParameters(LightingModelParameters& params) {
 
     params.decalAlpha = 1.0;
     params.decalRotation = 0.0;
-    params.decalRotation = 0.0;
-    params.decalRotation = 0.0;
+    params.decalRotCos = 1.0;
+    params.decalRotSin = 0.0;
 
 }
 
