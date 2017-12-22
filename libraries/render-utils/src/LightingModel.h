@@ -83,10 +83,10 @@ public:
     glm::vec4 getDecalRect() const;
 
     void setDecalAlpha(float alpha);
-    float LightingModel::getDecalAlpha() const;
+    float getDecalAlpha() const;
 
     void setDecalRotation(float rotation);
-    float LightingModel::getDecalRotation() const;
+    float getDecalRotation() const;
 
     UniformBufferView getParametersBuffer() const { return _parametersBuffer; }
 
