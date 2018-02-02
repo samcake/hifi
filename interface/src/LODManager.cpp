@@ -71,7 +71,7 @@ void LODManager::autoAdjustLOD(float realTimeDelta) {
     float engineTime = glm::max(glm::max(_batchTime, _renderTime), _gpuTime);
     // compute time-weighted running average maxRenderTime
     // Note: we MUST clamp the blend to 1.0 for stability
-    float blend = (realTimeDelta < LOD_ADJUST_RUNNING_AVG_TIMESCALE) ? realTimeDelta / LOD_ADJUST_RUNNING_AVG_TIMESCALE : 1.0f;
+    //float blend = (realTimeDelta < LOD_ADJUST_RUNNING_AVG_TIMESCALE) ? realTimeDelta / LOD_ADJUST_RUNNING_AVG_TIMESCALE : 1.0f;
    // _avgEngineTime = (1.0f - blend) * _avgEngineTime + blend * engineTime; // msec
     _avgEngineTime = engineTime; // msec
     _avgDisplayTime = displayTime; // msec
