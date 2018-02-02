@@ -93,7 +93,7 @@ class JobConfig : public QObject {
     Q_PROPERTY(bool enabled READ isEnabled WRITE setEnabled NOTIFY dirtyEnabled())
 
     double _msCPURunTime{ 0.0 };
-  //  MovingAverage<double, 8> _movingAverageCPURunTime;
+    MovingAverage<double, 8> _movingAverageCPURunTime;
 
 public:
     using Persistent = PersistentConfig<JobConfig>;
@@ -115,8 +115,9 @@ public:
 
     // Running Time measurement
     // The new stats signal is emitted once per run time of a job when stats  (cpu runtime) are updated
-    void setCPURunTime(double mstime) { _msCPURunTime = mstime; emit newStats(); }
-    double getCPURunTime() const { return return _msCPURunTime; }
+    void setCPURunTime(double mstime) { _msCPURunTime = mstime; _movingAverageCPURunTime.addSample(mstime);  emit newStats(); }
+    double getCPURunTime() const { return _msCPURunTime; }
+    double getCPURunTimeAverage() const { return _movingAverageCPURunTime.average; }
 
 
 public slots:

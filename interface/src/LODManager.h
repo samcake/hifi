@@ -117,8 +117,8 @@ private:
     float _octreeSizeScale = DEFAULT_OCTREE_SIZE_SCALE;
     int _boundaryLevelAdjust = 0;
 
-    float _increaseSpeed{ 2.0f };
-    float _decreaseSpeed{ 4.0f };
+    float _increaseSpeed{ 0.5f };
+    float _decreaseSpeed{ 1.0f };
 
     uint64_t _decreaseFPSExpiry { 0 };
     uint64_t _increaseFPSExpiry { 0 };
