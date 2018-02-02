@@ -72,7 +72,8 @@ void LODManager::autoAdjustLOD(float realTimeDelta) {
     // compute time-weighted running average maxRenderTime
     // Note: we MUST clamp the blend to 1.0 for stability
     float blend = (realTimeDelta < LOD_ADJUST_RUNNING_AVG_TIMESCALE) ? realTimeDelta / LOD_ADJUST_RUNNING_AVG_TIMESCALE : 1.0f;
-    _avgEngineTime = (1.0f - blend) * _avgEngineTime + blend * engineTime; // msec
+    //_avgEngineTime = (1.0f - blend) * _avgEngineTime + blend * engineTime; // msec
+    _avgEngineTime = engineTime; // msec
     _avgDisplayTime = displayTime; // msec
 
     if (!_automaticLODAdjust) {
@@ -84,10 +85,11 @@ void LODManager::autoAdjustLOD(float realTimeDelta) {
     float currentFPS = (float)MSECS_PER_SECOND / _avgRenderTime;
 
     float currentEngineFPS = (float)MSECS_PER_SECOND / _avgEngineTime;
-    float currentDisplayORMinimumFPS = std::max((float)MSECS_PER_SECOND / _avgDisplayTime, getLODDecreaseFPS());
+    float currentDisplayFPS = (float)MSECS_PER_SECOND / _avgDisplayTime;
+    float currentMinFPS = getLODDecreaseFPS();
 
     uint64_t now = usecTimestampNow();
-    if (currentEngineFPS < currentDisplayORMinimumFPS) {
+    if ((currentDisplayFPS < currentMinFPS) || (currentEngineFPS < currentDisplayFPS)) {
     //if (currentFPS < getLODDecreaseFPS()) {
         if (now > _decreaseFPSExpiry) {
             _decreaseFPSExpiry = now + LOD_AUTO_ADJUST_PERIOD;
@@ -109,7 +111,7 @@ void LODManager::autoAdjustLOD(float realTimeDelta) {
             _decreaseFPSExpiry = now + LOD_AUTO_ADJUST_PERIOD;
         }
         _increaseFPSExpiry = now + LOD_AUTO_ADJUST_PERIOD;
-    } else if (currentEngineFPS > currentDisplayORMinimumFPS) {
+    } else if (currentEngineFPS > currentDisplayFPS) {
     //} else if (currentFPS > getLODIncreaseFPS()) {
         if (now > _increaseFPSExpiry) {
             _increaseFPSExpiry = now + LOD_AUTO_ADJUST_PERIOD;

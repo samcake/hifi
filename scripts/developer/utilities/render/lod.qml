@@ -36,12 +36,12 @@ Item {
                 {
                     prop: "presentTime",
                     label: "present",
-                    color: "#FFFF00"
+                    color: "#E2334D"
                 },
                 {
                     prop: "renderTime",
                     label: "render",
-                    color: "#FF00FF"
+                    color: "#00B4EF"
                 },
                 {
                     prop: "batchTime",
@@ -63,19 +63,14 @@ Item {
             valueUnit: "Hz"
             plots: [
                 {
-                    prop: "lodIncreaseFPS",
-                    label: "LOD++",
-                    color: "#66FF66"
-                },
-                {
                     prop: "displayFPS",
                     label: "Display FPS",
-                    color: "#FFFFFF"
+                    color: "#E2334D"
                 },
                 {
                     prop: "engineFPS",
                     label: "Engine FPS",
-                    color: "#E2334D"
+                    color: "#00B4EF"
                 },
                 {
                     prop: "lodDecreaseFPS",
