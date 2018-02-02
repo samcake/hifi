@@ -72,7 +72,7 @@ void LODManager::autoAdjustLOD(float realTimeDelta) {
     // compute time-weighted running average maxRenderTime
     // Note: we MUST clamp the blend to 1.0 for stability
     float blend = (realTimeDelta < LOD_ADJUST_RUNNING_AVG_TIMESCALE) ? realTimeDelta / LOD_ADJUST_RUNNING_AVG_TIMESCALE : 1.0f;
-    //_avgEngineTime = (1.0f - blend) * _avgEngineTime + blend * engineTime; // msec
+   // _avgEngineTime = (1.0f - blend) * _avgEngineTime + blend * engineTime; // msec
     _avgEngineTime = engineTime; // msec
     _avgDisplayTime = displayTime; // msec
 
@@ -82,7 +82,7 @@ void LODManager::autoAdjustLOD(float realTimeDelta) {
     }
 
     float oldOctreeSizeScale = _octreeSizeScale;
-    float currentFPS = (float)MSECS_PER_SECOND / _avgRenderTime;
+   // float currentFPS = (float)MSECS_PER_SECOND / _avgRenderTime;
 
     float currentEngineFPS = (float)MSECS_PER_SECOND / _avgEngineTime;
     float currentDisplayFPS = (float)MSECS_PER_SECOND / _avgDisplayTime;
@@ -92,21 +92,24 @@ void LODManager::autoAdjustLOD(float realTimeDelta) {
     if ((currentDisplayFPS < currentMinFPS) || (currentEngineFPS < currentDisplayFPS)) {
     //if (currentFPS < getLODDecreaseFPS()) {
         if (now > _decreaseFPSExpiry) {
+            float currentDistanceToTarget = 1.0 - std::min(currentDisplayFPS, currentEngineFPS) / std::max(currentDisplayFPS, currentMinFPS);
+            float decreaseSpeed = currentDistanceToTarget * _decreaseSpeed;
+
             _decreaseFPSExpiry = now + LOD_AUTO_ADJUST_PERIOD;
             if (_octreeSizeScale > ADJUST_LOD_MIN_SIZE_SCALE) {
-                _octreeSizeScale *= LOD_AUTO_ADJUST_DECREMENT_FACTOR;
+                _octreeSizeScale *= 1.0 - (1.0 - LOD_AUTO_ADJUST_DECREMENT_FACTOR) * decreaseSpeed; // LOD_AUTO_ADJUST_DECREMENT_FACTOR;
                 if (_octreeSizeScale < ADJUST_LOD_MIN_SIZE_SCALE) {
                     _octreeSizeScale = ADJUST_LOD_MIN_SIZE_SCALE;
                 }
                 qCDebug(interfaceapp) << "adjusting LOD DOWN"
-                    << "fps =" << currentFPS
+                    << "fps =" << currentDisplayFPS
                     << "targetFPS =" << getLODDecreaseFPS()
                     << "octreeSizeScale =" << _octreeSizeScale;
                 emit LODDecreased();
                 // Assuming the LOD adjustment will work: we optimistically reset _avgRenderTime
                 // to provide an FPS just above the decrease threshold.  It will drift close to its
                 // true value after a few LOD_ADJUST_TIMESCALEs and we'll adjust again as necessary.
-                _avgRenderTime = (float)MSECS_PER_SECOND / (getLODDecreaseFPS() + 1.0f);
+            //    _avgRenderTime = (float)MSECS_PER_SECOND / (getLODDecreaseFPS() + 1.0f);
             }
             _decreaseFPSExpiry = now + LOD_AUTO_ADJUST_PERIOD;
         }
@@ -114,25 +117,28 @@ void LODManager::autoAdjustLOD(float realTimeDelta) {
     } else if (currentEngineFPS > currentDisplayFPS) {
     //} else if (currentFPS > getLODIncreaseFPS()) {
         if (now > _increaseFPSExpiry) {
+            float currentDistanceToTarget = currentEngineFPS / currentDisplayFPS - 1.0;
+            float increaseSpeed = currentDistanceToTarget * _increaseSpeed;
+
             _increaseFPSExpiry = now + LOD_AUTO_ADJUST_PERIOD;
             if (_octreeSizeScale < ADJUST_LOD_MAX_SIZE_SCALE) {
                 if (_octreeSizeScale < ADJUST_LOD_MIN_SIZE_SCALE) {
                     _octreeSizeScale = ADJUST_LOD_MIN_SIZE_SCALE;
                 } else {
-                    _octreeSizeScale *= LOD_AUTO_ADJUST_INCREMENT_FACTOR;
+                    _octreeSizeScale *= 1.0 + (LOD_AUTO_ADJUST_INCREMENT_FACTOR - 1.0) * increaseSpeed; // LOD_AUTO_ADJUST_INCREMENT_FACTOR;
                 }
                 if (_octreeSizeScale > ADJUST_LOD_MAX_SIZE_SCALE) {
                     _octreeSizeScale = ADJUST_LOD_MAX_SIZE_SCALE;
                 }
                 qCDebug(interfaceapp) << "adjusting LOD UP"
-                    << "fps =" << currentFPS
+                    << "fps =" << currentDisplayFPS
                     << "targetFPS =" << getLODDecreaseFPS()
                     << "octreeSizeScale =" << _octreeSizeScale;
                 emit LODIncreased();
                 // Assuming the LOD adjustment will work: we optimistically reset _avgRenderTime
                 // to provide an FPS just below the increase threshold.  It will drift close to its
                 // true value after a few LOD_ADJUST_TIMESCALEs and we'll adjust again as necessary.
-                _avgRenderTime = (float)MSECS_PER_SECOND / (getLODIncreaseFPS() - 1.0f);
+               // _avgRenderTime = (float)MSECS_PER_SECOND / (getLODIncreaseFPS() - 1.0f);
             }
             _increaseFPSExpiry = now + LOD_AUTO_ADJUST_PERIOD;
         }

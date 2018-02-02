@@ -8,13 +8,31 @@
 //  Distributed under the Apache License, Version 2.0.
 //  See the accompanying file LICENSE or https://www.apache.org/licenses/LICENSE-2.0.html
 //
-import QtQuick 2.5
+import QtQuick 2.7
 import QtQuick.Controls 1.4
+import QtQuick.Layouts 1.3
+
+import "qrc:///qml/styles-uit"
+import "qrc:///qml/controls-uit" as HifiControls
 import "../lib/plotperf"
+import  "configSlider"
 
 Item {
     id: lodIU
     anchors.fill:parent
+     HifiConstants { id: hifi;}
+
+    property var sceneOctree: Render.getConfig("RenderMainView.DrawSceneOctree");
+    property var itemSelection: Render.getConfig("RenderMainView.DrawItemSelection");
+
+    Component.onCompleted: {
+        sceneOctree.enabled = true;
+        sceneOctree.showVisibleCells = false;
+        sceneOctree.showEmptyCells = false;                
+    }
+    Component.onDestruction: {
+        sceneOctree.enabled = false; 
+    }
 
     Column {
         id: stats
@@ -36,7 +54,7 @@ Item {
                 {
                     prop: "presentTime",
                     label: "present",
-                    color: "#E2334D"
+                    color: "#FED959"
                 },
                 {
                     prop: "renderTime",
@@ -51,7 +69,7 @@ Item {
                 {
                     prop: "gpuTime",
                     label: "gpu",
-                    color: "#00FFFF"
+                    color: "#E2334D"
                 }
             ]
         }
@@ -65,7 +83,7 @@ Item {
                 {
                     prop: "displayFPS",
                     label: "Display FPS",
-                    color: "#E2334D"
+                    color: "#FED959"
                 },
                 {
                     prop: "engineFPS",
@@ -74,8 +92,8 @@ Item {
                 },
                 {
                     prop: "lodDecreaseFPS",
-                    label: "LOD--",
-                    color: "#FF6666"
+                    label: "Min FPS",
+                    color: "#FF6309"
                 }
             ]
         }
@@ -89,9 +107,52 @@ Item {
                 {
                     prop: "lodLevel",
                     label: "LOD",
-                    color: "#9999FF"
+                    color: "#A2277C"
                 }
             ]
+        }
+
+        Column {
+            anchors.left: parent.left
+            anchors.right: parent.right 
+            spacing: 8
+             Repeater {
+                model: [
+                        "LOD Reticle:RenderMainView.DrawSceneOctree:enabled"
+                ]
+                HifiControls.CheckBox {
+                    boxSize: 20
+                    text: modelData.split(":")[0]
+                    checked: Render.getConfig(modelData.split(":")[1])[modelData.split(":")[2]]
+                    onCheckedChanged: { Render.getConfig(modelData.split(":")[1])[modelData.split(":")[2]] = checked }
+                }
+            }
+            ConfigSlider {
+                label: "LOD -- Speed"
+                integral: false
+                config: LODManager
+                property: "decreaseSpeed"
+                max: 5
+                min: 0
+
+                anchors.left: parent.left
+                anchors.right: parent.right 
+
+                onValueChanged: { LODManager["decreaseSpeed"] = value; newStyle() }
+            }
+            ConfigSlider {
+                label: "LOD ++ Speed"
+                integral: false
+                config: LODManager
+                property: "increaseSpeed"
+                max: 5
+                min: 0
+
+                anchors.left: parent.left
+                anchors.right: parent.right 
+
+                onValueChanged: { LODManager["increaseSpeed"] = value; newStyle() }
+            }
         }
     }
 }

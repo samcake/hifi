@@ -65,11 +65,12 @@ public:
     Q_PROPERTY(float renderTime READ getRenderTime)
     Q_PROPERTY(float batchTime READ getBatchTime)
     Q_PROPERTY(float gpuTime READ getGPUTime)
-    Q_PROPERTY(float avgRenderTime READ getAverageRenderTime)
-    Q_PROPERTY(float fps READ getMaxTheoreticalFPS)
+
     Q_PROPERTY(float displayFPS READ getDisplayFPS)
     Q_PROPERTY(float engineFPS READ getEngineFPS)
     Q_PROPERTY(float lodLevel READ getLODLevel)
+    Q_PROPERTY(float increaseSpeed MEMBER _increaseSpeed)
+    Q_PROPERTY(float decreaseSpeed MEMBER _decreaseSpeed)
 
     Q_PROPERTY(float lodDecreaseFPS READ getLODDecreaseFPS)
     Q_PROPERTY(float lodIncreaseFPS READ getLODIncreaseFPS)
@@ -87,8 +88,6 @@ public:
     void saveSettings();
     void resetLODAdjust();
 
-    float getAverageRenderTime() const { return _avgRenderTime; };
-    float getMaxTheoreticalFPS() const { return (float)MSECS_PER_SECOND / _avgRenderTime; };
     float getLODLevel() const;
 
     float getDisplayFPS() const { return (float)MSECS_PER_SECOND / _avgDisplayTime; };
@@ -109,7 +108,6 @@ private:
     float _batchTime{ 0.0f }; // msec
     float _gpuTime { 0.0f }; // msec'
 
-    float _avgRenderTime{ 0.0f }; // msec
     float _avgDisplayTime{ 0.0f }; // msec
     float _avgEngineTime { 0.0f }; // msec
 
@@ -118,6 +116,9 @@ private:
 
     float _octreeSizeScale = DEFAULT_OCTREE_SIZE_SCALE;
     int _boundaryLevelAdjust = 0;
+
+    float _increaseSpeed{ 2.0f };
+    float _decreaseSpeed{ 4.0f };
 
     uint64_t _decreaseFPSExpiry { 0 };
     uint64_t _increaseFPSExpiry { 0 };

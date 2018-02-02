@@ -18,6 +18,7 @@
 #include <QtCore/qjsonvalue.h>
 #include <shared/JSONHelpers.h>
 
+#include "SimpleMovingAverage.h"
 #include "SettingHandle.h"
 
 #include "Logging.h"
@@ -92,6 +93,8 @@ class JobConfig : public QObject {
     Q_PROPERTY(bool enabled READ isEnabled WRITE setEnabled NOTIFY dirtyEnabled())
 
     double _msCPURunTime{ 0.0 };
+  //  MovingAverage<double, 8> _movingAverageCPURunTime;
+
 public:
     using Persistent = PersistentConfig<JobConfig>;
 
@@ -113,7 +116,8 @@ public:
     // Running Time measurement
     // The new stats signal is emitted once per run time of a job when stats  (cpu runtime) are updated
     void setCPURunTime(double mstime) { _msCPURunTime = mstime; emit newStats(); }
-    double getCPURunTime() const { return _msCPURunTime; }
+    double getCPURunTime() const { return return _msCPURunTime; }
+
 
 public slots:
     void load(const QJsonObject& val) { qObjectFromJsonValue(val, *this); emit loaded(); }
