@@ -4458,10 +4458,11 @@ void Application::updateLOD(float deltaTime) const {
     // adjust it unless we were asked to disable this feature, or if we're currently in throttleRendering mode
     if (!isThrottleRendering()) {
         float presentTime = getActiveDisplayPlugin()->getAveragePresentTime();
-        float engineRunTime = (float)(_renderEngine->getConfiguration().get()->getCPURunTime());
+        float renderTime = (float)(_renderEngine->getConfiguration().get()->getCPURunTime());
+        float batchTime = getGPUContext()->getFrameTimerBatchAverage();
         float gpuTime = getGPUContext()->getFrameTimerGPUAverage();
         auto lodManager = DependencyManager::get<LODManager>();
-        lodManager->setRenderTimes(presentTime, engineRunTime, gpuTime);
+        lodManager->setRenderTimes(presentTime, renderTime, batchTime, gpuTime);
         lodManager->autoAdjustLOD(deltaTime);
     } else {
         DependencyManager::get<LODManager>()->resetLODAdjust();

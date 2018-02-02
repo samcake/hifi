@@ -62,21 +62,25 @@ public:
     Q_INVOKABLE float getLODIncreaseFPS() const;
 
     Q_PROPERTY(float presentTime READ getPresentTime)
-    Q_PROPERTY(float engineRunTime READ getEngineRunTime)
+    Q_PROPERTY(float renderTime READ getRenderTime)
+    Q_PROPERTY(float batchTime READ getBatchTime)
     Q_PROPERTY(float gpuTime READ getGPUTime)
     Q_PROPERTY(float avgRenderTime READ getAverageRenderTime)
     Q_PROPERTY(float fps READ getMaxTheoreticalFPS)
+    Q_PROPERTY(float displayFPS READ getDisplayFPS)
+    Q_PROPERTY(float engineFPS READ getEngineFPS)
     Q_PROPERTY(float lodLevel READ getLODLevel)
 
     Q_PROPERTY(float lodDecreaseFPS READ getLODDecreaseFPS)
     Q_PROPERTY(float lodIncreaseFPS READ getLODIncreaseFPS)
 
     float getPresentTime() const { return _presentTime; }
-    float getEngineRunTime() const { return _engineRunTime; }
+    float getRenderTime() const { return _renderTime; }
+    float getBatchTime() const { return _batchTime; }
     float getGPUTime() const { return _gpuTime; }
 
     static bool shouldRender(const RenderArgs* args, const AABox& bounds);
-    void setRenderTimes(float presentTime, float engineRunTime, float gpuTime);
+    void setRenderTimes(float presentTime, float renderTime, float batchTime, float gpuTime);
     void autoAdjustLOD(float realTimeDelta);
 
     void loadSettings();
@@ -87,6 +91,10 @@ public:
     float getMaxTheoreticalFPS() const { return (float)MSECS_PER_SECOND / _avgRenderTime; };
     float getLODLevel() const;
 
+    float getDisplayFPS() const { return (float)MSECS_PER_SECOND / _avgDisplayTime; };
+    float getEngineFPS() const { return (float)MSECS_PER_SECOND / _avgEngineTime; };
+
+
 signals:
     void LODIncreased();
     void LODDecreased();
@@ -95,10 +103,16 @@ private:
     LODManager();
 
     bool _automaticLODAdjust = true;
+
     float _presentTime { 0.0f }; // msec
-    float _engineRunTime { 0.0f }; // msec
-    float _gpuTime { 0.0f }; // msec
-    float _avgRenderTime { 0.0f }; // msec
+    float _renderTime { 0.0f }; // msec
+    float _batchTime{ 0.0f }; // msec
+    float _gpuTime { 0.0f }; // msec'
+
+    float _avgRenderTime{ 0.0f }; // msec
+    float _avgDisplayTime{ 0.0f }; // msec
+    float _avgEngineTime { 0.0f }; // msec
+
     float _desktopMaxRenderTime { DEFAULT_DESKTOP_MAX_RENDER_TIME };
     float _hmdMaxRenderTime { DEFAULT_HMD_MAX_RENDER_TIME };
 

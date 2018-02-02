@@ -27,7 +27,7 @@ Item {
         }
 
         PlotPerf {
-            title: "Load Indicators"
+            title: "Duration"
             height: parent.evalEvenHeight()
             object: LODManager
             valueScale: 1
@@ -39,9 +39,14 @@ Item {
                     color: "#FFFF00"
                 },
                 {
-                    prop: "engineRunTime",
-                    label: "engineRun",
+                    prop: "renderTime",
+                    label: "render",
                     color: "#FF00FF"
+                },
+                {
+                    prop: "batchTime",
+                    label: "batch",
+                    color: "#1AC567"
                 },
                 {
                     prop: "gpuTime",
@@ -63,9 +68,14 @@ Item {
                     color: "#66FF66"
                 },
                 {
-                    prop: "fps",
-                    label: "FPS",
+                    prop: "displayFPS",
+                    label: "Display FPS",
                     color: "#FFFFFF"
+                },
+                {
+                    prop: "engineFPS",
+                    label: "Engine FPS",
+                    color: "#E2334D"
                 },
                 {
                     prop: "lodDecreaseFPS",

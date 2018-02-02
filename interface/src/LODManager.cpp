@@ -58,18 +58,23 @@ const uint64_t LOD_AUTO_ADJUST_PERIOD = 4 * (uint64_t)(LOD_ADJUST_RUNNING_AVG_TI
 const float LOD_AUTO_ADJUST_DECREMENT_FACTOR = 0.8f;
 const float LOD_AUTO_ADJUST_INCREMENT_FACTOR = 1.2f;
 
-void LODManager::setRenderTimes(float presentTime, float engineRunTime, float gpuTime) {
+void LODManager::setRenderTimes(float presentTime, float renderTime, float batchTime, float gpuTime) {
     _presentTime = presentTime;
-    _engineRunTime = engineRunTime;
+    _renderTime = renderTime;
+    _batchTime = batchTime;
     _gpuTime = gpuTime;
 }
 
 void LODManager::autoAdjustLOD(float realTimeDelta) {
-    float maxRenderTime = glm::max(glm::max(_presentTime, _engineRunTime), _gpuTime);
+    float displayTime = _presentTime;
+   // float maxRenderTime = glm::max(glm::max(_batchTime, _renderTime), _gpuTime);
+    float engineTime = glm::max(glm::max(_batchTime, _renderTime), _gpuTime);
     // compute time-weighted running average maxRenderTime
     // Note: we MUST clamp the blend to 1.0 for stability
     float blend = (realTimeDelta < LOD_ADJUST_RUNNING_AVG_TIMESCALE) ? realTimeDelta / LOD_ADJUST_RUNNING_AVG_TIMESCALE : 1.0f;
-    _avgRenderTime = (1.0f - blend) * _avgRenderTime + blend * maxRenderTime; // msec
+    _avgEngineTime = (1.0f - blend) * _avgEngineTime + blend * engineTime; // msec
+    _avgDisplayTime = displayTime; // msec
+
     if (!_automaticLODAdjust) {
         // early exit
         return;
@@ -77,8 +82,13 @@ void LODManager::autoAdjustLOD(float realTimeDelta) {
 
     float oldOctreeSizeScale = _octreeSizeScale;
     float currentFPS = (float)MSECS_PER_SECOND / _avgRenderTime;
+
+    float currentEngineFPS = (float)MSECS_PER_SECOND / _avgEngineTime;
+    float currentDisplayORMinimumFPS = std::max((float)MSECS_PER_SECOND / _avgDisplayTime, getLODDecreaseFPS());
+
     uint64_t now = usecTimestampNow();
-    if (currentFPS < getLODDecreaseFPS()) {
+    if (currentEngineFPS < currentDisplayORMinimumFPS) {
+    //if (currentFPS < getLODDecreaseFPS()) {
         if (now > _decreaseFPSExpiry) {
             _decreaseFPSExpiry = now + LOD_AUTO_ADJUST_PERIOD;
             if (_octreeSizeScale > ADJUST_LOD_MIN_SIZE_SCALE) {
@@ -99,7 +109,8 @@ void LODManager::autoAdjustLOD(float realTimeDelta) {
             _decreaseFPSExpiry = now + LOD_AUTO_ADJUST_PERIOD;
         }
         _increaseFPSExpiry = now + LOD_AUTO_ADJUST_PERIOD;
-    } else if (currentFPS > getLODIncreaseFPS()) {
+    } else if (currentEngineFPS > currentDisplayORMinimumFPS) {
+    //} else if (currentFPS > getLODIncreaseFPS()) {
         if (now > _increaseFPSExpiry) {
             _increaseFPSExpiry = now + LOD_AUTO_ADJUST_PERIOD;
             if (_octreeSizeScale < ADJUST_LOD_MAX_SIZE_SCALE) {
