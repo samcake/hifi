@@ -87,17 +87,36 @@ void LODManager::autoAdjustLOD(float realTimeDelta) {
     float currentEngineFPS = (float)MSECS_PER_SECOND / _avgEngineTime;
     float currentDisplayFPS = (float)MSECS_PER_SECOND / _avgDisplayTime;
     float currentMinFPS = getLODDecreaseFPS();
+    float currentMaxFPS = getLODIncreaseFPS();
 
     uint64_t now = usecTimestampNow();
-    if ((currentDisplayFPS < currentMinFPS) || (currentEngineFPS < currentDisplayFPS)) {
-    //if (currentFPS < getLODDecreaseFPS()) {
-        if (now > _decreaseFPSExpiry) {
-            float currentDistanceToTarget = 1.0 - std::min(currentDisplayFPS, currentEngineFPS) / std::max(currentDisplayFPS, currentMinFPS);
-            float decreaseSpeed = currentDistanceToTarget * _decreaseSpeed;
 
+    float lodDirection = 0.0f;
+    if (currentDisplayFPS < currentMinFPS) {
+        lodDirection = -1.0f;
+    }
+    else if (currentDisplayFPS > currentMaxFPS) {
+        lodDirection = 1.0f;
+    }
+    else {
+        if (currentEngineFPS < currentDisplayFPS) {
+            float currentDistanceToTarget = 1.0 - std::min(currentDisplayFPS, currentEngineFPS) / std::max(currentDisplayFPS, currentMinFPS);
+            lodDirection = - currentDistanceToTarget * _decreaseSpeed;
+        }
+        else {
+            float currentDistanceToTarget = currentEngineFPS / currentDisplayFPS - 1.0;
+            lodDirection = currentDistanceToTarget * _increaseSpeed;
+        }
+    }
+
+    // DECREASE LOD vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+    //if ((currentDisplayFPS < currentMaxFPS) && ((currentDisplayFPS < currentMinFPS) || (currentEngineFPS < currentDisplayFPS))) {
+    //if (currentFPS < getLODDecreaseFPS()) {
+    if (lodDirection < 0.0f) {
+        if (now > _decreaseFPSExpiry) {
             _decreaseFPSExpiry = now + LOD_AUTO_ADJUST_PERIOD;
             if (_octreeSizeScale > ADJUST_LOD_MIN_SIZE_SCALE) {
-                _octreeSizeScale *= 1.0 - (1.0 - LOD_AUTO_ADJUST_DECREMENT_FACTOR) * decreaseSpeed; // LOD_AUTO_ADJUST_DECREMENT_FACTOR;
+                _octreeSizeScale *= 1.0 + (1.0 - LOD_AUTO_ADJUST_DECREMENT_FACTOR) * lodDirection; // LOD_AUTO_ADJUST_DECREMENT_FACTOR;
                 if (_octreeSizeScale < ADJUST_LOD_MIN_SIZE_SCALE) {
                     _octreeSizeScale = ADJUST_LOD_MIN_SIZE_SCALE;
                 }
@@ -114,18 +133,18 @@ void LODManager::autoAdjustLOD(float realTimeDelta) {
             _decreaseFPSExpiry = now + LOD_AUTO_ADJUST_PERIOD;
         }
         _increaseFPSExpiry = now + LOD_AUTO_ADJUST_PERIOD;
-    } else if (currentEngineFPS > currentDisplayFPS) {
-    //} else if (currentFPS > getLODIncreaseFPS()) {
+    }
+    // INCREASE LOD ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    else if (lodDirection > 0.0f) {
+    // else if ((currentDisplayFPS > currentMaxFPS) || (currentEngineFPS > currentDisplayFPS)) {
+    // else if (currentFPS > getLODIncreaseFPS()) {
         if (now > _increaseFPSExpiry) {
-            float currentDistanceToTarget = currentEngineFPS / currentDisplayFPS - 1.0;
-            float increaseSpeed = currentDistanceToTarget * _increaseSpeed;
-
             _increaseFPSExpiry = now + LOD_AUTO_ADJUST_PERIOD;
             if (_octreeSizeScale < ADJUST_LOD_MAX_SIZE_SCALE) {
                 if (_octreeSizeScale < ADJUST_LOD_MIN_SIZE_SCALE) {
                     _octreeSizeScale = ADJUST_LOD_MIN_SIZE_SCALE;
                 } else {
-                    _octreeSizeScale *= 1.0 + (LOD_AUTO_ADJUST_INCREMENT_FACTOR - 1.0) * increaseSpeed; // LOD_AUTO_ADJUST_INCREMENT_FACTOR;
+                    _octreeSizeScale *= 1.0 + (LOD_AUTO_ADJUST_INCREMENT_FACTOR - 1.0) * lodDirection; // LOD_AUTO_ADJUST_INCREMENT_FACTOR;
                 }
                 if (_octreeSizeScale > ADJUST_LOD_MAX_SIZE_SCALE) {
                     _octreeSizeScale = ADJUST_LOD_MAX_SIZE_SCALE;
