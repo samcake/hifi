@@ -65,7 +65,9 @@ void LODManager::setRenderTimes(float presentTime, float renderTime, float batch
     _gpuTime = gpuTime;
 }
 
-void LODManager::autoAdjustLOD(float realTimeDelta) {
+void LODManager::autoAdjustLOD(float realTimeDelta, float displayTargetFPS) {
+    _displayTargetFPS = displayTargetFPS;
+
     float displayTime = _presentTime;
    // float maxRenderTime = glm::max(glm::max(_batchTime, _renderTime), _gpuTime);
     float engineTime = glm::max(glm::max(_batchTime, _renderTime), _gpuTime);

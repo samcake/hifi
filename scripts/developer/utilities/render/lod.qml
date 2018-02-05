@@ -94,6 +94,11 @@ Item {
                     prop: "lodDecreaseFPS",
                     label: "Min FPS",
                     color: "#FF6309"
+                },
+                {
+                    prop: "displayTargetFPS",
+                    label: "Target FPS",
+                    color: "#1AC567"
                 }
             ]
         }

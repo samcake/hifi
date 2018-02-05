@@ -58,6 +58,8 @@ public:
     Q_INVOKABLE void setBoundaryLevelAdjust(int boundaryLevelAdjust);
     Q_INVOKABLE int getBoundaryLevelAdjust() const { return _boundaryLevelAdjust; }
 
+    Q_PROPERTY(float displayTargetFPS READ getDisplayTargetFPS)
+
     Q_INVOKABLE float getLODDecreaseFPS() const;
     Q_INVOKABLE float getLODIncreaseFPS() const;
 
@@ -75,6 +77,8 @@ public:
     Q_PROPERTY(float lodDecreaseFPS READ getLODDecreaseFPS)
     Q_PROPERTY(float lodIncreaseFPS READ getLODIncreaseFPS)
 
+    float getDisplayTargetFPS() const { return _displayTargetFPS; }
+
     float getPresentTime() const { return _presentTime; }
     float getRenderTime() const { return _renderTime; }
     float getBatchTime() const { return _batchTime; }
@@ -82,7 +86,7 @@ public:
 
     static bool shouldRender(const RenderArgs* args, const AABox& bounds);
     void setRenderTimes(float presentTime, float renderTime, float batchTime, float gpuTime);
-    void autoAdjustLOD(float realTimeDelta);
+    void autoAdjustLOD(float realTimeDelta, float displayTargetFPS);
 
     void loadSettings();
     void saveSettings();
@@ -102,6 +106,8 @@ private:
     LODManager();
 
     bool _automaticLODAdjust = true;
+
+    float _displayTargetFPS{ 60.0f };
 
     float _presentTime { 0.0f }; // msec
     float _renderTime { 0.0f }; // msec
