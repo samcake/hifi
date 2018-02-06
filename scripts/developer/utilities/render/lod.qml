@@ -81,16 +81,6 @@ Item {
             valueUnit: "Hz"
             plots: [
                 {
-                    prop: "displayFPS",
-                    label: "Display FPS",
-                    color: "#FED959"
-                },
-                {
-                    prop: "engineFPS",
-                    label: "Engine FPS",
-                    color: "#00B4EF"
-                },
-                {
                     prop: "lodDecreaseFPS",
                     label: "Min FPS",
                     color: "#FF6309"
@@ -99,6 +89,16 @@ Item {
                     prop: "displayTargetFPS",
                     label: "Target FPS",
                     color: "#1AC567"
+                },
+                {
+                    prop: "displayFPS",
+                    label: "Display FPS",
+                    color: "#FED959"
+                },
+                {
+                    prop: "engineFPS",
+                    label: "Engine FPS",
+                    color: "#00B4EF"
                 }
             ]
         }
