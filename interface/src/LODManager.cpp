@@ -84,17 +84,35 @@ void LODManager::autoAdjustLOD(float realTimeDelta, float displayTargetFPS) {
     }
 
     float oldOctreeSizeScale = _octreeSizeScale;
-   // float currentFPS = (float)MSECS_PER_SECOND / _avgRenderTime;
+    // float currentFPS = (float)MSECS_PER_SECOND / _avgRenderTime;
 
     float currentEngineFPS = (float)MSECS_PER_SECOND / _avgEngineTime;
     float currentDisplayFPS = (float)MSECS_PER_SECOND / _avgDisplayTime;
     float currentMinFPS = getLODDecreaseFPS();
     float currentMaxFPS = getLODIncreaseFPS();
 
+    // Target FPS is what we currently think is a good compromise FPS to run at.
+    // THis is deduced form the current displayTargetFPS and the mode we re in
+    float currentDisplayTargetFPS = _displayTargetFPS;
+    if (qApp->isHMDMode()) {
+        while ((currentDisplayTargetFPS > currentMinFPS) && (currentDisplayFPS / currentDisplayTargetFPS < 0.9f)) {
+            currentDisplayTargetFPS *= 0.5f;
+        }
+    }
+    else {
+        while ((currentDisplayTargetFPS > currentMinFPS) && (currentDisplayFPS / currentDisplayTargetFPS < 0.9f)) {
+            currentDisplayTargetFPS *= 0.80f;
+        }
+    }
+    _displayTargetFPS = std::max(currentMinFPS, currentDisplayTargetFPS);
+
+
     uint64_t now = usecTimestampNow();
 
     float lodDirection = 0.0f;
     if (currentDisplayFPS < currentMinFPS) {
+        float currentDistanceToTarget = 1.0f - std::min(currentDisplayFPS, currentEngineFPS) / _displayTargetFPS;
+        lodDirection = -currentDistanceToTarget * _decreaseSpeed;
         lodDirection = -1.0f;
     }
     else if (std::min(currentDisplayFPS, currentEngineFPS) > currentMaxFPS) {
@@ -102,11 +120,11 @@ void LODManager::autoAdjustLOD(float realTimeDelta, float displayTargetFPS) {
     }
     else {
         if (currentEngineFPS < currentDisplayFPS) {
-            float currentDistanceToTarget = 1.0f - std::min(currentDisplayFPS, currentEngineFPS) / std::max(currentDisplayFPS, currentMinFPS);
+            float currentDistanceToTarget = 1.0f - std::min(currentDisplayFPS, currentEngineFPS) / _displayTargetFPS;
             lodDirection = - currentDistanceToTarget * _decreaseSpeed;
         }
         else {
-            float currentDistanceToTarget = currentEngineFPS / currentDisplayFPS - 1.0f;
+            float currentDistanceToTarget = currentEngineFPS / _displayTargetFPS - 1.0f;
             lodDirection = currentDistanceToTarget * _increaseSpeed;
         }
     }
