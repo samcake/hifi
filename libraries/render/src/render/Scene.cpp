@@ -342,6 +342,12 @@ void Scene::updateItems(const Transaction::Updates& transactions) {
 
         // Access the true item
         auto& item = _items[updateID];
+        // If item doesn't exist it cannot be updated
+        if (!item.exist()) {
+            continue;
+        }
+
+        // Good to go, deal with the update
         auto oldCell = item.getCell();
         auto oldKey = item.getKey();
 
@@ -355,13 +361,15 @@ void Scene::updateItems(const Transaction::Updates& transactions) {
                 auto newCell = _masterSpatialTree.resetItem(oldCell, oldKey, item.getBound(), updateID, newKey);
                 item.resetCell(newCell, newKey.isSmall());
             }
-        } else {
+        }
+        else {
             if (newKey.isSpatial()) {
                 _masterNonspatialSet.erase(updateID);
 
                 auto newCell = _masterSpatialTree.resetItem(oldCell, oldKey, item.getBound(), updateID, newKey);
                 item.resetCell(newCell, newKey.isSmall());
-            } else {
+            }
+            else {
                 _masterSpatialTree.removeItem(oldCell, oldKey, updateID);
                 item.resetCell();
 
