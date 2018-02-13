@@ -23,9 +23,9 @@ const float DEFAULT_DESKTOP_LOD_DOWN_FPS = 30.0f;
 const float DEFAULT_HMD_LOD_DOWN_FPS = 34.0f;
 const float DEFAULT_DESKTOP_MAX_RENDER_TIME = (float)MSECS_PER_SECOND / DEFAULT_DESKTOP_LOD_DOWN_FPS; // msec
 const float DEFAULT_HMD_MAX_RENDER_TIME = (float)MSECS_PER_SECOND / DEFAULT_HMD_LOD_DOWN_FPS; // msec
-const float MAX_LIKELY_DESKTOP_FPS = 61.0f; // this is essentially, V-synch - 1 fps
-const float MAX_LIKELY_HMD_FPS = 91.0f; // this is essentially, V-synch - 1 fps
-const float INCREASE_LOD_GAP_FPS = 15.0f; // fps
+const float MAX_LIKELY_DESKTOP_FPS = 61.0f; // this is essentially, V-synch + 1 fps
+const float MAX_LIKELY_HMD_FPS = 91.0f; // this is essentially, V-synch + 1 fps
+const float INCREASE_LOD_GAP_FPS = 10.0f; // fps
 
 // The default value DEFAULT_OCTREE_SIZE_SCALE means you can be 400 meters away from a 1 meter object in order to see it (which is ~20:20 vision).
 const float ADJUST_LOD_MAX_SIZE_SCALE = DEFAULT_OCTREE_SIZE_SCALE;
@@ -77,6 +77,28 @@ public:
     Q_PROPERTY(float lodDecreaseFPS READ getLODDecreaseFPS)
     Q_PROPERTY(float lodIncreaseFPS READ getLODIncreaseFPS)
 
+    Q_PROPERTY(float pidControlKp READ getPIDControlKp WRITE setPIDControlKp)
+    Q_PROPERTY(float pidControlKi READ getPIDControlKi WRITE setPIDControlKi)
+    Q_PROPERTY(float pidControlKd READ getPIDControlKd WRITE setPIDControlKd)
+
+    Q_PROPERTY(float pidError READ getPIDError)
+    Q_PROPERTY(float pidFeedbackP READ getPIDFeedbackP)
+    Q_PROPERTY(float pidFeedbackI READ getPIDFeedbackI)
+    Q_PROPERTY(float pidFeedbackD READ getPIDFeedbackD)
+    Q_PROPERTY(float octreeSizeScale READ getOctreeSizeScale)
+
+    void setPIDControlKp(float value);
+    float getPIDControlKp() const;
+    void setPIDControlKi(float value);
+    float getPIDControlKi() const;
+    void setPIDControlKd(float value);
+    float getPIDControlKd() const;
+
+    float getPIDError() const;
+    float getPIDFeedbackP() const;
+    float getPIDFeedbackI() const;
+    float getPIDFeedbackD() const;
+
     float getDisplayTargetFPS() const { return _displayTargetFPS; }
 
     float getPresentTime() const { return _presentTime; }
@@ -104,6 +126,8 @@ signals:
 
 private:
     LODManager();
+
+    PIDController _PIDController;
 
     bool _automaticLODAdjust = true;
 

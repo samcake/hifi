@@ -48,6 +48,7 @@ Item {
     
 
     property var valueMax : 1
+    property var valueMin : 0
 
     property var _values
     property var tick : 0
@@ -71,7 +72,9 @@ Item {
                 value: value,
                 fromBinding: isBinding,
                 valueMax: 1,
+                valueMin: 0,
                 numSamplesConstantMax: 0,
+                numSamplesConstantMin: 0,
                 valueHistory: new Array(),
                 label: (plot["label"] !== undefined ? plot["label"] : ""),
                 color: (plot["color"] !== undefined ? plot["color"] : "white"),
@@ -99,12 +102,14 @@ Item {
         tick++;
                 
         var currentValueMax = 0
+        var currentValueMin = 0
         for (var i = 0; i < _values.length; i++) {
 
             var currentVal = (+_values[i].object[_values[i].value]) * _values[i].scale;
 
             _values[i].valueHistory.push(currentVal)
             _values[i].numSamplesConstantMax++;
+            _values[i].numSamplesConstantMin++;
 
             if (_values[i].valueHistory.length > VALUE_HISTORY_SIZE) {
                 var lostValue = _values[i].valueHistory.shift();
@@ -112,26 +117,45 @@ Item {
                     _values[i].valueMax *= 0.99
                     _values[i].numSamplesConstantMax = 0
                 }
+                if (lostValue <= _values[i].valueMin) {
+                    _values[i].valueMin *= 0.99
+                    _values[i].numSamplesConstantMin = 0
+                }
             }
 
             if (_values[i].valueMax < currentVal) {
                 _values[i].valueMax = currentVal;
                 _values[i].numSamplesConstantMax = 0 
             }                    
-
+            if (_values[i].valueMin > currentVal) {
+                _values[i].valueMin = currentVal;
+                _values[i].numSamplesConstantMin = 0 
+            }  
+            
             if (_values[i].numSamplesConstantMax > VALUE_HISTORY_SIZE) {
                 _values[i].numSamplesConstantMax = 0     
                 _values[i].valueMax *= 0.95 // lower slowly the current max if no new above max since a while                      
             }
+            if (_values[i].numSamplesConstantMin > VALUE_HISTORY_SIZE) {
+                _values[i].numSamplesConstantMin = 0     
+                _values[i].valueMin *= 0.95 // push up slowly the current min if no new below min since a while                      
+            }
  
             if (currentValueMax < _values[i].valueMax) {
                 currentValueMax = _values[i].valueMax
+            }
+            if (currentValueMin > _values[i].valueMin) {
+                currentValueMin = _values[i].valueMin
             }
         }
 
         if ((valueMax < currentValueMax) || (tick % VALUE_HISTORY_SIZE == 0)) {
             valueMax = currentValueMax;
         }
+        if ((valueMin < currentValueMin) || (tick % VALUE_HISTORY_SIZE == 0)) {
+            valueMin = currentValueMin;
+        }
+
         mycanvas.requestPaint()
     }
 

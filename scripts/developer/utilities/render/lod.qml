@@ -132,7 +132,7 @@ Item {
                     onCheckedChanged: { Render.getConfig(modelData.split(":")[1])[modelData.split(":")[2]] = checked }
                 }
             }
-            ConfigSlider {
+           /* ConfigSlider {
                 label: "LOD -- Speed"
                 integral: false
                 config: LODManager
@@ -157,7 +157,80 @@ Item {
                 anchors.right: parent.right 
 
                 onValueChanged: { LODManager["increaseSpeed"] = value; newStyle() }
-            }
+            } */
+            ConfigSlider {
+                label: "PID Kp"
+                integral: false
+                config: LODManager
+                property: "pidControlKp"
+                max: 200000
+                min: -200000
+
+                anchors.left: parent.left
+                anchors.right: parent.right 
+            //    onValueChanged: { LODManager["pidControlKp"] = value; }
+                
+           }
+           ConfigSlider {
+                label: "PID Ki"
+                integral: false
+                config: LODManager
+                property: "pidControlKi"
+                max: 1000
+                min: -1000
+
+                anchors.left: parent.left
+                anchors.right: parent.right 
+              //  onValueChanged: { LODManager["pidControlKi"] = value; }
+                
+           }
+           ConfigSlider {
+                label: "PID Kd"
+                integral: false
+                config: LODManager
+                property: "pidControlKd"
+                max: 1000
+                min: -1000
+
+                anchors.left: parent.left
+                anchors.right: parent.right 
+                onValueChanged: { LODManager["pidControlKd"] = value; }
+                
+           }
+        }
+        PlotPerf {
+            title: "PID"
+            height: parent.evalEvenHeight()
+            object: LODManager
+            valueScale: 0.1
+            valueUnit: ""
+            plots: [
+                {
+                    prop: "pidError",
+                    label: "Error",
+                    color: "#FF6309"
+                },
+                {
+                    prop: "pidFeedbackP",
+                    label: "P",
+                    color: "#1AC567"
+                },
+                {
+                    prop: "pidFeedbackI",
+                    label: "I",
+                    color: "#FED959"
+                },
+                {
+                    prop: "pidFeedbackD",
+                    label: "D",
+                    color: "#00B4EF"
+                },
+                {
+                    prop: "octreeSizeScale",
+                    label: "octreeSizeScale",
+                    color: "#FFFFFF"
+                }
+            ]
         }
     }
 }

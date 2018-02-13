@@ -23,7 +23,9 @@
 Setting::Handle<float> desktopLODDecreaseFPS("desktopLODDecreaseFPS", DEFAULT_DESKTOP_LOD_DOWN_FPS);
 Setting::Handle<float> hmdLODDecreaseFPS("hmdLODDecreaseFPS", DEFAULT_HMD_LOD_DOWN_FPS);
 
-LODManager::LODManager() {
+LODManager::LODManager() : _PIDController() {
+    _PIDController.setControlledValueHighLimit(ADJUST_LOD_MAX_SIZE_SCALE);
+    _PIDController.setControlledValueLowLimit(ADJUST_LOD_MIN_SIZE_SCALE);
 }
 
 float LODManager::getLODDecreaseFPS() const {
@@ -38,6 +40,46 @@ float LODManager::getLODIncreaseFPS() const {
         return getHMDLODIncreaseFPS();
     }
     return getDesktopLODIncreaseFPS();
+}
+
+void LODManager::setPIDControlKp(float value) {
+    _PIDController.setKP(value);
+}
+
+float LODManager::getPIDControlKp() const {
+    return _PIDController.getKP();
+}
+
+void LODManager::setPIDControlKi(float value) {
+    _PIDController.setKI(value);
+}
+
+float LODManager::getPIDControlKi() const {
+    return _PIDController.getKI();
+}
+
+void LODManager::setPIDControlKd(float value) {
+    _PIDController.setKD(value);
+}
+
+float LODManager::getPIDControlKd() const {
+    return _PIDController.getKD();
+}
+
+float LODManager::getPIDError() const {
+    return _PIDController.getLastError();
+}
+
+float LODManager::getPIDFeedbackP() const {
+    return _PIDController.getLastFeedbackP();
+}
+
+float LODManager::getPIDFeedbackI() const {
+    return _PIDController.getLastFeedbackI();
+}
+
+float LODManager::getPIDFeedbackD() const {
+    return _PIDController.getLastFeedbackD();
 }
 
 // We use a "time-weighted running average" of the maxRenderTime and compare it against min/max thresholds
@@ -66,7 +108,7 @@ void LODManager::setRenderTimes(float presentTime, float renderTime, float batch
 }
 
 void LODManager::autoAdjustLOD(float realTimeDelta, float displayTargetFPS) {
-    _displayTargetFPS = displayTargetFPS;
+  //  _displayTargetFPS = displayTargetFPS;
 
     float displayTime = _presentTime;
    // float maxRenderTime = glm::max(glm::max(_batchTime, _renderTime), _gpuTime);
@@ -92,23 +134,33 @@ void LODManager::autoAdjustLOD(float realTimeDelta, float displayTargetFPS) {
     float currentMaxFPS = getLODIncreaseFPS();
 
     // Target FPS is what we currently think is a good compromise FPS to run at.
-    // THis is deduced form the current displayTargetFPS and the mode we re in
-    float currentDisplayTargetFPS = _displayTargetFPS;
+    // This is deduced form the current displayTargetFPS and the mode we re in
+    float currentDisplayTargetFPS = displayTargetFPS;
     if (qApp->isHMDMode()) {
         while ((currentDisplayTargetFPS > currentMinFPS) && (currentDisplayFPS / currentDisplayTargetFPS < 0.9f)) {
             currentDisplayTargetFPS *= 0.5f;
         }
-    }
-    else {
+    } else {
         while ((currentDisplayTargetFPS > currentMinFPS) && (currentDisplayFPS / currentDisplayTargetFPS < 0.9f)) {
             currentDisplayTargetFPS *= 0.80f;
         }
     }
-    _displayTargetFPS = std::max(currentMinFPS, currentDisplayTargetFPS);
+    auto newDisplayTargetFPS = std::max(currentMinFPS, currentDisplayTargetFPS);
+
+    // If display target FPS cahnged, change the PID setpoint
+    if (newDisplayTargetFPS != _displayTargetFPS) {
+        _displayTargetFPS = newDisplayTargetFPS;
+        _PIDController.setMeasuredValueSetpoint(_displayTargetFPS);
+    }
+
+    // And PID update
+    auto newOctreeScale = _PIDController.update(currentEngineFPS, realTimeDelta);
 
 
-    uint64_t now = usecTimestampNow();
+    _octreeSizeScale = newOctreeScale;
 
+ //   uint64_t now = usecTimestampNow();
+/*
     float lodDirection = 0.0f;
     if (currentDisplayFPS < currentMinFPS) {
         float currentDistanceToTarget = 1.0f - std::min(currentDisplayFPS, currentEngineFPS) / _displayTargetFPS;
@@ -127,8 +179,8 @@ void LODManager::autoAdjustLOD(float realTimeDelta, float displayTargetFPS) {
             float currentDistanceToTarget = currentEngineFPS / _displayTargetFPS - 1.0f;
             lodDirection = currentDistanceToTarget * _increaseSpeed;
         }
-    }
-
+    }*/
+#ifdef currentLODMAnagement
     // DECREASE LOD vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
     //if ((currentDisplayFPS < currentMaxFPS) && ((currentDisplayFPS < currentMinFPS) || (currentEngineFPS < currentDisplayFPS))) {
     //if (currentFPS < getLODDecreaseFPS()) {
@@ -186,6 +238,7 @@ void LODManager::autoAdjustLOD(float realTimeDelta, float displayTargetFPS) {
         _increaseFPSExpiry = now + LOD_AUTO_ADJUST_PERIOD;
         _decreaseFPSExpiry = _increaseFPSExpiry;
     }
+#endif
 
     if (oldOctreeSizeScale != _octreeSizeScale) {
         auto lodToolsDialog = DependencyManager::get<DialogsManager>()->getLodToolsDialog();
@@ -226,7 +279,7 @@ float LODManager::getDesktopLODDecreaseFPS() const {
 }
 
 float LODManager::getDesktopLODIncreaseFPS() const {
-    return glm::max(((float)MSECS_PER_SECOND / _desktopMaxRenderTime) + INCREASE_LOD_GAP_FPS, MAX_LIKELY_DESKTOP_FPS);
+    return glm::min(((float)MSECS_PER_SECOND / _desktopMaxRenderTime) + INCREASE_LOD_GAP_FPS, MAX_LIKELY_DESKTOP_FPS);
 }
 
 void LODManager::setHMDLODDecreaseFPS(float fps) {
@@ -242,7 +295,7 @@ float LODManager::getHMDLODDecreaseFPS() const {
 }
 
 float LODManager::getHMDLODIncreaseFPS() const {
-    return glm::max(((float)MSECS_PER_SECOND / _hmdMaxRenderTime) + INCREASE_LOD_GAP_FPS, MAX_LIKELY_HMD_FPS);
+    return glm::min(((float)MSECS_PER_SECOND / _hmdMaxRenderTime) + INCREASE_LOD_GAP_FPS, MAX_LIKELY_HMD_FPS);
 }
 
 QString LODManager::getLODFeedbackText() {

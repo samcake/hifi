@@ -39,6 +39,9 @@ float PIDController::update(float measuredValue, float dt, bool resetAccumulator
     // update state for next time
     _lastError = error;
     _lastAccumulation = accumulatedError;
+    _lastFeedbackP = p;
+    _lastFeedbackI = i;
+    _lastFeedbackD = d;
     return computedValue;
 }
 

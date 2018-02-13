@@ -53,6 +53,11 @@ public:
     void setKI(float newValue) { _ki = newValue; }
     void setKD(float newValue) { _kd = newValue; }
 
+    float getLastError() const { return _lastError; }
+    float getLastFeedbackP() const { return _lastFeedbackP; }
+    float getLastFeedbackI() const { return _lastFeedbackI; }
+    float getLastFeedbackD() const { return _lastFeedbackD; }
+
     class Row { // one row of accumulated history, used only for logging (if at all)
     public:
         float measured;
@@ -79,6 +84,9 @@ protected:
     // Controller operating state
     float _lastError{ 0.0f };
     float _lastAccumulation{ 0.0f };
+    float _lastFeedbackP{ 0.0f };
+    float _lastFeedbackI{ 0.0f };
+    float _lastFeedbackD{ 0.0f };
 
     // reporting
     QVector<Row> _history{};
