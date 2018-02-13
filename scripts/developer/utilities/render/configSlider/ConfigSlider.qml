@@ -30,6 +30,9 @@ Item {
     property alias min: sliderControl.minimumValue
     property alias max: sliderControl.maximumValue
 
+    // Default number of digits displayed
+    property var valueNumDigits: 0
+    
     signal valueChanged(real value)
 
     Component.onCompleted: {
@@ -59,7 +62,7 @@ Item {
 
     HifiControls.Label {
         id: labelValue
-        text: sliderControl.value.toFixed(root.integral ? 0 : 2)
+        text: sliderControl.value.toFixed(root.integral ? 0 : root.valueNumDigits)
         anchors.left: sliderControl.right
         anchors.right: root.right
         anchors.rightMargin: 0

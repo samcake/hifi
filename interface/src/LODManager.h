@@ -39,6 +39,7 @@ class LODManager : public QObject, public Dependency {
     SINGLETON_DEPENDENCY
 
 public:
+    Q_PROPERTY(bool lodAutomatic READ getAutomaticLODAdjust WRITE setAutomaticLODAdjust)
     Q_INVOKABLE void setAutomaticLODAdjust(bool value) { _automaticLODAdjust = value; }
     Q_INVOKABLE bool getAutomaticLODAdjust() const { return _automaticLODAdjust; }
 
@@ -54,6 +55,10 @@ public:
     Q_INVOKABLE QString getLODFeedbackText();
     Q_INVOKABLE void setOctreeSizeScale(float sizeScale);
     Q_INVOKABLE float getOctreeSizeScale() const { return _octreeSizeScale; }
+
+    Q_PROPERTY(float lodNormalized READ getLODNormalized WRITE setLODNormalized)
+    void setLODNormalized(float norm) { setOctreeSizeScale(norm * DEFAULT_OCTREE_SIZE_SCALE); }
+    float getLODNormalized() const { return getOctreeSizeScale() / DEFAULT_OCTREE_SIZE_SCALE; }
 
     Q_INVOKABLE void setBoundaryLevelAdjust(int boundaryLevelAdjust);
     Q_INVOKABLE int getBoundaryLevelAdjust() const { return _boundaryLevelAdjust; }
@@ -85,7 +90,6 @@ public:
     Q_PROPERTY(float pidFeedbackP READ getPIDFeedbackP)
     Q_PROPERTY(float pidFeedbackI READ getPIDFeedbackI)
     Q_PROPERTY(float pidFeedbackD READ getPIDFeedbackD)
-    Q_PROPERTY(float octreeSizeScale READ getOctreeSizeScale)
 
     void setPIDControlKp(float value);
     float getPIDControlKp() const;
@@ -119,6 +123,7 @@ public:
     float getDisplayFPS() const { return (float)MSECS_PER_SECOND / _avgDisplayTime; };
     float getEngineFPS() const { return (float)MSECS_PER_SECOND / _avgEngineTime; };
 
+    Q_PROPERTY(int numLoops MEMBER _numLoops)
 
 signals:
     void LODIncreased();
@@ -129,7 +134,8 @@ private:
 
     PIDController _PIDController;
 
-    bool _automaticLODAdjust = true;
+    bool _automaticLODAdjust = false;
+    int  _numLoops{ 2 };
 
     float _displayTargetFPS{ 60.0f };
 

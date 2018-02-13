@@ -63,7 +63,6 @@
 #include "scripting/DialogsManagerScriptingInterface.h"
 #include "ui/ApplicationOverlay.h"
 #include "ui/EntityScriptServerLogDialog.h"
-#include "ui/LodToolsDialog.h"
 #include "ui/LogDialog.h"
 #include "ui/OctreeStatsDialog.h"
 #include "ui/OverlayConductor.h"
@@ -382,7 +381,6 @@ public slots:
 
     void addAssetToWorldMessageClose();
 
-    void loadLODToolsDialog();
     void loadEntityStatisticsDialog();
     void loadDomainConnectionDialog();
     void showScriptLogs();

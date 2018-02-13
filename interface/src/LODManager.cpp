@@ -14,7 +14,6 @@
 #include <Util.h>
 
 #include "Application.h"
-#include "ui/DialogsManager.h"
 #include "InterfaceLogging.h"
 
 #include "LODManager.h"
@@ -24,8 +23,8 @@ Setting::Handle<float> desktopLODDecreaseFPS("desktopLODDecreaseFPS", DEFAULT_DE
 Setting::Handle<float> hmdLODDecreaseFPS("hmdLODDecreaseFPS", DEFAULT_HMD_LOD_DOWN_FPS);
 
 LODManager::LODManager() : _PIDController() {
-    _PIDController.setControlledValueHighLimit(ADJUST_LOD_MAX_SIZE_SCALE);
-    _PIDController.setControlledValueLowLimit(ADJUST_LOD_MIN_SIZE_SCALE);
+    _PIDController.setControlledValueHighLimit(2);
+    _PIDController.setControlledValueLowLimit(0);
 }
 
 float LODManager::getLODDecreaseFPS() const {
@@ -110,6 +109,16 @@ void LODManager::setRenderTimes(float presentTime, float renderTime, float batch
 void LODManager::autoAdjustLOD(float realTimeDelta, float displayTargetFPS) {
   //  _displayTargetFPS = displayTargetFPS;
 
+    static int loopNum = 0;
+    static uint64_t lastTime = usecTimestampNow();
+
+    loopNum++;
+    if ((_numLoops != 0) && (loopNum % _numLoops != 0)) {
+        return;
+    }
+    uint64_t now = usecTimestampNow();
+    float delta = float(now - lastTime) / USECS_PER_SECOND;
+
     float displayTime = _presentTime;
    // float maxRenderTime = glm::max(glm::max(_batchTime, _renderTime), _gpuTime);
     float engineTime = glm::max(glm::max(_batchTime, _renderTime), _gpuTime);
@@ -120,10 +129,6 @@ void LODManager::autoAdjustLOD(float realTimeDelta, float displayTargetFPS) {
     _avgEngineTime = engineTime; // msec
     _avgDisplayTime = displayTime; // msec
 
-    if (!_automaticLODAdjust) {
-        // early exit
-        return;
-    }
 
     float oldOctreeSizeScale = _octreeSizeScale;
     // float currentFPS = (float)MSECS_PER_SECOND / _avgRenderTime;
@@ -150,14 +155,17 @@ void LODManager::autoAdjustLOD(float realTimeDelta, float displayTargetFPS) {
     // If display target FPS cahnged, change the PID setpoint
     if (newDisplayTargetFPS != _displayTargetFPS) {
         _displayTargetFPS = newDisplayTargetFPS;
-        _PIDController.setMeasuredValueSetpoint(_displayTargetFPS);
+        _PIDController.setMeasuredValueSetpoint((float)MSECS_PER_SECOND / newDisplayTargetFPS);
     }
 
     // And PID update
-    auto newOctreeScale = _PIDController.update(currentEngineFPS, realTimeDelta);
+    auto newOctreeScaleNormalized = _PIDController.update(_avgEngineTime, delta);
 
-
-    _octreeSizeScale = newOctreeScale;
+    if (!_automaticLODAdjust) {
+        // early exit
+        return;
+    }
+    _octreeSizeScale = newOctreeScaleNormalized * DEFAULT_OCTREE_SIZE_SCALE;
 
  //   uint64_t now = usecTimestampNow();
 /*
@@ -239,13 +247,6 @@ void LODManager::autoAdjustLOD(float realTimeDelta, float displayTargetFPS) {
         _decreaseFPSExpiry = _increaseFPSExpiry;
     }
 #endif
-
-    if (oldOctreeSizeScale != _octreeSizeScale) {
-        auto lodToolsDialog = DependencyManager::get<DialogsManager>()->getLodToolsDialog();
-        if (lodToolsDialog) {
-            lodToolsDialog->reloadSliders();
-        }
-    }
 }
 
 void LODManager::resetLODAdjust() {

@@ -102,114 +102,109 @@ Item {
                 }
             ]
         }
-        PlotPerf {
-            title: "LOD"
-            height: parent.evalEvenHeight()
-            object: LODManager
-            valueScale: 0.1
-            valueUnit: ""
-            plots: [
-                {
-                    prop: "lodLevel",
-                    label: "LOD",
-                    color: "#A2277C"
-                }
-            ]
-        }
-
         Column {
             anchors.left: parent.left
             anchors.right: parent.right 
             spacing: 8
-             Repeater {
-                model: [
-                        "LOD Reticle:RenderMainView.DrawSceneOctree:enabled"
-                ]
+            Row {
+                spacing: 8
                 HifiControls.CheckBox {
-                    boxSize: 20
-                    text: modelData.split(":")[0]
-                    checked: Render.getConfig(modelData.split(":")[1])[modelData.split(":")[2]]
-                    onCheckedChanged: { Render.getConfig(modelData.split(":")[1])[modelData.split(":")[2]] = checked }
+                        boxSize: 20
+                        text: "Automatic"
+                        checked: LODManager.lodAutomatic
+                        onCheckedChanged: { LODManager.lodAutomatic = checked }
+                    }
+                
+                Repeater {
+                    model: [
+                        "LOD Reticle:RenderMainView.DrawSceneOctree:enabled"
+                    ]
+                    HifiControls.CheckBox {
+                        boxSize: 20
+                        text: modelData.split(":")[0]
+                        checked: Render.getConfig(modelData.split(":")[1])[modelData.split(":")[2]]
+                        onCheckedChanged: { Render.getConfig(modelData.split(":")[1])[modelData.split(":")[2]] = checked }
+                    }
                 }
             }
-           /* ConfigSlider {
-                label: "LOD -- Speed"
+            
+            ConfigSlider {
+                label: "Frequency"
                 integral: false
                 config: LODManager
-                property: "decreaseSpeed"
-                max: 5
+                property: "numLoops"
+                max: 8
                 min: 0
-
                 anchors.left: parent.left
                 anchors.right: parent.right 
-
-                onValueChanged: { LODManager["decreaseSpeed"] = value; newStyle() }
             }
             ConfigSlider {
-                label: "LOD ++ Speed"
+                label: "LOD"
                 integral: false
                 config: LODManager
-                property: "increaseSpeed"
-                max: 5
-                min: 0
+                property: "lodNormalized"
+                max: 1.5
+                min: 0.02
 
                 anchors.left: parent.left
                 anchors.right: parent.right 
-
-                onValueChanged: { LODManager["increaseSpeed"] = value; newStyle() }
-            } */
+            }
             ConfigSlider {
                 label: "PID Kp"
                 integral: false
                 config: LODManager
                 property: "pidControlKp"
-                max: 200000
-                min: -200000
-
+                max: 0.1
+                min: 0
+                valueNumDigits: 3               
                 anchors.left: parent.left
                 anchors.right: parent.right 
-            //    onValueChanged: { LODManager["pidControlKp"] = value; }
-                
            }
            ConfigSlider {
                 label: "PID Ki"
                 integral: false
                 config: LODManager
                 property: "pidControlKi"
-                max: 1000
-                min: -1000
-
+                max: 0.01
+                min: 0               
+                valueNumDigits: 4
                 anchors.left: parent.left
-                anchors.right: parent.right 
-              //  onValueChanged: { LODManager["pidControlKi"] = value; }
-                
+                anchors.right: parent.right       
            }
            ConfigSlider {
                 label: "PID Kd"
                 integral: false
                 config: LODManager
                 property: "pidControlKd"
-                max: 1000
-                min: -1000
-
+                max: 0.1
+                min: -0.1
+                valueNumDigits: 4               
                 anchors.left: parent.left
                 anchors.right: parent.right 
-                onValueChanged: { LODManager["pidControlKd"] = value; }
-                
            }
         }
         PlotPerf {
             title: "PID"
             height: parent.evalEvenHeight()
             object: LODManager
-            valueScale: 0.1
+            valueScale: 1
             valueUnit: ""
             plots: [
                 {
                     prop: "pidError",
                     label: "Error",
                     color: "#FF6309"
-                },
+                }
+            ]
+        }
+        PlotPerf {
+            title: "PID"
+            height:  parent.evalEvenHeight()
+            object: LODManager
+            valueScale: 1
+            valueNumDigits: 3
+            valueUnit: ""
+            plots: [
                 {
                     prop: "pidFeedbackP",
                     label: "P",
@@ -226,8 +221,8 @@ Item {
                     color: "#00B4EF"
                 },
                 {
-                    prop: "octreeSizeScale",
-                    label: "octreeSizeScale",
+                    prop: "lodNormalized",
+                    label: "LOD",
                     color: "#FFFFFF"
                 }
             ]

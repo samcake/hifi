@@ -127,16 +127,6 @@ void DialogsManager::octreeStatsDetails() {
     _octreeStatsDialog->raise();
 }
 
-void DialogsManager::lodTools() {
-    if (!_lodToolsDialog) {
-        maybeCreateDialog(_lodToolsDialog);
-
-        connect(_lodToolsDialog, SIGNAL(closed()), _lodToolsDialog, SLOT(deleteLater()));
-        _lodToolsDialog->show();
-    }
-    _lodToolsDialog->raise();
-}
-
 void DialogsManager::hmdTools(bool showTools) {
     if (showTools) {
         if (!_hmdToolsDialog) {
