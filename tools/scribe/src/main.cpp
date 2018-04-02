@@ -16,6 +16,8 @@
 #include <ctime>
 #include <chrono>
 
+#include "../../../glslang/glslang/Include/ShHandle.h"
+
 using namespace std;
 
 int main (int argc, char** argv) {
@@ -33,6 +35,8 @@ int main (int argc, char** argv) {
     bool makeCPlusPlus = false;
 
     auto config = std::make_shared<TextTemplate::Config>();
+    
+    TBuiltInResource Resources;
 
     enum Mode {
         READY = 0,
