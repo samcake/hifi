@@ -26,7 +26,8 @@ public:
         _concept = var._concept;
         return (*this);
     }
-    template <class T> Varying(const T& data) : _concept(std::make_shared<Model<T>>(data)) {}
+    template <class T> Varying(const T& data) : _concept(std::make_shared<Model<T>>("noname", data)) {}
+    template <class T> Varying(const std::string& name, const T& data) : _concept(std::make_shared<Model<T>>(name, data)) {}
 
     template <class T> bool canCast() const { return !!std::dynamic_pointer_cast<Model<T>>(_concept); }
     template <class T> const T& get() const { return std::static_pointer_cast<const Model<T>>(_concept)->_data; }
@@ -42,19 +43,26 @@ public:
 
     bool isNull() const { return _concept == nullptr; }
 
+    const std::string& name() const { return (*_concept).name(); }
 protected:
     class Concept {
     public:
+        Concept(const std::string name) : _name(name) {}
         virtual ~Concept() = default;
 
         virtual Varying operator[] (uint8_t index) const = 0;
         virtual uint8_t length() const = 0;
+        
+        const std::string& name() const { return _name; }
+        
+        const std::string _name;
     };
     template <class T> class Model : public Concept {
     public:
         using Data = T;
 
-        Model(const Data& data) : _data(data) {}
+        Model(const std::string& name, const Data& data) : Concept(name), _data(data) {}
+        //Model(const Data& data) : _data(data) {}
         virtual ~Model() = default;
 
         virtual Varying operator[] (uint8_t index) const override {

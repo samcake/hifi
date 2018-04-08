@@ -93,6 +93,9 @@ class JobConfig : public QObject {
 public:
     using Persistent = PersistentConfig<JobConfig>;
 
+    JobConcept* _job;
+
+    
     JobConfig() = default;
     JobConfig(bool enabled) : alwaysEnabled{ false }, enabled{ enabled } {}
 
