@@ -4,7 +4,6 @@ import QtQuick.Controls 1.4
 import QtQml 2.2
 import QtWebChannel 1.0
 import QtWebEngine  1.1
-import HFWebEngineProfile 1.0
 
 
 import "."
@@ -15,14 +14,13 @@ FocusScope {
     id: tabletMenu
     objectName: "tabletMenu"
 
-    width: 480
-    height: 720
+    width: parent.width
+    height: parent.height
 
     property var rootMenu: Menu { objectName:"rootMenu" }
     property var point: Qt.point(50, 50);
     TabletMenuStack { id: menuPopperUpper }
     property string subMenu: ""
-    property var eventBridge;
     signal sendToScript(var message);
 
     Rectangle {

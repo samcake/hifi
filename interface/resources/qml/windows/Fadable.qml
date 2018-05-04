@@ -9,8 +9,6 @@
 //
 
 import QtQuick 2.5
-import QtQuick.Controls 1.4
-import QtGraphicalEffects 1.0
 
 import "../styles-uit"
 
@@ -26,6 +24,7 @@ FocusScope {
     property var completionCallback;
     // The target property to animate, usually scale or opacity
     property alias fadeTargetProperty: root.opacity
+    property bool disableFade: false
     // always start the property at 0 to enable fade in on creation
     fadeTargetProperty: 0
     // DO NOT set visible to false or when derived types override it it
@@ -38,7 +37,7 @@ FocusScope {
         // If someone directly set the visibility to false
         // toggle it back on and use the targetVisible flag to transition
         // via fading.
-        if ((!visible && fadeTargetProperty != 0.0) || (visible && fadeTargetProperty == 0.0)) {
+        if (!disableFade && ((!visible && fadeTargetProperty != 0.0) || (visible && fadeTargetProperty == 0.0))) {
             var target = visible;
             visible = !visible;
             fadeTargetProperty = target ? 1.0 : 0.0;

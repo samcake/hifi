@@ -27,8 +27,6 @@
 #include "AudioSRC.h"
 #include "AudioHelpers.h"
 
-int audioInjectorPtrMetaTypeId = qRegisterMetaType<AudioInjector*>();
-
 AbstractAudioInterface* AudioInjector::_localAudioInterface{ nullptr };
 
 AudioInjectorState operator& (AudioInjectorState lhs, AudioInjectorState rhs) {
@@ -92,11 +90,6 @@ void AudioInjector::finish() {
     emit finished();
 
     deleteLocalBuffer();
-
-    if (stateHas(AudioInjectorState::PendingDelete)) {
-        // we've been asked to delete after finishing, trigger a deleteLater here
-        deleteLater();
-    }
 }
 
 void AudioInjector::restart() {
@@ -132,7 +125,7 @@ void AudioInjector::restart() {
     }
 }
 
-bool AudioInjector::inject(bool(AudioInjectorManager::*injection)(AudioInjector*)) {
+bool AudioInjector::inject(bool(AudioInjectorManager::*injection)(const AudioInjectorPointer&)) {
     _state = AudioInjectorState::NotFinished;
 
     int byteOffset = 0;
@@ -150,7 +143,7 @@ bool AudioInjector::inject(bool(AudioInjectorManager::*injection)(AudioInjector*
     bool success = true;
     if (!_options.localOnly) {
         auto injectorManager = DependencyManager::get<AudioInjectorManager>();
-        if (!(*injectorManager.*injection)(this)) {
+        if (!(*injectorManager.*injection)(sharedFromThis())) {
             success = false;
             finishNetworkInjection();
         }
@@ -173,7 +166,7 @@ bool AudioInjector::injectLocally() {
 
             // call this function on the AudioClient's thread
             // this will move the local buffer's thread to the LocalInjectorThread
-            success = _localAudioInterface->outputLocalInjector(this);
+            success = _localAudioInterface->outputLocalInjector(sharedFromThis());
 
             if (!success) {
                 qCDebug(audio) << "AudioInjector::injectLocally could not output locally via _localAudioInterface";
@@ -418,52 +411,31 @@ void AudioInjector::triggerDeleteAfterFinish() {
     }
 
     if (stateHas(AudioInjectorState::Finished)) {
-        stopAndDeleteLater();
+        stop();
     } else {
         _state |= AudioInjectorState::PendingDelete;
     }
 }
 
-void AudioInjector::stopAndDeleteLater() {
-    stop();
-    QMetaObject::invokeMethod(this, "deleteLater", Qt::QueuedConnection);
-}
-
-AudioInjector* AudioInjector::playSound(SharedSoundPointer sound, const float volume, const float stretchFactor, const glm::vec3 position) {
+AudioInjectorPointer AudioInjector::playSound(SharedSoundPointer sound, const float volume,
+                                              const float stretchFactor, const glm::vec3 position) {
     if (!sound || !sound->isReady()) {
-        return nullptr;
+        return AudioInjectorPointer();
     }
 
     AudioInjectorOptions options;
     options.stereo = sound->isStereo();
     options.position = position;
     options.volume = volume;
+    options.pitch = 1.0f / stretchFactor;
 
     QByteArray samples = sound->getByteArray();
-    if (stretchFactor == 1.0f) {
-        return playSoundAndDelete(samples, options);
-    }
 
-    const int standardRate = AudioConstants::SAMPLE_RATE;
-    const int resampledRate = standardRate * stretchFactor;
-    const int channelCount = sound->isStereo() ? 2 : 1;
-
-    AudioSRC resampler(standardRate, resampledRate, channelCount);
-
-    const int nInputFrames = samples.size() / (channelCount * sizeof(int16_t));
-    const int maxOutputFrames = resampler.getMaxOutput(nInputFrames);
-    QByteArray resampled(maxOutputFrames * channelCount * sizeof(int16_t), '\0');
-
-    int nOutputFrames = resampler.render(reinterpret_cast<const int16_t*>(samples.data()),
-                                         reinterpret_cast<int16_t*>(resampled.data()),
-                                         nInputFrames);
-
-    Q_UNUSED(nOutputFrames);
-    return playSoundAndDelete(resampled, options);
+    return playSoundAndDelete(samples, options);
 }
 
-AudioInjector* AudioInjector::playSoundAndDelete(const QByteArray& buffer, const AudioInjectorOptions options) {
-    AudioInjector* sound = playSound(buffer, options);
+AudioInjectorPointer AudioInjector::playSoundAndDelete(const QByteArray& buffer, const AudioInjectorOptions options) {
+    AudioInjectorPointer sound = playSound(buffer, options);
 
     if (sound) {
         sound->_state |= AudioInjectorState::PendingDelete;
@@ -472,11 +444,40 @@ AudioInjector* AudioInjector::playSoundAndDelete(const QByteArray& buffer, const
     return sound;
 }
 
+AudioInjectorPointer AudioInjector::playSound(const QByteArray& buffer, const AudioInjectorOptions options) {
 
-AudioInjector* AudioInjector::playSound(const QByteArray& buffer, const AudioInjectorOptions options) {
-    AudioInjector* injector = new AudioInjector(buffer, options);
-    if (!injector->inject(&AudioInjectorManager::threadInjector)) {
-        qWarning() << "AudioInjector::playSound failed to thread injector";
+    if (options.pitch == 1.0f) {
+
+        AudioInjectorPointer injector = AudioInjectorPointer::create(buffer, options);
+
+        if (!injector->inject(&AudioInjectorManager::threadInjector)) {
+            qWarning() << "AudioInjector::playSound failed to thread injector";
+        }
+        return injector;
+
+    } else {
+
+        const int standardRate = AudioConstants::SAMPLE_RATE;
+        const int resampledRate = AudioConstants::SAMPLE_RATE / glm::clamp(options.pitch, 1/16.0f, 16.0f);  // limit to 4 octaves
+        const int numChannels = options.ambisonic ? AudioConstants::AMBISONIC : 
+            (options.stereo ? AudioConstants::STEREO : AudioConstants::MONO);
+
+        AudioSRC resampler(standardRate, resampledRate, numChannels);
+
+        // create a resampled buffer that is guaranteed to be large enough
+        const int nInputFrames = buffer.size() / (numChannels * sizeof(int16_t));
+        const int maxOutputFrames = resampler.getMaxOutput(nInputFrames);
+        QByteArray resampledBuffer(maxOutputFrames * numChannels * sizeof(int16_t), '\0');
+
+        resampler.render(reinterpret_cast<const int16_t*>(buffer.data()),
+                         reinterpret_cast<int16_t*>(resampledBuffer.data()),
+                         nInputFrames);
+
+        AudioInjectorPointer injector = AudioInjectorPointer::create(resampledBuffer, options);
+
+        if (!injector->inject(&AudioInjectorManager::threadInjector)) {
+            qWarning() << "AudioInjector::playSound failed to thread pitch-shifted injector";
+        }
+        return injector;
     }
-    return injector;
 }

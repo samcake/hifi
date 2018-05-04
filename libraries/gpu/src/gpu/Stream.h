@@ -24,6 +24,8 @@
 
 namespace gpu {
 
+class Element;
+
 // Stream namespace class
 class Stream {
 public:
@@ -39,13 +41,18 @@ public:
         SKIN_CLUSTER_INDEX = 5,
         SKIN_CLUSTER_WEIGHT = 6,
         TEXCOORD1 = 7,
-        NUM_INPUT_SLOTS = TEXCOORD1 + 1,
+        TEXCOORD2 = 8,
+        TEXCOORD3 = 9,
+        TEXCOORD4 = 10,
 
+        NUM_INPUT_SLOTS,
 
         DRAW_CALL_INFO = 15, // Reserve last input slot for draw call infos
     };
 
     typedef uint8 Slot;
+
+    static const std::array<Element, InputSlot::NUM_INPUT_SLOTS>& getDefaultElements();
 
     // Frequency describer
     enum Frequency {
@@ -242,6 +249,7 @@ public:
         bool setAttribute(Slot slot, Slot channel, Frequency frequency = PER_VERTEX);
 
         bool hasAttribute(Slot slot) const { return (_attributes.find(slot) != _attributes.end()); }
+        Attribute getAttribute(Slot slot) const;
 
         const std::string& getKey() const { return _key; }
        const Key& getStreamKey() const { return _streamKey; }

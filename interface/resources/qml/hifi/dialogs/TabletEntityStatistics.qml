@@ -9,7 +9,6 @@
 //
 
 import QtQuick 2.5
-import QtQuick.Controls 1.4
 import Qt.labs.settings 1.0
 
 import "../../styles-uit"
@@ -20,7 +19,6 @@ Rectangle {
     id: root
     objectName: "EntityStatistics"
 
-    property var eventBridge;
     signal sendToScript(var message);
     property bool isHMD: false
 

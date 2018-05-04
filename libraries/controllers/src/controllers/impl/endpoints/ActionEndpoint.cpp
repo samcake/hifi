@@ -16,32 +16,36 @@
 using namespace controller;
 
 void ActionEndpoint::apply(float newValue, const Pointer& source) {
+    auto userInputMapper = DependencyManager::get<UserInputMapper>();
     InputRecorder* inputRecorder = InputRecorder::getInstance();
-    if(inputRecorder->isPlayingback()) {
-        newValue = inputRecorder->getActionState(Action(_input.getChannel()));
+    QString actionName;
+    if (inputRecorder->isPlayingback() || inputRecorder->isRecording()) {
+        actionName = userInputMapper->getActionName(Action(_input.getChannel()));
+        if (inputRecorder->isPlayingback()) {
+            newValue = inputRecorder->getActionState(actionName);
+        }
     }
     
     _currentValue += newValue;
     if (_input != Input::INVALID_INPUT) {
-        auto userInputMapper = DependencyManager::get<UserInputMapper>();
         userInputMapper->deltaActionState(Action(_input.getChannel()), newValue);
     }
-    inputRecorder->setActionState(Action(_input.getChannel()), newValue);
+    inputRecorder->setActionState(actionName, newValue);
 }
 
 void ActionEndpoint::apply(const Pose& value, const Pointer& source) {
     _currentPose = value;
+    auto userInputMapper = DependencyManager::get<UserInputMapper>();
     InputRecorder* inputRecorder = InputRecorder::getInstance();
-    inputRecorder->setActionState(Action(_input.getChannel()), _currentPose);
-    if (inputRecorder->isPlayingback()) {
-        _currentPose = inputRecorder->getPoseState(Action(_input.getChannel()));
+    if (inputRecorder->isRecording()) {
+        QString actionName = userInputMapper->getActionName(Action(_input.getChannel()));
+        inputRecorder->setActionState(actionName, _currentPose);
     }
     
     if (!_currentPose.isValid()) {
         return;
     }
     if (_input != Input::INVALID_INPUT) {
-        auto userInputMapper = DependencyManager::get<UserInputMapper>();
         userInputMapper->setActionState(Action(_input.getChannel()), _currentPose);
     }
 }

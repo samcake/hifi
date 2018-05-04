@@ -9,6 +9,10 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 
+#include "RegisteredMetaTypes.h"
+
+#include <glm/gtc/quaternion.hpp>
+
 #include <QtCore/QUrl>
 #include <QtCore/QUuid>
 #include <QtCore/QRect>
@@ -17,10 +21,9 @@
 #include <QtGui/QVector2D>
 #include <QtGui/QVector3D>
 #include <QtGui/QQuaternion>
-#include <glm/gtc/quaternion.hpp>
-#include <QAbstractSocket>
-
-#include "RegisteredMetaTypes.h"
+#include <QtNetwork/QAbstractSocket>
+#include <QtScript/QScriptValue>
+#include <QtScript/QScriptValueIterator>
 
 int vec4MetaTypeId = qRegisterMetaType<glm::vec4>();
 int vec3MetaTypeId = qRegisterMetaType<glm::vec3>();
@@ -34,6 +37,8 @@ int pickRayMetaTypeId = qRegisterMetaType<PickRay>();
 int collisionMetaTypeId = qRegisterMetaType<Collision>();
 int qMapURLStringMetaTypeId = qRegisterMetaType<QMap<QUrl,QString>>();
 int socketErrorMetaTypeId = qRegisterMetaType<QAbstractSocket::SocketError>();
+int voidLambdaType = qRegisterMetaType<std::function<void()>>();
+int variantLambdaType = qRegisterMetaType<std::function<QVariant()>>();
 
 void registerMetaTypes(QScriptEngine* engine) {
     qScriptRegisterMetaType(engine, mat4toScriptValue, mat4FromScriptValue);
@@ -556,6 +561,14 @@ QScriptValue xColorToScriptValue(QScriptEngine *engine, const xColor& color) {
     return obj;
 }
 
+/**jsdoc
+ * Defines a rectangular portion of an image or screen.
+ * @typedef {object} Rect
+ * @property {number} x - Integer left, x-coordinate value.
+ * @property {number} y - Integer top, y-coordinate value.
+ * @property {number} width - Integer width of the rectangle.
+ * @property {number} height - Integer height of the rectangle.
+ */
 QVariant qRectToVariant(const QRect& rect) {
     QVariantMap obj;
     obj["x"] = rect.x();
@@ -608,7 +621,13 @@ void xColorFromScriptValue(const QScriptValue &object, xColor& color) {
     }
 }
 
-
+/**jsdoc
+ * An RGB color value.
+ * @typedef {object} Color
+ * @property {number} red - Red component value. Integer in the range <code>0</code> - <code>255</code>.
+ * @property {number} green - Green component value. Integer in the range <code>0</code> - <code>255</code>.
+ * @property {number} blue - Blue component value. Integer in the range <code>0</code> - <code>255</code>.
+ */
 QVariant xColorToVariant(const xColor& color) {
     QVariantMap obj;
     obj["red"] = color.red;
@@ -670,6 +689,15 @@ QScriptValue qColorToScriptValue(QScriptEngine* engine, const QColor& color) {
     return object;
 }
 
+/**jsdoc
+ * An axis-aligned cube, defined as the bottom right near (minimum axes values) corner of the cube plus the dimension of its 
+ * sides.
+ * @typedef {object} AACube
+ * @property {number} x - X coordinate of the brn corner of the cube.
+ * @property {number} y - Y coordinate of the brn corner of the cube.
+ * @property {number} z - Z coordinate of the brn corner of the cube.
+ * @property {number} scale - The dimensions of each side of the cube.
+ */
 QScriptValue aaCubeToScriptValue(QScriptEngine* engine, const AACube& aaCube) {
     QScriptValue obj = engine->newObject();
     const glm::vec3& corner = aaCube.getCorner();
@@ -746,6 +774,15 @@ void pickRayFromScriptValue(const QScriptValue& object, PickRay& pickRay) {
     }
 }
 
+/**jsdoc
+ * @typedef {object} Collision
+ * @property {ContactEventType} type - The contact type of the collision event.
+ * @property {Uuid} idA - The ID of one of the entities in the collision.
+ * @property {Uuid} idB - The ID of the other of the entities in the collision.
+ * @property {Vec3} penetration - The amount of penetration between the two entities.
+ * @property {Vec3} contactPoint - The point of contact.
+ * @property {Vec3} velocityChange - The change in relative velocity of the two entities, in m/s.
+ */
 QScriptValue collisionToScriptValue(QScriptEngine* engine, const Collision& collision) {
     QScriptValue obj = engine->newObject();
     obj.setProperty("type", collision.type);
@@ -785,6 +822,12 @@ void quuidFromScriptValue(const QScriptValue& object, QUuid& uuid) {
     uuid = fromString;
 }
 
+/**jsdoc
+ * A 2D size value.
+ * @typedef {object} Size
+ * @property {number} height - The height value.
+ * @property {number} width - The width value.
+ */
 QScriptValue qSizeFToScriptValue(QScriptEngine* engine, const QSizeF& qSizeF) {
     QScriptValue obj = engine->newObject();
     obj.setProperty("width", qSizeF.width());
@@ -795,4 +838,103 @@ QScriptValue qSizeFToScriptValue(QScriptEngine* engine, const QSizeF& qSizeF) {
 void qSizeFFromScriptValue(const QScriptValue& object, QSizeF& qSizeF) {
     qSizeF.setWidth(object.property("width").toVariant().toFloat());
     qSizeF.setHeight(object.property("height").toVariant().toFloat());
+}
+
+AnimationDetails::AnimationDetails() :
+    role(), url(), fps(0.0f), priority(0.0f), loop(false), hold(false),
+    startAutomatically(false), firstFrame(0.0f), lastFrame(0.0f), running(false), currentFrame(0.0f) {
+}
+
+AnimationDetails::AnimationDetails(QString role, QUrl url, float fps, float priority, bool loop,
+    bool hold, bool startAutomatically, float firstFrame, float lastFrame, bool running, float currentFrame, bool allowTranslation) :
+    role(role), url(url), fps(fps), priority(priority), loop(loop), hold(hold),
+    startAutomatically(startAutomatically), firstFrame(firstFrame), lastFrame(lastFrame),
+    running(running), currentFrame(currentFrame), allowTranslation(allowTranslation) {
+}
+
+
+QScriptValue animationDetailsToScriptValue(QScriptEngine* engine, const AnimationDetails& details) {
+    QScriptValue obj = engine->newObject();
+    obj.setProperty("role", details.role);
+    obj.setProperty("url", details.url.toString());
+    obj.setProperty("fps", details.fps);
+    obj.setProperty("priority", details.priority);
+    obj.setProperty("loop", details.loop);
+    obj.setProperty("hold", details.hold);
+    obj.setProperty("startAutomatically", details.startAutomatically);
+    obj.setProperty("firstFrame", details.firstFrame);
+    obj.setProperty("lastFrame", details.lastFrame);
+    obj.setProperty("running", details.running);
+    obj.setProperty("currentFrame", details.currentFrame);
+    obj.setProperty("allowTranslation", details.allowTranslation);
+    return obj;
+}
+
+void animationDetailsFromScriptValue(const QScriptValue& object, AnimationDetails& details) {
+    // nothing for now...
+}
+
+QScriptValue meshToScriptValue(QScriptEngine* engine, MeshProxy* const &in) {
+    return engine->newQObject(in, QScriptEngine::QtOwnership,
+        QScriptEngine::ExcludeDeleteLater | QScriptEngine::ExcludeChildObjects);
+}
+
+void meshFromScriptValue(const QScriptValue& value, MeshProxy* &out) {
+    out = qobject_cast<MeshProxy*>(value.toQObject());
+}
+
+QScriptValue meshesToScriptValue(QScriptEngine* engine, const MeshProxyList &in) {
+    // QScriptValueList result;
+    QScriptValue result = engine->newArray();
+    int i = 0;
+    foreach(MeshProxy* const meshProxy, in) {
+        result.setProperty(i++, meshToScriptValue(engine, meshProxy));
+    }
+    return result;
+}
+
+void meshesFromScriptValue(const QScriptValue& value, MeshProxyList &out) {
+    QScriptValueIterator itr(value);
+
+    qDebug() << "in meshesFromScriptValue, value.length =" << value.property("length").toInt32();
+
+    while (itr.hasNext()) {
+        itr.next();
+        MeshProxy* meshProxy = qscriptvalue_cast<MeshProxyList::value_type>(itr.value());
+        if (meshProxy) {
+            out.append(meshProxy);
+        } else {
+            qDebug() << "null meshProxy";
+        }
+    }
+}
+
+
+QScriptValue meshFaceToScriptValue(QScriptEngine* engine, const MeshFace &meshFace) {
+    QScriptValue obj = engine->newObject();
+    obj.setProperty("vertices", qVectorIntToScriptValue(engine, meshFace.vertexIndices));
+    return obj;
+}
+
+void meshFaceFromScriptValue(const QScriptValue &object, MeshFace& meshFaceResult) {
+    qVectorIntFromScriptValue(object.property("vertices"), meshFaceResult.vertexIndices);
+}
+
+QScriptValue qVectorMeshFaceToScriptValue(QScriptEngine* engine, const QVector<MeshFace>& vector) {
+    QScriptValue array = engine->newArray();
+    for (int i = 0; i < vector.size(); i++) {
+        array.setProperty(i, meshFaceToScriptValue(engine, vector.at(i)));
+    }
+    return array;
+}
+
+void qVectorMeshFaceFromScriptValue(const QScriptValue& array, QVector<MeshFace>& result) {
+    int length = array.property("length").toInteger();
+    result.clear();
+
+    for (int i = 0; i < length; i++) {
+        MeshFace meshFace = MeshFace();
+        meshFaceFromScriptValue(array.property(i), meshFace);
+        result << meshFace;
+    }
 }

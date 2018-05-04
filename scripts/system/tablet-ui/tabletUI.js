@@ -19,11 +19,11 @@
     var tabletRezzed = false;
     var activeHand = null;
     var DEFAULT_WIDTH = 0.4375;
-    var DEFAULT_TABLET_SCALE = 100;
+    var DEFAULT_TABLET_SCALE = 70;
     var preMakeTime = Date.now();
     var validCheckTime = Date.now();
     var debugTablet = false;
-    var tabletScalePercentage = 100.0;
+    var tabletScalePercentage = 70.0;
     UIWebTablet = null;
     var MSECS_PER_SEC = 1000.0;
     var MUTE_MICROPHONE_MENU_ITEM = "Mute Microphone";
@@ -41,14 +41,14 @@
         if (!UIWebTablet) {
             return false;
         }
-        if (Overlays.getProperty(HMD.tabletID, "type") != "model") {
+        if (Overlays.getProperty(HMD.tabletID, "type") !== "model") {
             if (debugTablet) {
                 print("TABLET is invalid due to frame: " + JSON.stringify(Overlays.getProperty(HMD.tabletID, "type")));
             }
             return false;
         }
-        if (Overlays.getProperty(HMD.homeButtonID, "type") != "sphere" ||
-            Overlays.getProperty(HMD.tabletScreenID, "type") != "web3d") {
+        if (Overlays.getProperty(HMD.homeButtonID, "type") !== "circle3d" ||
+                Overlays.getProperty(HMD.tabletScreenID, "type") !== "web3d") {
             if (debugTablet) {
                 print("TABLET is invalid due to other");
             }
@@ -71,9 +71,9 @@
         return tabletScalePercentage;
     }
 
-    function updateTabletWidthFromSettings() {
+    function updateTabletWidthFromSettings(force) {
         var newTabletScalePercentage = getTabletScalePercentageFromSettings();
-        if (newTabletScalePercentage !== tabletScalePercentage && UIWebTablet) {
+        if ((force || (newTabletScalePercentage !== tabletScalePercentage)) && UIWebTablet) {
             tabletScalePercentage = newTabletScalePercentage;
             UIWebTablet.setWidth(DEFAULT_WIDTH * (tabletScalePercentage / 100));
         }
@@ -83,6 +83,13 @@
         updateTabletWidthFromSettings();
     }
 
+    function onSensorToWorldScaleChanged(sensorScaleFactor) {
+        if (HMD.active) {
+            var newTabletScalePercentage = getTabletScalePercentageFromSettings();
+            resizeTablet(DEFAULT_WIDTH * (newTabletScalePercentage / 100), undefined, sensorScaleFactor);
+        }
+    }
+
     function rezTablet() {
         if (debugTablet) {
             print("TABLET rezzing");
@@ -90,21 +97,22 @@
         checkTablet()
 
         tabletScalePercentage = getTabletScalePercentageFromSettings();
-        UIWebTablet = new WebTablet("qml/hifi/tablet/TabletRoot.qml",
+        UIWebTablet = new WebTablet("hifi/tablet/TabletRoot.qml",
                                     DEFAULT_WIDTH * (tabletScalePercentage / 100),
                                     null, activeHand, true, null, false);
         UIWebTablet.register();
         HMD.tabletID = UIWebTablet.tabletEntityID;
         HMD.homeButtonID = UIWebTablet.homeButtonID;
+        HMD.homeButtonHighlightID = UIWebTablet.homeButtonHighlightID;
         HMD.tabletScreenID = UIWebTablet.webOverlayID;
         HMD.displayModeChanged.connect(onHmdChanged);
+        MyAvatar.sensorToWorldScaleChanged.connect(onSensorToWorldScaleChanged);
 
         tabletRezzed = true;
     }
 
     function showTabletUI() {
-        checkTablet()
-        gTablet.tabletShown = true;
+        checkTablet();
 
         if (!tabletRezzed || !tabletIsValid()) {
             closeTabletUI();
@@ -116,13 +124,18 @@
                 print("TABLET in showTabletUI, already rezzed");
             }
             var tabletProperties = {};
-            UIWebTablet.calculateTabletAttachmentProperties(activeHand, true, tabletProperties);
+            if (!HMD.tabletContextualMode) { // contextual mode forces tablet in place -> don't update attachment
+                UIWebTablet.calculateTabletAttachmentProperties(activeHand, true, tabletProperties);
+            }
             tabletProperties.visible = true;
             Overlays.editOverlay(HMD.tabletID, tabletProperties);
             Overlays.editOverlay(HMD.homeButtonID, { visible: true });
+            Overlays.editOverlay(HMD.homeButtonHighlightID, { visible: true });
             Overlays.editOverlay(HMD.tabletScreenID, { visible: true });
             Overlays.editOverlay(HMD.tabletScreenID, { maxFPS: 90 });
+            updateTabletWidthFromSettings(true);
         }
+        gTablet.tabletShown = true;
     }
 
     function hideTabletUI() {
@@ -138,12 +151,13 @@
 
         Overlays.editOverlay(HMD.tabletID, { visible: false });
         Overlays.editOverlay(HMD.homeButtonID, { visible: false });
+        Overlays.editOverlay(HMD.homeButtonHighlightID, { visible: false });
         Overlays.editOverlay(HMD.tabletScreenID, { visible: false });
         Overlays.editOverlay(HMD.tabletScreenID, { maxFPS: 1 });
     }
 
     function closeTabletUI() {
-        checkTablet()
+        checkTablet();
         gTablet.tabletShown = false;
         if (UIWebTablet) {
             if (UIWebTablet.onClose) {
@@ -158,19 +172,20 @@
             UIWebTablet = null;
             HMD.tabletID = null;
             HMD.homeButtonID = null;
+            HMD.homeButtonHighlightID = null;
             HMD.tabletScreenID = null;
         } else if (debugTablet) {
             print("TABLET closeTabletUI, UIWebTablet is null");
         }
         tabletRezzed = false;
-        gTablet = null
+        gTablet = null;
     }
 
 
     function updateShowTablet() {
         var now = Date.now();
 
-        checkTablet()
+        checkTablet();
 
         // close the WebTablet if it we go into toolbar mode.
         var tabletShown = gTablet.tabletShown;
@@ -183,24 +198,16 @@
             return;
         }
 
-        //TODO: move to tablet qml?
-        if (tabletShown) {
-            var currentMicEnabled = !Menu.isOptionChecked(MUTE_MICROPHONE_MENU_ITEM);
-            var currentMicLevel = getMicLevel();
-            gTablet.updateMicEnabled(currentMicEnabled);
-            gTablet.updateAudioBar(currentMicLevel);
-        }
+        var needInstantUpdate = UIWebTablet && UIWebTablet.getLandscape() !== landscape;
 
-        if (validCheckTime - now > MSECS_PER_SEC/4) {
-            //each 250ms should be just fine
+        if ((now - validCheckTime > MSECS_PER_SEC) || needInstantUpdate) {
+            validCheckTime = now;
+
             updateTabletWidthFromSettings();
+
             if (UIWebTablet) {
                 UIWebTablet.setLandscape(landscape);
             }
-        }
-
-        if (validCheckTime - now > MSECS_PER_SEC) {
-            validCheckTime = now;
             if (tabletRezzed && UIWebTablet && !tabletIsValid()) {
                 // when we switch domains, the tablet entity gets destroyed and recreated.  this causes
                 // the overlay to be deleted, but not recreated.  If the overlay is deleted for this or any
@@ -263,7 +270,7 @@
         }
         if (channel === "home") {
             if (UIWebTablet) {
-                checkTablet()
+                checkTablet();
                 gTablet.landscape = false;
             }
         }
@@ -273,13 +280,37 @@
     Messages.subscribe("home");
     Messages.messageReceived.connect(handleMessage);
 
-    Script.setInterval(updateShowTablet, 100);
-
-    // Calculate microphone level with the same scaling equation (log scale, exponentially averaged) in AvatarInputs and pal.js
-    function getMicLevel() {
-        //reuse already existing C++ code
-        return AvatarInputs.loudnessToAudioLevel(MyAvatar.audioLoudness)
+    var clickMapping = Controller.newMapping('tabletToggle-click');
+    var wantsMenu = 0;
+    clickMapping.from(function () { return wantsMenu; }).to(Controller.Actions.ContextMenu);
+    clickMapping.from(Controller.Standard.RightSecondaryThumb).peek().to(function (clicked) {
+    if (clicked) {
+        //activeHudPoint2d(Controller.Standard.RightHand);
+        Messages.sendLocalMessage("toggleHand", Controller.Standard.RightHand);
     }
+        wantsMenu = clicked;
+    });
+    
+    clickMapping.from(Controller.Standard.LeftSecondaryThumb).peek().to(function (clicked) {
+        if (clicked) {
+            //activeHudPoint2d(Controller.Standard.LeftHand);
+            Messages.sendLocalMessage("toggleHand", Controller.Standard.LeftHand);
+        }
+        wantsMenu = clicked;
+    });
+    
+    clickMapping.from(Controller.Standard.Start).peek().to(function (clicked) {
+    if (clicked) {
+        //activeHudPoint2dGamePad();
+        var noHands = -1;
+        Messages.sendLocalMessage("toggleHand", Controller.Standard.LeftHand);
+    }
+
+        wantsMenu = clicked;
+    });
+    clickMapping.enable();
+
+    Script.setInterval(updateShowTablet, 100);
 
     Script.scriptEnding.connect(function () {
 
@@ -294,6 +325,7 @@
         Overlays.deleteOverlay(tabletID);
         HMD.tabletID = null;
         HMD.homeButtonID = null;
+        HMD.homeButtonHighlightID = null;
         HMD.tabletScreenID = null;
     });
 }()); // END LOCAL_SCOPE

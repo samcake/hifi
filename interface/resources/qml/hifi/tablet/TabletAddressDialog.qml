@@ -9,8 +9,9 @@
 //
 
 import Hifi 1.0
-import QtQuick 2.5
-import QtQuick.Controls 1.4
+import QtQuick 2.7
+import QtQuick.Controls 2.2
+import QtQuick.Controls.Styles 1.4
 import QtGraphicalEffects 1.0
 import "../../controls"
 import "../../styles"
@@ -19,6 +20,8 @@ import "../"
 import "../toolbars"
 import "../../styles-uit" as HifiStyles
 import "../../controls-uit" as HifiControls
+import QtQuick.Controls 2.2 as QQC2
+import QtQuick.Templates 2.2 as T
 
 // references HMD, AddressManager, AddressBarDialog from root context
 
@@ -29,7 +32,6 @@ StackView {
     initialItem: addressBarDialog
     width: parent !== null ? parent.width : undefined
     height: parent !== null ? parent.height : undefined
-    property var eventBridge;
     property int cardWidth: 212;
     property int cardHeight: 152;
     property string metaverseBase: addressBarDialog.metaverseServerUrl + "/api/v1/";
@@ -40,14 +42,29 @@ StackView {
     property var rpcCounter: 0;
     signal sendToScript(var message);
     function rpc(method, parameters, callback) {
+        console.debug('TabletAddressDialog: rpc: method = ', method, 'parameters = ', parameters, 'callback = ', callback)
+
         rpcCalls[rpcCounter] = callback;
         var message = {method: method, params: parameters, id: rpcCounter++, jsonrpc: "2.0"};
         sendToScript(message);
     }
     function fromScript(message) {
+        if (message.method === 'refreshFeeds') {
+            var feeds = [happeningNow, places, snapshots];
+            console.debug('TabletAddressDialog::fromScript: refreshFeeds', 'feeds = ', feeds);
+
+            feeds.forEach(function(feed) {
+                feed.protocol = encodeURIComponent(message.protocolSignature);
+                Qt.callLater(feed.fillDestinations);
+            });
+
+            return;
+        }
+
         var callback = rpcCalls[message.id];
         if (!callback) {
-            console.log('No callback for message fromScript', JSON.stringify(message));
+            // FIXME: We often recieve very long messages here, the logging of which is drastically slowing down the main thread
+            //console.log('No callback for message fromScript', JSON.stringify(message));
             return;
         }
         delete rpcCalls[message.id];
@@ -57,10 +74,14 @@ StackView {
     Component { id: tabletWebView; TabletWebView {} }
     Component.onCompleted: {
         updateLocationText(false);
-        addressLine.focus = !HMD.active;
         root.parentChanged.connect(center);
         center();
         tablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
+
+        Qt.callLater(function() {
+            addressBarDialog.keyboardEnabled = HMD.active;
+            addressLine.forceActiveFocus();
+        })
     }
     Component.onDestruction: {
         root.parentChanged.disconnect(center);
@@ -71,7 +92,6 @@ StackView {
         anchors.centerIn = parent;
     }
 
-
     function resetAfterTeleport() {
         //storyCardFrame.shown = root.shown = false;
     }
@@ -80,7 +100,6 @@ StackView {
             var card = tabletWebView.createObject();
             card.url = addressBarDialog.metaverseServerUrl + targetString;
             card.parentStackItem = root;
-            card.eventBridge = root.eventBridge;
             root.push(card);
             return;
         }
@@ -94,11 +113,26 @@ StackView {
         id: addressBarDialog
 
         property bool keyboardEnabled: false
-        property bool keyboardRaised: false
         property bool punctuationMode: false
-        
+
         width: parent.width
         height: parent.height
+
+        MouseArea {
+            anchors {
+                top: parent.top
+                left: parent.left
+                right: parent.right
+                bottom: keyboard.top
+            }
+
+            propagateComposedEvents: true
+            onPressed: {
+                parent.forceActiveFocus();
+                addressBarDialog.keyboardEnabled = false;
+                mouse.accepted = false;
+            }
+        }
 
         anchors {
             right: parent.right
@@ -107,7 +141,11 @@ StackView {
             bottom: parent.bottom
         }
 
-        onMetaverseServerUrlChanged: updateLocationTextTimer.start();
+        onHostChanged: {
+            updateLocationTextTimer.restart();
+            DialogsManager.hideAddressBar();
+        }
+
         Rectangle {
             id: navBar
             width: parent.width
@@ -178,16 +216,16 @@ StackView {
                 anchors {
                     top: parent.top;
                     left: addressLineContainer.left;
-                    right: addressLineContainer.right;
                 }
             }
 
             HifiStyles.FiraSansRegular {
                 id: location;
                 anchors {
-                    left: addressLineContainer.left;
-                    leftMargin: 8;
-                    verticalCenter: addressLineContainer.verticalCenter;
+                    left: notice.right
+                    leftMargin: 8
+                    right: addressLineContainer.right
+                    verticalCenter: notice.verticalCenter
                 }
                 font.pixelSize: addressLine.font.pixelSize;
                 color: "gray";
@@ -195,7 +233,7 @@ StackView {
                 visible: addressLine.text.length === 0
             }
 
-            TextInput {
+            QQC2.TextField {
                 id: addressLine
                 width: addressLineContainer.width - addressLineContainer.anchors.leftMargin - addressLineContainer.anchors.rightMargin;
                 anchors {
@@ -203,13 +241,43 @@ StackView {
                     leftMargin: 8;
                     verticalCenter: addressLineContainer.verticalCenter;
                 }
-                font.pixelSize: hifi.fonts.pixelSize * 0.75
                 onTextChanged: {
                     updateLocationText(text.length > 0);
                 }
                 onAccepted: {
                     addressBarDialog.keyboardEnabled = false;
                     toggleOrGo();
+                }
+
+                // unfortunately TextField from Quick Controls 2 disallow customization of placeHolderText color without creation of new style
+                property string placeholderText2: "Type domain address here"
+                verticalAlignment: TextInput.AlignBottom
+
+                font {
+                    family: hifi.fonts.fontFamily
+                    pixelSize: hifi.fonts.pixelSize * 0.75
+                }
+
+                color: hifi.colors.text
+                background: Item {}
+
+                QQC2.Label {
+                    T.TextField {
+                        id: control
+
+                        padding: 6 // numbers taken from Qt\5.9.2\Src\qtquickcontrols2\src\imports\controls\TextField.qml
+                        leftPadding: padding + 4
+                    }
+
+                    font: parent.font
+
+                    x: control.leftPadding
+                    y: control.topPadding
+
+                    text: parent.placeholderText2
+                    verticalAlignment: "AlignVCenter"
+                    color: 'gray'
+                    visible: parent.text === ''
                 }
             }
 
@@ -229,9 +297,9 @@ StackView {
                 MouseArea {
                     anchors.fill: parent;
                     onClicked: {
-                        if (!addressLine.focus || !HMD.active) {
-                            addressLine.focus = true;
-                            addressLine.forceActiveFocus();
+                        addressLine.focus = true;
+                        addressLine.forceActiveFocus();
+                        if (HMD.active) {
                             addressBarDialog.keyboardEnabled = HMD.active;
                         }
                         tabletRoot.playButtonClickSound();
@@ -320,7 +388,7 @@ StackView {
             // Delay updating location text a bit to avoid flicker of content and so that connection status is valid.
             id: updateLocationTextTimer
             running: false
-            interval: 500  // ms
+            interval: 1000  // ms
             repeat: false
             onTriggered: updateLocationText(false);
         }
@@ -335,7 +403,6 @@ StackView {
                 addressLine.text = "";
             }
         }
-           
 
         HifiControls.Keyboard {
             id: keyboard
@@ -347,7 +414,7 @@ StackView {
                 right: parent.right
             }
         }
-        
+
     }
 
     function updateLocationText(enteringAddress) {

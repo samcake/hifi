@@ -28,13 +28,7 @@ public:
     int nameToJointIndex(const QString& jointName) const;
     const QString& getJointName(int jointIndex) const;
     int getNumJoints() const;
-
-    // absolute pose, not relative to parent
-    const AnimPose& getAbsoluteBindPose(int jointIndex) const;
-
-    // relative to parent pose
-    const AnimPose& getRelativeBindPose(int jointIndex) const;
-    const AnimPoseVec& getRelativeBindPoses() const { return _relativeBindPoses; }
+    int getChainDepth(int jointIndex) const;
 
     // the default poses are the orientations of the joints on frame 0.
     const AnimPose& getRelativeDefaultPose(int jointIndex) const;
@@ -49,8 +43,9 @@ public:
     const AnimPose& getPostRotationPose(int jointIndex) const;
 
     int getParentIndex(int jointIndex) const;
+    std::vector<int> getChildrenOfJoint(int jointIndex) const;
 
-    AnimPose getAbsolutePose(int jointIndex, const AnimPoseVec& poses) const;
+    AnimPose getAbsolutePose(int jointIndex, const AnimPoseVec& relativePoses) const;
 
     void convertRelativePosesToAbsolute(AnimPoseVec& poses) const;
     void convertAbsolutePosesToRelative(AnimPoseVec& poses) const;
@@ -71,8 +66,6 @@ protected:
 
     std::vector<FBXJoint> _joints;
     int _jointsSize { 0 };
-    AnimPoseVec _absoluteBindPoses;
-    AnimPoseVec _relativeBindPoses;
     AnimPoseVec _relativeDefaultPoses;
     AnimPoseVec _absoluteDefaultPoses;
     AnimPoseVec _relativePreRotationPoses;

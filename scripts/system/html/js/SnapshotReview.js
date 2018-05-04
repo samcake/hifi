@@ -20,7 +20,14 @@ var blastShareText = "Blast to my Connections",
     hifiShareText = "Share to Snaps Feed",
     hifiAlreadySharedText = "Already Shared to Snaps Feed",
     facebookShareText = "Share to Facebook",
-    twitterShareText = "Share to Twitter";
+    twitterShareText = "Share to Twitter",
+    shareButtonLabelTextActive = "SHARE&#58;",
+    shareButtonLabelTextInactive = "SHARE";
+
+function fileExtensionMatches(filePath, extension) {
+    return filePath.split('.').pop().toLowerCase() === extension;
+}
+
 function showSetupInstructions() {
     var snapshotImagesDiv = document.getElementById("snapshot-images");
     snapshotImagesDiv.className = "snapshotInstructions";
@@ -133,6 +140,8 @@ function selectImageToShare(selectedID, isSelected) {
     var imageContainer = document.getElementById(selectedID),
         image = document.getElementById(selectedID + 'img'),
         shareBar = document.getElementById(selectedID + "shareBar"),
+        showShareButtonsDots = document.getElementById(selectedID + "showShareButtonsDots"),
+        showShareButtonsLabel = document.getElementById(selectedID + "showShareButtonsLabel"),
         shareButtonsDiv = document.getElementById(selectedID + "shareButtonsDiv"),
         shareBarHelp = document.getElementById(selectedID + "shareBarHelp"),
         showShareButtonsButtonDiv = document.getElementById(selectedID + "showShareButtonsButtonDiv"),
@@ -150,6 +159,9 @@ function selectImageToShare(selectedID, isSelected) {
 
         shareBar.style.backgroundColor = "rgba(0, 0, 0, 0.45)";
         shareBar.style.pointerEvents = "initial";
+
+        showShareButtonsDots.style.visibility = "hidden";
+        showShareButtonsLabel.innerHTML = shareButtonLabelTextActive;
 
         shareButtonsDiv.style.visibility = "visible";
         shareBarHelp.style.visibility = "visible";
@@ -171,6 +183,9 @@ function selectImageToShare(selectedID, isSelected) {
         shareBar.style.backgroundColor = "rgba(0, 0, 0, 0.0)";
         shareBar.style.pointerEvents = "none";
 
+        showShareButtonsDots.style.visibility = "visible";
+        showShareButtonsLabel.innerHTML = shareButtonLabelTextInactive;
+
         shareButtonsDiv.style.visibility = "hidden";
         shareBarHelp.style.visibility = "hidden";
     }
@@ -180,6 +195,7 @@ function createShareBar(parentID, isLoggedIn, canShare, isGif, blastButtonDisabl
         shareBarHelpID = parentID + "shareBarHelp",
         shareButtonsDivID = parentID + "shareButtonsDiv",
         showShareButtonsButtonDivID = parentID + "showShareButtonsButtonDiv",
+        showShareButtonsDotsID = parentID + "showShareButtonsDots",
         showShareButtonsLabelID = parentID + "showShareButtonsLabel",
         blastToConnectionsButtonID = parentID + "blastToConnectionsButton",
         shareWithEveryoneButtonID = parentID + "shareWithEveryoneButton",
@@ -194,8 +210,8 @@ function createShareBar(parentID, isLoggedIn, canShare, isGif, blastButtonDisabl
         if (canShare) {
             shareBarInnerHTML = '<div class="shareControlsHelp" id="' + shareBarHelpID + '" style="visibility:hidden;' + ((canBlast && blastButtonDisabled || !canBlast && hifiButtonDisabled) ? "background-color:#000;opacity:0.5;" : "") + '"></div>' +
                 '<div class="showShareButtonsButtonDiv inactive" id="' + showShareButtonsButtonDivID + '" onclick="selectImageToShare(' + parentID + ', true)">' +
-                    '<label id="' + showShareButtonsLabelID + '">SHARE</label>' +
-                    '<span class="showShareButtonDots">' +
+                    '<label id="' + showShareButtonsLabelID + '">' + shareButtonLabelTextInactive + '</label>' +
+                    '<span id="' + showShareButtonsDotsID + '" class="showShareButtonDots">' +
                         '&#xe019;' +
                     '</div>' +
                 '</div>' +
@@ -212,7 +228,7 @@ function createShareBar(parentID, isLoggedIn, canShare, isGif, blastButtonDisabl
             document.getElementById(parentID + 'img').onclick = function () { selectImageToShare(parentID, true); };
         } else {
             shareBarInnerHTML = '<div class="showShareButtonsButtonDiv inactive" id="' + showShareButtonsButtonDivID + '" onclick="selectImageToShare(' + parentID + ', true)">' +
-                    '<label id="' + showShareButtonsLabelID + '">SHARE</label>' +
+                    '<label id="' + showShareButtonsLabelID + '">' + shareButtonLabelTextInactive + '</label>' +
                     '<span class="showShareButtonDots">' +
                         '&#xe019;' +
                     '</div>' +
@@ -225,7 +241,7 @@ function createShareBar(parentID, isLoggedIn, canShare, isGif, blastButtonDisabl
         }
     } else {
         shareBarInnerHTML = '<div class="showShareButtonsButtonDiv inactive" id="' + showShareButtonsButtonDivID + '" onclick="selectImageToShare(' + parentID + ', true)">' +
-                '<label id="' + showShareButtonsLabelID + '">SHARE</label>' +
+                '<label id="' + showShareButtonsLabelID + '">' + shareButtonLabelTextInactive + '</label>' +
                 '<span class="showShareButtonDots">' +
                     '&#xe019;' +
                 '</div>' +
@@ -276,10 +292,10 @@ function addImage(image_data, isLoggedIn, canShare, isGifLoading, isShowingPrevi
     if (!image_data.localPath) {
         return;
     }
-    var id = "p" + (idCounter++),
-        imageContainer = document.createElement("DIV"),
+    var imageContainer = document.createElement("DIV"),
         img = document.createElement("IMG"),
-        isGif;
+        isGif = fileExtensionMatches(image_data.localPath, "gif"),
+        id = "p" + (isGif ? "1" : "0");
     imageContainer.id = id;
     imageContainer.style.width = "95%";
     imageContainer.style.height = "240px";
@@ -290,27 +306,33 @@ function addImage(image_data, isLoggedIn, canShare, isGifLoading, isShowingPrevi
     imageContainer.style.position = "relative";
     img.id = id + "img";
     img.src = image_data.localPath;
-    isGif = img.src.split('.').pop().toLowerCase() === "gif";
     imageContainer.appendChild(img);
     document.getElementById("snapshot-images").appendChild(imageContainer);
+    paths.push(image_data.localPath);
     img.onload = function () {
-        paths.push(image_data.localPath);
         if (isGif) {
             imageContainer.innerHTML += '<span class="gifLabel">GIF</span>';
         }
         if (!isGifLoading) {
             appendShareBar(id, isLoggedIn, canShare, isGif, blastButtonDisabled, hifiButtonDisabled, canBlast);
         }
-        if (!isGifLoading || (isShowingPreviousImages && !image_data.story_id)) {
+        if ((!isShowingPreviousImages && ((isGif && !isGifLoading) || !isGif)) || (isShowingPreviousImages && !image_data.story_id)) {
             shareForUrl(id);
         }
         if (isShowingPreviousImages && isLoggedIn && image_data.story_id) {
             updateShareInfo(id, image_data.story_id);
         }
+        if (isShowingPreviousImages) {
+            requestPrintButtonUpdate();  
+        } 
     };
     img.onerror = function () {
         img.onload = null;
         img.src = image_data.errorPath;
+        EventBridge.emitWebEvent(JSON.stringify({
+            type: "snapshot",
+            action: "alertSnapshotLoadFailed"
+        }));
     };
 }
 function showConfirmationMessage(selectedID, destination) {
@@ -638,9 +660,8 @@ window.onload = function () {
                     // The last element of the message contents list contains a bunch of options,
                     // including whether or not we can share stuff
                     // The other elements of the list contain image paths.
-
-                    if (messageOptions.containsGif) {
-                        if (messageOptions.processingGif) {
+                    if (messageOptions.containsGif === true) {
+                        if (messageOptions.processingGif === true) {
                             imageCount = message.image_data.length + 1; // "+1" for the GIF that'll finish processing soon
                             message.image_data.push({ localPath: messageOptions.loadingGifPath });
                             message.image_data.forEach(function (element, idx) {
@@ -656,7 +677,6 @@ window.onload = function () {
                             shareForUrl("p1");
                             appendShareBar("p1", messageOptions.isLoggedIn, messageOptions.canShare, true, false, false, messageOptions.canBlast);
                             document.getElementById("p1").classList.remove("processingGif");
-                            document.getElementById("snap-button").disabled = false;
                         }
                     } else {
                         imageCount = message.image_data.length;
@@ -664,13 +684,26 @@ window.onload = function () {
                             addImage(element, messageOptions.isLoggedIn, messageOptions.canShare, false, false, false, false, true);
                         });
                     }
+                    document.getElementById("snap-button").disabled = false;
                     break;
                 case 'captureSettings':
                     handleCaptureSetting(message.setting);
+                    break;              
+                case 'setPrintButtonEnabled':
+                    setPrintButtonEnabled();
+                    break;
+                case 'setPrintButtonLoading':
+                    setPrintButtonLoading();
+                    break;
+                case 'setPrintButtonDisabled':
+                    setPrintButtonDisabled();
                     break;
                 case 'snapshotUploadComplete':
-                    var isGif = message.image_url.split('.').pop().toLowerCase() === "gif";
+                    var isGif = fileExtensionMatches(message.image_url, "gif");
                     updateShareInfo(isGif ? "p1" : "p0", message.story_id);
+                    if (isPrintProcessing()) {                       
+                        setPrintButtonEnabled();
+                    }
                     break;
                 default:
                     console.log("Unknown message action received in SnapshotReview.js.");
@@ -695,8 +728,59 @@ function takeSnapshot() {
         type: "snapshot",
         action: "takeSnapshot"
     }));
-    if (document.getElementById('stillAndGif').checked === true) {
-        document.getElementById("snap-button").disabled = true;
+    document.getElementById("snap-button").disabled = true;
+}
+
+function isPrintDisabled() { 
+    var printElement = document.getElementById('print-icon');
+    
+    return printElement.classList.contains("print-icon") &&
+           printElement.classList.contains("print-icon-default") &&
+           document.getElementById('print-button').disabled;
+}
+function isPrintProcessing() { 
+    var printElement = document.getElementById('print-icon');  
+    
+    return printElement.classList.contains("print-icon") &&
+           printElement.classList.contains("print-icon-loading") &&
+           document.getElementById('print-button').disabled;
+}
+function isPrintEnabled() {
+    var printElement = document.getElementById('print-icon');    
+    
+    return printElement.classList.contains("print-icon") &&
+           printElement.classList.contains("print-icon-default") &&
+           !document.getElementById('print-button').disabled;
+}
+
+function setPrintButtonLoading() {
+    document.getElementById('print-icon').className = "print-icon print-icon-loading";
+    document.getElementById('print-button').disabled = true;
+}
+function setPrintButtonDisabled() {
+    document.getElementById('print-icon').className = "print-icon print-icon-default";
+    document.getElementById('print-button').disabled = true;
+}
+function setPrintButtonEnabled() { 
+    document.getElementById('print-button').disabled = false;
+    document.getElementById('print-icon').className = "print-icon print-icon-default";
+}
+
+function requestPrintButtonUpdate() {
+    EventBridge.emitWebEvent(JSON.stringify({
+        type: "snapshot",
+        action: "requestPrintButtonUpdate"
+    }));
+}
+
+function printToPolaroid() {   
+    if (isPrintEnabled()) {        
+        EventBridge.emitWebEvent(JSON.stringify({
+            type: "snapshot",
+            action: "printToPolaroid"
+        }));       
+    } else {
+        setPrintButtonLoading();
     }
 }
 

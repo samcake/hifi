@@ -20,6 +20,7 @@
 #include <UserActivityLogger.h>
 #include <UUID.h>
 
+#include "Crashpad.h"
 #include "DiscoverabilityManager.h"
 #include "Menu.h"
 
@@ -49,7 +50,7 @@ void DiscoverabilityManager::updateLocation() {
     auto accountManager = DependencyManager::get<AccountManager>();
     auto addressManager = DependencyManager::get<AddressManager>();
     auto& domainHandler = DependencyManager::get<NodeList>()->getDomainHandler();
-    bool discoverable = (_mode.get() != Discoverability::None);
+    bool discoverable = (_mode.get() != Discoverability::None) && !domainHandler.isServerless();
 
 
     if (accountManager->isLoggedIn()) {
@@ -127,10 +128,12 @@ void DiscoverabilityManager::updateLocation() {
                                    QNetworkAccessManager::PutOperation, callbackParameters);
     }
 
-    // Update Steam
+    // Update Steam and crash logger
+    QUrl currentAddress = addressManager->currentFacingPublicAddress();
     if (auto steamClient = PluginManager::getInstance()->getSteamClientPlugin()) {
-        steamClient->updateLocation(domainHandler.getHostname(), addressManager->currentFacingShareableAddress());
+        steamClient->updateLocation(domainHandler.getHostname(), currentAddress);
     }
+    setCrashAnnotation("address", currentAddress.toString().toStdString());
 }
 
 void DiscoverabilityManager::handleHeartbeatResponse(QNetworkReply& requestReply) {

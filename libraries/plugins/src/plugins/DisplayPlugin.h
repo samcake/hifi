@@ -17,13 +17,18 @@
 #include <QtCore/QPoint>
 #include <QtCore/QElapsedTimer>
 #include <QtCore/QJsonObject>
+#include <QtCore/QMutex>
+#include <QtCore/QWaitCondition>
 
 #include <GLMHelpers.h>
+#include <NumericalConstants.h>
 #include <RegisteredMetaTypes.h>
 #include <shared/Bilateral.h>
+#include <SimpleMovingAverage.h>
 #include <gpu/Forward.h>
-
 #include "Plugin.h"
+
+class QOpenGLFramebufferObject;
 
 class QImage;
 
@@ -60,8 +65,12 @@ namespace gpu {
     using TexturePointer = std::shared_ptr<Texture>;
 }
 
+class NetworkTexture;
+using NetworkTexturePointer = QSharedPointer<NetworkTexture>;
+typedef struct __GLsync *GLsync;
+
 // Stereo display functionality
-// TODO move out of this file don't derive DisplayPlugin from this.  Instead use dynamic casting when 
+// TODO move out of this file don't derive DisplayPlugin from this.  Instead use dynamic casting when
 // displayPlugin->isStereo returns true
 class StereoDisplay {
 public:
@@ -78,15 +87,13 @@ public:
 };
 
 // HMD display functionality
-// TODO move out of this file don't derive DisplayPlugin from this.  Instead use dynamic casting when 
+// TODO move out of this file don't derive DisplayPlugin from this.  Instead use dynamic casting when
 // displayPlugin->isHmd returns true
 class HmdDisplay : public StereoDisplay {
 public:
     // HMD specific methods
     // TODO move these into another class?
-    virtual glm::mat4 getEyeToHeadTransform(Eye eye) const {
-        static const glm::mat4 transform; return transform;
-    }
+    virtual glm::mat4 getEyeToHeadTransform(Eye eye) const;
 
     // returns a copy of the most recent head pose, computed via updateHeadPose
     virtual glm::mat4 getHeadPose() const {
@@ -102,24 +109,6 @@ public:
         RightHand = 0x02,
     };
 
-    enum class HandLaserMode {
-        None, // Render no hand lasers
-        Overlay, // Render hand lasers only if they intersect with the UI layer, and stop at the UI layer
-    };
-
-    virtual bool setHandLaser(
-        uint32_t hands, // Bits from the Hand enum
-        HandLaserMode mode, // Mode in which to render
-        const vec4& color = vec4(1), // The color of the rendered laser
-        const vec3& direction = vec3(0, 0, -1) // The direction in which to render the hand lasers
-        ) {
-        return false;
-    }
-
-    virtual bool setExtraLaser(HandLaserMode mode, const vec4& color, const glm::vec3& sensorSpaceStart, const vec3& sensorSpaceDirection) {
-        return false;
-    }
-
     virtual bool suppressKeyboard() { return false;  }
     virtual void unsuppressKeyboard() {};
     virtual bool isKeyboardVisible() { return false; }
@@ -129,10 +118,6 @@ class DisplayPlugin : public Plugin, public HmdDisplay {
     Q_OBJECT
     using Parent = Plugin;
 public:
-    enum Event {
-        Present = QEvent::User + 1
-    };
-
     virtual int getRequiredThreadCount() const { return 0; }
     virtual bool isHmd() const { return false; }
     virtual int getHmdScreen() const { return -1; }
@@ -142,7 +127,7 @@ public:
     virtual float getTargetFrameRate() const { return 1.0f; }
     virtual bool hasAsyncReprojection() const { return false; }
 
-    /// Returns a boolean value indicating whether the display is currently visible 
+    /// Returns a boolean value indicating whether the display is currently visible
     /// to the user.  For monitor displays, false might indicate that a screensaver,
     /// or power-save mode is active.  For HMDs it may reflect a sensor indicating
     /// whether the HMD is being worn
@@ -154,9 +139,6 @@ public:
     // Rendering support
     virtual void setContext(const gpu::ContextPointer& context) final { _gpuContext = context; }
     virtual void submitFrame(const gpu::FramePointer& newFrame) = 0;
-
-    // Does the rendering surface have current focus?
-    virtual bool hasFocus() const = 0;
 
     // The size of the rendering target (may be larger than the device size due to distortion)
     virtual glm::uvec2 getRecommendedRenderSize() const = 0;
@@ -171,8 +153,8 @@ public:
         return aspect(getRecommendedRenderSize());
     }
 
-    // The recommended bounds for primary overlay placement
-    virtual QRect getRecommendedOverlayRect() const {
+    // The recommended bounds for primary HUD placement
+    virtual QRect getRecommendedHUDRect() const {
         const int DESKTOP_SCREEN_PADDING = 50;
         auto recommendedSize = getRecommendedUiSize() - glm::uvec2(DESKTOP_SCREEN_PADDING);
         return QRect(0, 0, recommendedSize.x, recommendedSize.y);
@@ -180,9 +162,13 @@ public:
 
     // Fetch the most recently displayed image as a QImage
     virtual QImage getScreenshot(float aspectRatio = 0.0f) const = 0;
+    virtual QImage getSecondaryCameraScreenshot() const = 0;
 
     // will query the underlying hmd api to compute the most recent head pose
     virtual bool beginFrameRender(uint32_t frameIndex) { return true; }
+
+    // Set the texture to display on the monitor and return true, if allowed. Empty string resets.
+    virtual bool setDisplayTexture(const QString& name) { return false; }
 
     virtual float devicePixelRatio() { return 1.0f; }
     // Rate at which we render frames
@@ -200,9 +186,12 @@ public:
     virtual float newFramePresentRate() const { return -1.0f; }
     // Rate at which rendered frames are being skipped
     virtual float droppedFrameRate() const { return -1.0f; }
-    
+    virtual bool getSupportsAutoSwitch() { return false; }
+
     // Hardware specific stats
     virtual QJsonObject getHardwareStats() const { return QJsonObject(); }
+
+    virtual void copyTextureToQuickFramebuffer(NetworkTexturePointer source, QOpenGLFramebufferObject* target, GLsync* fenceSync) = 0;
 
     uint32_t presentCount() const { return _presentedFrameIndex; }
     // Time since last call to incrementPresentCount (only valid if DEBUG_PAINT_DELAY is defined)
@@ -210,19 +199,30 @@ public:
 
     virtual void cycleDebugOutput() {}
 
-    static const QString& MENU_PATH();
+    void waitForPresent();
+    float getAveragePresentTime() { return _movingAveragePresent.average / (float)USECS_PER_MSEC; } // in msec
 
+    std::function<void(gpu::Batch&, const gpu::TexturePointer&, bool mirror)> getHUDOperator();
+
+    static const QString& MENU_PATH();
 
 signals:
     void recommendedFramebufferSizeChanged(const QSize& size);
     void resetSensorsRequested();
+    void presented(quint32 frame);
 
 protected:
     void incrementPresentCount();
 
     gpu::ContextPointer _gpuContext;
 
+    std::function<void(gpu::Batch&, const gpu::TexturePointer&, bool mirror)> _hudOperator { std::function<void(gpu::Batch&, const gpu::TexturePointer&, bool mirror)>() };
+
+    MovingAverage<float, 10> _movingAveragePresent;
+
 private:
+    QMutex _presentMutex;
+    QWaitCondition _presentCondition;
     std::atomic<uint32_t> _presentedFrameIndex;
     mutable std::mutex _paintDelayMutex;
     QElapsedTimer _paintDelayTimer;

@@ -9,10 +9,13 @@
 
 #include "sdf_text3D_vert.h"
 #include "sdf_text3D_frag.h"
-#include "sdf_text3D_overlay_frag.h"
+#include "sdf_text3D_transparent_frag.h"
 
 #include "../RenderUtilsLogging.h"
 #include "FontFamilies.h"
+#include "../StencilMaskPass.h"
+
+static std::mutex fontMutex;
 
 struct TextureVertex {
     glm::vec2 pos;
@@ -56,6 +59,7 @@ Font::Pointer Font::load(QIODevice& fontFile) {
 }
 
 Font::Pointer Font::load(const QString& family) {
+    std::lock_guard<std::mutex> lock(fontMutex);
     if (!LOADED_FONTS.contains(family)) {
 
         static const QString SDFF_COURIER_PRIME_FILENAME{ ":/CourierPrime.sdff" };
@@ -219,15 +223,15 @@ void Font::setupGPU() {
 
         // Setup render pipeline
         {
-            auto vertexShader = gpu::Shader::createVertex(std::string(sdf_text3D_vert));
-            auto pixelShader = gpu::Shader::createPixel(std::string(sdf_text3D_frag));
-            auto pixelShaderOverlay = gpu::Shader::createPixel(std::string(sdf_text3D_overlay_frag));
+            auto vertexShader = sdf_text3D_vert::getShader();
+            auto pixelShader = sdf_text3D_frag::getShader();
+            auto pixelShaderTransparent = sdf_text3D_transparent_frag::getShader();
             gpu::ShaderPointer program = gpu::Shader::createProgram(vertexShader, pixelShader);
-            gpu::ShaderPointer programOverlay = gpu::Shader::createProgram(vertexShader, pixelShaderOverlay);
+            gpu::ShaderPointer programTransparent = gpu::Shader::createProgram(vertexShader, pixelShaderTransparent);
 
             gpu::Shader::BindingSet slotBindings;
             gpu::Shader::makeProgram(*program, slotBindings);
-            gpu::Shader::makeProgram(*programOverlay, slotBindings);
+            gpu::Shader::makeProgram(*programTransparent, slotBindings);
 
             _fontLoc = program->getTextures().findLocation("Font");
             _outlineLoc = program->getUniforms().findLocation("Outline");
@@ -236,15 +240,20 @@ void Font::setupGPU() {
             auto state = std::make_shared<gpu::State>();
             state->setCullMode(gpu::State::CULL_BACK);
             state->setDepthTest(true, true, gpu::LESS_EQUAL);
-            state->setBlendFunction(true,
+            state->setBlendFunction(false,
                 gpu::State::SRC_ALPHA, gpu::State::BLEND_OP_ADD, gpu::State::INV_SRC_ALPHA,
                 gpu::State::FACTOR_ALPHA, gpu::State::BLEND_OP_ADD, gpu::State::ONE);
+            PrepareStencil::testMaskDrawShape(*state);
             _pipeline = gpu::Pipeline::create(program, state);
 
-            auto layeredState = std::make_shared<gpu::State>();
-            layeredState->setCullMode(gpu::State::CULL_BACK);
-            layeredState->setDepthTest(true, true, gpu::LESS_EQUAL);
-            _layeredPipeline = gpu::Pipeline::create(programOverlay, layeredState);
+            auto transparentState = std::make_shared<gpu::State>();
+            transparentState->setCullMode(gpu::State::CULL_BACK);
+            transparentState->setDepthTest(true, true, gpu::LESS_EQUAL);
+            transparentState->setBlendFunction(true,
+                gpu::State::SRC_ALPHA, gpu::State::BLEND_OP_ADD, gpu::State::INV_SRC_ALPHA,
+                gpu::State::FACTOR_ALPHA, gpu::State::BLEND_OP_ADD, gpu::State::ONE);
+            PrepareStencil::testMaskDrawShape(*transparentState);
+            _transparentPipeline = gpu::Pipeline::create(programTransparent, transparentState);
         }
 
         // Sanity checks
@@ -358,13 +367,19 @@ void Font::drawString(gpu::Batch& batch, float x, float y, const QString& str, c
 
     setupGPU();
 
-    batch.setPipeline(layered ? _layeredPipeline : _pipeline);
-    batch.setResourceTexture(_fontLoc, _texture);
-    batch._glUniform1i(_outlineLoc, (effectType == OUTLINE_EFFECT));
+    batch.setPipeline(((*color).a < 1.0f || layered) ? _transparentPipeline : _pipeline);
+    if (_fontLoc >= 0) {
+        batch.setResourceTexture(_fontLoc, _texture);
+    }
+    if (_outlineLoc >= 0) {
+        batch._glUniform1i(_outlineLoc, (effectType == OUTLINE_EFFECT));
+    }
     
     // need the gamma corrected color here
     glm::vec4 lrgba = ColorUtils::sRGBToLinearVec4(*color);
-    batch._glUniform4fv(_colorLoc, 1, (const float*)&lrgba);
+    if (_colorLoc >= 0) {
+        batch._glUniform4fv(_colorLoc, 1, (const float*)&lrgba);
+    }
 
     batch.setInputFormat(_format);
     batch.setInputBuffer(0, _verticesBuffer, 0, _format->getChannels().at(0)._stride);

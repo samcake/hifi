@@ -9,7 +9,6 @@
 //
 
 import QtQuick 2.5
-import QtQuick.Controls 1.4
 import Qt.labs.settings 1.0
 
 import "../../styles-uit"
@@ -27,6 +26,11 @@ ScrollingWindow {
     minSize: Qt.vector2d(400, 500)
 
     HifiConstants { id: hifi }
+
+    // This is for JS/QML communication, which is unused in the AttachmentsDialog,
+    // but not having this here results in spurious warnings about a
+    // missing signal
+    signal sendToScript(var message);
 
     property var settings: Settings {
         category: "AttachmentsDialog"

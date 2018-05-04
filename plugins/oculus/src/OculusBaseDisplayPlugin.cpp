@@ -11,6 +11,7 @@
 #include <controllers/Pose.h>
 #include <display-plugins/CompositorHelper.h>
 #include <gpu/Frame.h>
+#include <gl/Config.h>
 
 #include "OculusHelpers.h"
 
@@ -40,7 +41,7 @@ bool OculusBaseDisplayPlugin::beginFrameRender(uint32_t frameIndex) {
     std::array<glm::mat4, 2> handPoses;
     // Make controller poses available to the presentation thread
     ovr_for_each_hand([&](ovrHandType hand) {
-        static const auto REQUIRED_HAND_STATUS = ovrStatus_OrientationTracked & ovrStatus_PositionTracked;
+        static const auto REQUIRED_HAND_STATUS = ovrStatus_OrientationTracked | ovrStatus_PositionTracked;
         if (REQUIRED_HAND_STATUS != (trackingState.HandStatusFlags[hand] & REQUIRED_HAND_STATUS)) {
             return;
         }
@@ -51,8 +52,6 @@ bool OculusBaseDisplayPlugin::beginFrameRender(uint32_t frameIndex) {
     });
 
     withNonPresentThreadLock([&] {
-        _uiModelTransform = DependencyManager::get<CompositorHelper>()->getModelTransform();
-        _handPoses = handPoses;
         _frameInfos[frameIndex] = _currentRenderFrameInfo;
     });
     return Parent::beginFrameRender(frameIndex);
@@ -62,11 +61,39 @@ bool OculusBaseDisplayPlugin::isSupported() const {
     return oculusAvailable();
 }
 
+glm::mat4 OculusBaseDisplayPlugin::getEyeProjection(Eye eye, const glm::mat4& baseProjection) const {
+    if (_session) {
+        ViewFrustum baseFrustum;
+        baseFrustum.setProjection(baseProjection);
+        float baseNearClip = baseFrustum.getNearClip();
+        float baseFarClip = baseFrustum.getFarClip();
+        ovrEyeType ovrEye = (eye == Left) ? ovrEye_Left : ovrEye_Right;
+        ovrFovPort fovPort = _hmdDesc.DefaultEyeFov[eye];
+        ovrEyeRenderDesc& erd = ovr_GetRenderDesc(_session, ovrEye, fovPort);
+        ovrMatrix4f ovrPerspectiveProjection = ovrMatrix4f_Projection(erd.Fov, baseNearClip, baseFarClip, ovrProjection_ClipRangeOpenGL);
+        return toGlm(ovrPerspectiveProjection);
+    } else {
+        return baseProjection;
+    }
+}
+
+glm::mat4 OculusBaseDisplayPlugin::getCullingProjection(const glm::mat4& baseProjection) const {
+    if (_session) {
+        ViewFrustum baseFrustum;
+        baseFrustum.setProjection(baseProjection);
+        float baseNearClip = baseFrustum.getNearClip();
+        float baseFarClip = baseFrustum.getFarClip();
+        auto combinedFov = _eyeFovs[0];
+        combinedFov.LeftTan = combinedFov.RightTan = std::max(combinedFov.LeftTan, combinedFov.RightTan);
+        return toGlm(ovrMatrix4f_Projection(combinedFov, baseNearClip, baseFarClip, ovrProjection_ClipRangeOpenGL));
+    } else {
+        return baseProjection;
+    }
+}
+
 // DLL based display plugins MUST initialize GLEW inside the DLL code.
 void OculusBaseDisplayPlugin::customizeContext() {
-    glewExperimental = true;
-    GLenum err = glewInit();
-    glGetError(); // clear the potential error from glewExperimental
+    gl::initModuleGl();
     Parent::customizeContext();
 }
 
@@ -123,10 +150,21 @@ bool OculusBaseDisplayPlugin::internalActivate() {
 
 void OculusBaseDisplayPlugin::internalDeactivate() {
     Parent::internalDeactivate();
-    releaseOculusSession();
-    _session = nullptr;
 }
 
+bool OculusBaseDisplayPlugin::activateStandBySession() {
+    if (!_session) {
+        _session = acquireOculusSession();
+    }
+    return _session;
+}
+void OculusBaseDisplayPlugin::deactivateSession() {
+    // FIXME
+    // Switching to Qt 5.9 exposed a race condition or similar issue that caused a crash when putting on an Rift
+    // while already in VR mode.  Commenting these out is a workaround.
+    //releaseOculusSession();
+    //_session = nullptr;
+}
 void OculusBaseDisplayPlugin::updatePresentPose() {
     //mat4 sensorResetMat;
     //_currentPresentFrameInfo.sensorSampleTime = ovr_GetTimeInSeconds();

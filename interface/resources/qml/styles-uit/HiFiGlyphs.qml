@@ -9,17 +9,14 @@
 //
 
 import QtQuick 2.5
-import QtQuick.Controls 1.4
-import QtQuick.Controls.Styles 1.4
 
 Text {
     id: root
-    FontLoader { id: hiFiGlyphs; source: pathToFonts + "fonts/hifi-glyphs.ttf"; }
     property int size: 32
     font.pixelSize: size
     width: size
     height: size
     verticalAlignment: Text.AlignVCenter
     horizontalAlignment: Text.AlignLeft
-    font.family: hiFiGlyphs.name
+    font.family: "hifi-glyphs"
 }

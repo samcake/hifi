@@ -6,15 +6,21 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 #include "GL41Backend.h"
-#include "../gl/GLShader.h"
-//#include <gl/GLShaders.h>
+#include <gpu/gl/GLShader.h>
 
 using namespace gpu;
+using namespace gpu::gl;
 using namespace gpu::gl41;
 
 // GLSL version
 std::string GL41Backend::getBackendShaderHeader() const {
-    return std::string("#version 410 core\n#define GPU_GL410 1");
+    static const std::string header(
+        R"SHADER(#version 410 core
+        #define GPU_GL410
+        #define PRECISIONQ
+        #define BITFIELD int
+        )SHADER");
+    return header;
 }
 
 int GL41Backend::makeResourceBufferSlots(GLuint glprogram, const Shader::BindingSet& slotBindings,Shader::SlotSet& resourceBuffers) {
@@ -84,7 +90,7 @@ int GL41Backend::makeResourceBufferSlots(GLuint glprogram, const Shader::Binding
     return ssboCount;
 }
 
-void GL41Backend::makeProgramBindings(gl::ShaderObject& shaderObject) {
+void GL41Backend::makeProgramBindings(ShaderObject& shaderObject) {
     if (!shaderObject.glprogram) {
         return;
     }

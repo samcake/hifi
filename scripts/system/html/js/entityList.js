@@ -156,6 +156,12 @@ function loaded() {
           var urlParts = url.split('/');
           var filename = urlParts[urlParts.length - 1];
 
+          var IMAGE_MODEL_NAME = 'default-image-model.fbx';
+
+          if (filename === IMAGE_MODEL_NAME) {
+              type = "Image";
+          }
+
           if (entities[id] === undefined) {
               entityList.add([{
                   id: id, name: name, type: type, url: filename, locked: locked, visible: visible,
@@ -286,7 +292,6 @@ function loaded() {
       }
       elDelete.onclick = function() {
           EventBridge.emitWebEvent(JSON.stringify({ type: 'delete' }));
-          refreshEntities();
       }
 
       document.addEventListener("keydown", function (keyDownEvent) {
@@ -362,6 +367,12 @@ function loaded() {
                       updateSelectedEntities(data.selectedIDs);
                       resize();
                   }
+              } else if (data.type === "deleted") {
+                  for (i = 0, length = data.ids.length; i < length; i++) {
+                      delete entities[data.ids[i]];
+                      entityList.remove("id", data.ids[i]);
+                  }
+                  refreshFooter();
               }
           });
           setTimeout(refreshEntities, 1000);

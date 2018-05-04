@@ -19,6 +19,8 @@
 
 #include <PerfStat.h>
 #include <PathUtils.h>
+#include <NumericalConstants.h>
+#include <StreamUtils.h>
 
 #include <OVR_CAPI.h>
 
@@ -208,13 +210,18 @@ void OculusControllerManager::RemoteDevice::focusOutEvent() {
     _buttonPressedMap.clear();
 }
 
-void OculusControllerManager::TouchDevice::update(float deltaTime, const controller::InputCalibrationData& inputCalibrationData) {
-    _buttonPressedMap.clear();
+bool OculusControllerManager::isHeadControllerMounted() const {
     ovrSessionStatus status;
-    if (!OVR_SUCCESS(ovr_GetSessionStatus(_parent._session, &status)) || (ovrFalse == status.HmdMounted)) {
-        // if the HMD isn't on someone's head, don't take input from the controllers
-        return;
+    bool success = OVR_SUCCESS(ovr_GetSessionStatus(_session, &status));
+    if (!success) {
+        return false;
     }
+    return status.HmdMounted == ovrTrue;
+}
+
+void OculusControllerManager::TouchDevice::update(float deltaTime,
+                                                  const controller::InputCalibrationData& inputCalibrationData) {
+    _buttonPressedMap.clear();
 
     int numTrackedControllers = 0;
     quint64 currentTime = usecTimestampNow();
@@ -230,14 +237,14 @@ void OculusControllerManager::TouchDevice::update(float deltaTime, const control
             _lastControllerPose[controller] = tracking.HandPoses[hand];
             return;
         }
-        
+
         if (_lostTracking[controller]) {
             if (currentTime > _regainTrackingDeadline[controller]) {
                 _poseStateMap.erase(controller);
                 _poseStateMap[controller].valid = false;
                 return;
             }
-            
+
         } else {
             quint64 deadlineToRegainTracking = currentTime + LOST_TRACKING_DELAY;
             _regainTrackingDeadline[controller] = deadlineToRegainTracking;
@@ -245,6 +252,13 @@ void OculusControllerManager::TouchDevice::update(float deltaTime, const control
         }
         handleRotationForUntrackedHand(inputCalibrationData, hand, tracking.HandPoses[hand]);
     });
+
+    if (_parent.isHeadControllerMounted()) {
+        handleHeadPose(deltaTime, inputCalibrationData, tracking.HeadPose);
+    } else {
+        _poseStateMap[controller::HEAD].valid = false;
+    }
+
     using namespace controller;
     // Axes
     const auto& inputState = _parent._inputState;
@@ -269,7 +283,7 @@ void OculusControllerManager::TouchDevice::update(float deltaTime, const control
         if (inputState.Touches & pair.first) {
             _buttonPressedMap.insert(pair.second);
         }
-    } 
+    }
 
     // Haptics
     {
@@ -292,16 +306,36 @@ void OculusControllerManager::TouchDevice::focusOutEvent() {
     _buttonPressedMap.clear();
 };
 
-void OculusControllerManager::TouchDevice::handlePose(float deltaTime, 
-    const controller::InputCalibrationData& inputCalibrationData, ovrHandType hand, 
-    const ovrPoseStatef& handPose) {
+void OculusControllerManager::TouchDevice::handlePose(float deltaTime,
+                                                      const controller::InputCalibrationData& inputCalibrationData,
+                                                      ovrHandType hand, const ovrPoseStatef& handPose) {
     auto poseId = hand == ovrHand_Left ? controller::LEFT_HAND : controller::RIGHT_HAND;
     auto& pose = _poseStateMap[poseId];
     pose = ovrControllerPoseToHandPose(hand, handPose);
     // transform into avatar frame
     glm::mat4 controllerToAvatar = glm::inverse(inputCalibrationData.avatarMat) * inputCalibrationData.sensorToWorldMat;
     pose = pose.transform(controllerToAvatar);
+}
 
+void OculusControllerManager::TouchDevice::handleHeadPose(float deltaTime,
+                                                          const controller::InputCalibrationData& inputCalibrationData,
+                                                          const ovrPoseStatef& headPose) {
+    glm::mat4 mat = createMatFromQuatAndPos(toGlm(headPose.ThePose.Orientation),
+                                            toGlm(headPose.ThePose.Position));
+
+    //perform a 180 flip to make the HMD face the +z instead of -z, beacuse the head faces +z
+    glm::mat4 matYFlip = mat * Matrices::Y_180;
+    controller::Pose pose(extractTranslation(matYFlip),
+                          glmExtractRotation(matYFlip),
+                          toGlm(headPose.LinearVelocity), // XXX * matYFlip ?
+                          toGlm(headPose.AngularVelocity));
+
+    glm::mat4 sensorToAvatar = glm::inverse(inputCalibrationData.avatarMat) * inputCalibrationData.sensorToWorldMat;
+    glm::mat4 defaultHeadOffset = glm::inverse(inputCalibrationData.defaultCenterEyeMat) *
+        inputCalibrationData.defaultHeadMat;
+
+    pose.valid = true;
+    _poseStateMap[controller::HEAD] = pose.postTransform(defaultHeadOffset).transform(sensorToAvatar);
 }
 
 void OculusControllerManager::TouchDevice::handleRotationForUntrackedHand(const controller::InputCalibrationData& inputCalibrationData,
@@ -349,6 +383,67 @@ void OculusControllerManager::TouchDevice::stopHapticPulse(bool leftHand) {
     ovr_SetControllerVibration(_parent._session, handType, 0.0f, 0.0f);
 }
 
+/**jsdoc
+ * <p>The <code>Controller.Hardware.OculusTouch</code> object has properties representing Oculus Rift. The property values are 
+ * integer IDs, uniquely identifying each output. <em>Read-only.</em> These can be mapped to actions or functions or 
+ * <code>Controller.Standard</code> items in a {@link RouteObject} mapping.</p>
+ * <table>
+ *   <thead>
+ *     <tr><th>Property</th><th>Type</th><th>Data</th><th>Description</th></tr>
+ *   </thead>
+ *   <tbody>
+ *     <tr><td colspan="4"><strong>Buttons</strong></td></tr>
+ *     <tr><td><code>A</code></td><td>number</td><td>number</td><td>"A" button pressed.</td></tr>
+ *     <tr><td><code>B</code></td><td>number</td><td>number</td><td>"B" button pressed.</td></tr>
+ *     <tr><td><code>X</code></td><td>number</td><td>number</td><td>"X" button pressed.</td></tr>
+ *     <tr><td><code>Y</code></td><td>number</td><td>number</td><td>"Y" button pressed.</td></tr>
+ *     <tr><td><code>LeftApplicationMenu</code></td><td>number</td><td>number</td><td>Left application menu button pressed.
+ *       </td></tr>
+ *     <tr><td><code>RightApplicationMenu</code></td><td>number</td><td>number</td><td>Right application menu button pressed.
+ *       </td></tr>
+ *     <tr><td colspan="4"><strong>Sticks</strong></td></tr>
+ *     <tr><td><code>LX</code></td><td>number</td><td>number</td><td>Left stick x-axis scale.</td></tr>
+ *     <tr><td><code>LY</code></td><td>number</td><td>number</td><td>Left stick y-axis scale.</td></tr>
+ *     <tr><td><code>RX</code></td><td>number</td><td>number</td><td>Right stick x-axis scale.</td></tr>
+ *     <tr><td><code>RY</code></td><td>number</td><td>number</td><td>Right stick y-axis scale.</td></tr>
+ *     <tr><td><code>LS</code></td><td>number</td><td>number</td><td>Left stick button pressed.</td></tr>
+ *     <tr><td><code>RS</code></td><td>number</td><td>number</td><td>Right stick button pressed.</td></tr>
+ *     <tr><td><code>LSTouch</code></td><td>number</td><td>number</td><td>Left stick is touched.</td></tr>
+ *     <tr><td><code>RSTouch</code></td><td>number</td><td>number</td><td>Right stick is touched.</td></tr>
+ *     <tr><td colspan="4"><strong>Triggers</strong></td></tr>
+ *     <tr><td><code>LT</code></td><td>number</td><td>number</td><td>Left trigger scale.</td></tr>
+ *     <tr><td><code>RT</code></td><td>number</td><td>number</td><td>Right trigger scale.</td></tr>
+ *     <tr><td><code>LeftGrip</code></td><td>number</td><td>number</td><td>Left grip scale.</td></tr>
+ *     <tr><td><code>RightGrip</code></td><td>number</td><td>number</td><td>Right grip scale.</td></tr>
+ *     <tr><td colspan="4"><strong>Finger Abstractions</strong></td></tr>
+ *     <tr><td><code>LeftPrimaryThumbTouch</code></td><td>number</td><td>number</td><td>Left thumb touching primary thumb 
+ *       button.</td></tr>
+ *     <tr><td><code>LeftSecondaryThumbTouch</code></td><td>number</td><td>number</td><td>Left thumb touching secondary thumb 
+ *       button.</td></tr>
+ *     <tr><td><code>LeftThumbUp</code></td><td>number</td><td>number</td><td>Left thumb not touching primary or secondary 
+ *       thumb buttons.</td></tr>
+ *     <tr><td><code>RightPrimaryThumbTouch</code></td><td>number</td><td>number</td><td>Right thumb touching primary thumb 
+ *       button.</td></tr>
+ *     <tr><td><code>RightSecondaryThumbTouch</code></td><td>number</td><td>number</td><td>Right thumb touching secondary thumb 
+ *       button.</td></tr>
+ *     <tr><td><code>RightThumbUp</code></td><td>number</td><td>number</td><td>Right thumb not touching primary or secondary 
+ *       thumb buttons.</td></tr>
+ *     <tr><td><code>LeftPrimaryIndexTouch</code></td><td>number</td><td>number</td><td>Left index finger is touching primary 
+ *       index finger control.</td></tr>
+ *     <tr><td><code>LeftIndexPoint</code></td><td>number</td><td>number</td><td>Left index finger is pointing, not touching 
+ *       primary or secondary index finger controls.</td></tr>
+ *     <tr><td><code>RightPrimaryIndexTouch</code></td><td>number</td><td>number</td><td>Right index finger is touching primary 
+ *       index finger control.</td></tr>
+ *     <tr><td><code>RightIndexPoint</code></td><td>number</td><td>number</td><td>Right index finger is pointing, not touching 
+ *       primary or secondary index finger controls.</td></tr>
+ *     <tr><td colspan="4"><strong>Avatar Skeleton</strong></td></tr>
+ *     <tr><td><code>Head</code></td><td>number</td><td>{@link Pose}</td><td>Head pose.</td></tr>
+ *     <tr><td><code>LeftHand</code></td><td>number</td><td>{@link Pose}</td><td>Left hand pose.</td></tr>
+ *     <tr><td><code>RightHand</code></td><td>number</td><td>{@link Pose}</td><td>right hand pose.</td></tr>
+ *   </tbody>
+ * </table>
+ * @typedef Controller.Hardware-OculusTouch
+ */
 controller::Input::NamedVector OculusControllerManager::TouchDevice::getAvailableInputs() const {
     using namespace controller;
     QVector<Input::NamedPair> availableInputs{
@@ -382,6 +477,7 @@ controller::Input::NamedVector OculusControllerManager::TouchDevice::getAvailabl
 
         makePair(LEFT_HAND, "LeftHand"),
         makePair(RIGHT_HAND, "RightHand"),
+        makePair(HEAD, "Head"),
 
         makePair(LEFT_PRIMARY_THUMB_TOUCH, "LeftPrimaryThumbTouch"),
         makePair(LEFT_SECONDARY_THUMB_TOUCH, "LeftSecondaryThumbTouch"),

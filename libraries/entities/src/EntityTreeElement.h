@@ -21,11 +21,13 @@
 #include "EntityItem.h"
 #include "EntityTree.h"
 
-typedef QVector<EntityItemPointer> EntityItems;
-
 class EntityTree;
 class EntityTreeElement;
-typedef std::shared_ptr<EntityTreeElement> EntityTreeElementPointer;
+
+using EntityItems = QVector<EntityItemPointer>;
+using EntityTreeElementWeakPointer = std::weak_ptr<EntityTreeElement>;
+using EntityTreeElementPointer = std::shared_ptr<EntityTreeElement>;
+using EntityItemFilter = std::function<bool(EntityItemPointer&)>;
 
 class EntityTreeUpdateArgs {
 public:
@@ -119,17 +121,6 @@ public:
     virtual bool requiresSplit() const override { return false; }
 
     virtual void debugExtraEncodeData(EncodeBitstreamParams& params) const override;
-    virtual void initializeExtraEncodeData(EncodeBitstreamParams& params) override;
-    virtual bool shouldIncludeChildData(int childIndex, EncodeBitstreamParams& params) const override;
-    virtual bool shouldRecurseChildTree(int childIndex, EncodeBitstreamParams& params) const override;
-    virtual void updateEncodedData(int childIndex, AppendState childAppendState, EncodeBitstreamParams& params) const override;
-    virtual void elementEncodeComplete(EncodeBitstreamParams& params) const override;
-
-    bool alreadyFullyEncoded(EncodeBitstreamParams& params) const;
-
-    /// Override to serialize the state of this element. This is used for persistance and for transmission across the network.
-    virtual OctreeElement::AppendState appendElementData(OctreePacketData* packetData,
-                                                         EncodeBitstreamParams& params) const override;
 
     /// Override to deserialize the state of this element. This is used for loading from a persisted file or from reading
     /// from the network.
@@ -144,16 +135,16 @@ public:
     virtual bool deleteApproved() const override { return !hasEntities(); }
 
     virtual bool canRayIntersect() const override { return hasEntities(); }
-    virtual bool findRayIntersection(const glm::vec3& origin, const glm::vec3& direction,
+    virtual EntityItemID findRayIntersection(const glm::vec3& origin, const glm::vec3& direction,
         bool& keepSearching, OctreeElementPointer& node, float& distance,
         BoxFace& face, glm::vec3& surfaceNormal, const QVector<EntityItemID>& entityIdsToInclude,
-        const QVector<EntityItemID>& entityIdsToDiscard, bool visibleOnly = false, bool collidableOnly = false,
-        void** intersectedObject = NULL, bool precisionPicking = false);
-    virtual bool findDetailedRayIntersection(const glm::vec3& origin, const glm::vec3& direction,
-                         bool& keepSearching, OctreeElementPointer& element, float& distance,
+        const QVector<EntityItemID>& entityIdsToDiscard, bool visibleOnly, bool collidableOnly,
+        QVariantMap& extraInfo, bool precisionPicking = false);
+    virtual EntityItemID findDetailedRayIntersection(const glm::vec3& origin, const glm::vec3& direction,
+                         OctreeElementPointer& element, float& distance,
                          BoxFace& face, glm::vec3& surfaceNormal, const QVector<EntityItemID>& entityIdsToInclude,
                          const QVector<EntityItemID>& entityIdsToDiscard, bool visibleOnly, bool collidableOnly,
-                         void** intersectedObject, bool precisionPicking, float distanceToElementCube);
+                         QVariantMap& extraInfo, bool precisionPicking);
     virtual bool findSpherePenetration(const glm::vec3& center, float radius,
                         glm::vec3& penetration, void** penetratedObject) const override;
 
@@ -173,7 +164,6 @@ public:
     void setTree(EntityTreePointer tree) { _myTree = tree; }
     EntityTreePointer getTree() const { return _myTree; }
 
-    bool updateEntity(const EntityItem& entity);
     void addEntityItem(EntityItemPointer entity);
 
     EntityItemPointer getClosestEntity(glm::vec3 position) const;
@@ -199,13 +189,17 @@ public:
     /// \param entities[out] vector of non-const EntityItemPointer
     void getEntities(const ViewFrustum& frustum, QVector<EntityItemPointer>& foundEntities);
 
+    /// finds all entities that match filter
+    /// \param filter function that adds matching entities to foundEntities
+    /// \param entities[out] vector of non-const EntityItemPointer
+    void getEntities(EntityItemFilter& filter,  QVector<EntityItemPointer>& foundEntities);
+
     EntityItemPointer getEntityWithID(uint32_t id) const;
     EntityItemPointer getEntityWithEntityItemID(const EntityItemID& id) const;
     void getEntitiesInside(const AACube& box, QVector<EntityItemPointer>& foundEntities);
 
     void cleanupEntities(); /// called by EntityTree on cleanup this will free all entities
-    bool removeEntityWithEntityItemID(const EntityItemID& id);
-    bool removeEntityItem(EntityItemPointer entity);
+    bool removeEntityItem(EntityItemPointer entity, bool deletion = false);
 
     bool containsEntityBounds(EntityItemPointer entity) const;
     bool bestFitEntityBounds(EntityItemPointer entity) const;

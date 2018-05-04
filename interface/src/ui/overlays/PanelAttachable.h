@@ -39,18 +39,15 @@
 #include <QUuid>
 
 class OverlayPanel;
-
 class PanelAttachable {
 public:
     // getters
-    std::shared_ptr<OverlayPanel> getParentPanel() const { return _parentPanel; }
     glm::vec3 getOffsetPosition() const { return _offset.getTranslation(); }
     glm::quat getOffsetRotation() const { return _offset.getRotation(); }
     glm::vec3 getOffsetScale() const { return _offset.getScale(); }
     bool getParentVisible() const;
 
     // setters
-    void setParentPanel(std::shared_ptr<OverlayPanel> panel) { _parentPanel = panel; }
     void setOffsetPosition(const glm::vec3& position) { _offset.setTranslation(position); }
     void setOffsetRotation(const glm::quat& rotation) { _offset.setRotation(rotation); }
     void setOffsetScale(float scale) { _offset.setScale(scale); }
@@ -62,11 +59,10 @@ protected:
 
     /// set position, rotation and scale on transform based on offsets, and parent panel offsets
     /// if force is false, only apply transform if it hasn't been applied in the last .1 seconds
-    virtual void applyTransformTo(Transform& transform, bool force = false);
+    virtual bool applyTransformTo(Transform& transform, bool force = false);
     quint64 _transformExpiry = 0;
 
 private:
-    std::shared_ptr<OverlayPanel> _parentPanel = nullptr;
     Transform _offset;
 };
 

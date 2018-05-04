@@ -28,7 +28,6 @@
 
 #include <SettingHandle.h>
 
-#include "NetworkingConstants.h"
 #include "NetworkLogging.h"
 #include "NodeList.h"
 #include "udt/PacketHeaders.h"
@@ -45,7 +44,6 @@ Q_DECLARE_METATYPE(QNetworkAccessManager::Operation)
 Q_DECLARE_METATYPE(JSONCallbackParameters)
 
 const QString ACCOUNTS_GROUP = "accounts";
-static const auto METAVERSE_SESSION_ID_HEADER = QString("HFM-SessionID").toLocal8Bit();
 
 JSONCallbackParameters::JSONCallbackParameters(QObject* jsonCallbackReceiver, const QString& jsonCallbackMethod,
                                                QObject* errorCallbackReceiver, const QString& errorCallbackMethod,
@@ -108,7 +106,11 @@ void AccountManager::logout() {
 }
 
 QString accountFileDir() {
+#if defined(Q_OS_ANDROID)
+    return QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/../files";
+#else
     return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+#endif
 }
 
 QString accountFilePath() {
@@ -201,6 +203,13 @@ void AccountManager::setAuthURL(const QUrl& authURL) {
     }
 }
 
+void AccountManager::setSessionID(const QUuid& sessionID) {
+    if (_sessionID != sessionID) {
+        qCDebug(networking) << "Metaverse session ID changed to" << uuidStringWithoutCurlyBraces(sessionID);
+        _sessionID = sessionID;
+    }
+}
+
 void AccountManager::sendRequest(const QString& path,
                                  AccountManagerAuth::Type authType,
                                  QNetworkAccessManager::Operation operation,
@@ -234,7 +243,7 @@ void AccountManager::sendRequest(const QString& path,
     QUrl requestURL = _authURL;
     
     if (requestURL.isEmpty()) {  // Assignment client doesn't set _authURL.
-        requestURL = NetworkingConstants::METAVERSE_SERVER_URL;
+        requestURL = getMetaverseServerURL();
     }
 
     if (path.startsWith("/")) {

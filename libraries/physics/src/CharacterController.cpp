@@ -12,14 +12,13 @@
 #include "CharacterController.h"
 
 #include <NumericalConstants.h>
+#include <AvatarConstants.h>
 
 #include "ObjectMotionState.h"
 #include "PhysicsHelpers.h"
 #include "PhysicsLogging.h"
 
 const btVector3 LOCAL_UP_AXIS(0.0f, 1.0f, 0.0f);
-const float JUMP_SPEED = 3.5f;
-const float MAX_FALL_HEIGHT = 20.0f;
 
 #ifdef DEBUG_STATE_CHANGE
 #define SET_STATE(desiredState, reason) setState(desiredState, reason)
@@ -62,12 +61,11 @@ CharacterController::CharacterMotor::CharacterMotor(const glm::vec3& vel, const 
 }
 
 CharacterController::CharacterController() {
-    _floorDistance = MAX_FALL_HEIGHT;
+    _floorDistance = _scaleFactor * DEFAULT_AVATAR_FALL_HEIGHT;
 
     _targetVelocity.setValue(0.0f, 0.0f, 0.0f);
     _followDesiredBodyTransform.setIdentity();
     _followTimeRemaining = 0.0f;
-    _jumpSpeed = JUMP_SPEED;
     _state = State::Hover;
     _isPushingUp = false;
     _rayHitStartTime = 0;
@@ -122,7 +120,7 @@ void CharacterController::setDynamicsWorld(btDynamicsWorld* world) {
             _dynamicsWorld->addRigidBody(_rigidBody, collisionGroup, BULLET_COLLISION_MASK_MY_AVATAR);
             _dynamicsWorld->addAction(this);
             // restore gravity settings because adding an object to the world overwrites its gravity setting
-            _rigidBody->setGravity(_gravity * _currentUp);
+            _rigidBody->setGravity(_currentGravity * _currentUp);
             btCollisionShape* shape = _rigidBody->getCollisionShape();
             assert(shape && shape->getShapeType() == CONVEX_HULL_SHAPE_PROXYTYPE);
             _ghost.setCharacterShape(static_cast<btConvexHullShape*>(shape));
@@ -152,6 +150,7 @@ bool CharacterController::checkForSupport(btCollisionWorld* collisionWorld) {
     btDispatcher* dispatcher = collisionWorld->getDispatcher();
     int numManifolds = dispatcher->getNumManifolds();
     bool hasFloor = false;
+    bool isStuck = false;
 
     btTransform rotation = _rigidBody->getWorldTransform();
     rotation.setOrigin(btVector3(0.0f, 0.0f, 0.0f)); // clear translation part
@@ -169,10 +168,18 @@ bool CharacterController::checkForSupport(btCollisionWorld* collisionWorld) {
                 btVector3 pointOnCharacter = characterIsFirst ? contact.m_localPointA : contact.m_localPointB; // object-local-frame
                 btVector3 normal = characterIsFirst ? contact.m_normalWorldOnB : -contact.m_normalWorldOnB; // points toward character
                 btScalar hitHeight = _halfHeight + _radius + pointOnCharacter.dot(_currentUp);
+                // If there's non-trivial penetration with a big impulse for several steps, we're probably stuck.
+                // Note it here in the controller, and let MyAvatar figure out what to do about it.
+                const float STUCK_PENETRATION = -0.05f; // always negative into the object.
+                const float STUCK_IMPULSE = 500.0f;
+                const int STUCK_LIFETIME = 3;
+                if ((contact.getDistance() < STUCK_PENETRATION) && (contact.getAppliedImpulse() > STUCK_IMPULSE) && (contact.getLifeTime() > STUCK_LIFETIME)) {
+                    isStuck = true; // latch on
+                }
                 if (hitHeight < _maxStepHeight && normal.dot(_currentUp) > _minFloorNormalDotUp) {
                     hasFloor = true;
-                    if (!pushing) {
-                        // we're not pushing against anything so we can early exit
+                    if (!pushing && isStuck) {
+                        // we're not pushing against anything and we're stuck so we can early exit
                         // (all we need to know is that there is a floor)
                         break;
                     }
@@ -198,12 +205,13 @@ bool CharacterController::checkForSupport(btCollisionWorld* collisionWorld) {
                 _stepHeight = highestStep;
                 _stepPoint = rotation * pointOnCharacter; // rotate into world-frame
             }
-            if (hasFloor && !(pushing && _stepUpEnabled)) {
+            if (hasFloor && isStuck && !(pushing && _stepUpEnabled)) {
                 // early exit since all we need to know is that we're on a floor
                 break;
             }
         }
     }
+    _isStuck = isStuck;
     return hasFloor;
 }
 
@@ -255,13 +263,13 @@ void CharacterController::playerStep(btCollisionWorld* collisionWorld, btScalar 
         btVector3 endPos = startPos + linearDisplacement;
 
         btQuaternion startRot = bodyTransform.getRotation();
-        glm::vec2 currentFacing = getFacingDir2D(bulletToGLM(startRot));
-        glm::vec2 currentRight(currentFacing.y, -currentFacing.x);
-        glm::vec2 desiredFacing = getFacingDir2D(bulletToGLM(_followDesiredBodyTransform.getRotation()));
-        float deltaAngle = acosf(glm::clamp(glm::dot(currentFacing, desiredFacing), -1.0f, 1.0f));
-        float angularSpeed = deltaAngle / _followTimeRemaining;
-        float sign = copysignf(1.0f, glm::dot(desiredFacing, currentRight));
-        btQuaternion angularDisplacement = btQuaternion(btVector3(0.0f, 1.0f, 0.0f), sign * angularSpeed * dt);
+        btQuaternion desiredRot = _followDesiredBodyTransform.getRotation();
+        if (desiredRot.dot(startRot) < 0.0f) {
+            desiredRot = -desiredRot;
+        }
+        btQuaternion deltaRot = desiredRot * startRot.inverse();
+        float angularSpeed = deltaRot.getAngle() / _followTimeRemaining;
+        btQuaternion angularDisplacement = btQuaternion(deltaRot.getAxis(), angularSpeed * dt);
         btQuaternion endRot = angularDisplacement * startRot;
 
         // in order to accumulate displacement of avatar position, we need to take _shapeLocalOffset into account.
@@ -294,7 +302,7 @@ void CharacterController::playerStep(btCollisionWorld* collisionWorld, btScalar 
             // add minimum velocity to counteract gravity's displacement during one step
             // Note: the 0.5 factor comes from the fact that we really want the
             // average velocity contribution from gravity during the step
-            stepUpSpeed -= 0.5f * _gravity * timeToStep; // remember: _gravity is negative scalar
+            stepUpSpeed -= 0.5f * _currentGravity * timeToStep; // remember: _gravity is negative scalar
 
             btScalar vDotUp = velocity.dot(_currentUp);
             if (vDotUp < stepUpSpeed) {
@@ -343,6 +351,28 @@ static const char* stateToStr(CharacterController::State state) {
 }
 #endif // #ifdef DEBUG_STATE_CHANGE
 
+void CharacterController::updateCurrentGravity() {
+    int16_t collisionGroup = computeCollisionGroup();
+    if (_state == State::Hover || collisionGroup == BULLET_COLLISION_GROUP_COLLISIONLESS) {
+        _currentGravity = 0.0f;
+    } else {
+        _currentGravity = _gravity;
+    }
+    if (_rigidBody) {
+        _rigidBody->setGravity(_currentGravity * _currentUp);
+    }
+}
+
+
+void CharacterController::setGravity(float gravity) {
+    _gravity = gravity;
+    updateCurrentGravity();
+}
+
+float CharacterController::getGravity() {
+    return _gravity;
+}
+
 #ifdef DEBUG_STATE_CHANGE
 void CharacterController::setState(State desiredState, const char* reason) {
 #else
@@ -357,21 +387,12 @@ void CharacterController::setState(State desiredState) {
         qCDebug(physics) << "CharacterController::setState" << stateToStr(desiredState) << "from" << stateToStr(_state) << "," << reason;
 #endif
         _state = desiredState;
-        updateGravity();
+        updateCurrentGravity();
     }
 }
 
-void CharacterController::updateGravity() {
-    int16_t collisionGroup = computeCollisionGroup();
-    if (_state == State::Hover || collisionGroup == BULLET_COLLISION_GROUP_COLLISIONLESS) {
-        _gravity = 0.0f;
-    } else {
-        const float DEFAULT_CHARACTER_GRAVITY = -5.0f;
-        _gravity = DEFAULT_CHARACTER_GRAVITY;
-    }
-    if (_rigidBody) {
-        _rigidBody->setGravity(_gravity * _currentUp);
-    }
+void CharacterController::recomputeFlying() {
+    _pendingFlags |= PENDING_FLAG_RECOMPUTE_FLYING;
 }
 
 void CharacterController::setLocalBoundingBox(const glm::vec3& minCorner, const glm::vec3& scale) {
@@ -429,14 +450,14 @@ void CharacterController::handleChangedCollisionGroup() {
             _dynamicsWorld->addRigidBody(_rigidBody, collisionGroup, BULLET_COLLISION_MASK_MY_AVATAR);
         }
         _pendingFlags &= ~PENDING_FLAG_UPDATE_COLLISION_GROUP;
-        updateGravity();
+        updateCurrentGravity();
     }
 }
 
 void CharacterController::updateUpAxis(const glm::quat& rotation) {
     _currentUp = quatRotate(glmToBullet(rotation), LOCAL_UP_AXIS);
-    if (_state != State::Hover && _rigidBody) {
-        _rigidBody->setGravity(_gravity * _currentUp);
+    if (_rigidBody) {
+        _rigidBody->setGravity(_currentGravity * _currentUp);
     }
 }
 
@@ -640,10 +661,17 @@ void CharacterController::updateState() {
     if (!_dynamicsWorld) {
         return;
     }
+    if (_pendingFlags & PENDING_FLAG_RECOMPUTE_FLYING) {
+        SET_STATE(CharacterController::State::Hover, "recomputeFlying");
+         _hasSupport = false;
+         _stepHeight = _minStepHeight; // clears memory of last step obstacle
+         _pendingFlags &= ~PENDING_FLAG_RECOMPUTE_FLYING;
+    }
+
     const btScalar FLY_TO_GROUND_THRESHOLD = 0.1f * _radius;
     const btScalar GROUND_TO_FLY_THRESHOLD = 0.8f * _radius + _halfHeight;
     const quint64 TAKE_OFF_TO_IN_AIR_PERIOD = 250 * MSECS_PER_SECOND;
-    const btScalar MIN_HOVER_HEIGHT = 2.5f;
+    const btScalar MIN_HOVER_HEIGHT = _scaleFactor * DEFAULT_AVATAR_MIN_HOVER_HEIGHT;
     const quint64 JUMP_TO_HOVER_PERIOD = 1100 * MSECS_PER_SECOND;
 
     // scan for distant floor
@@ -653,7 +681,7 @@ void CharacterController::updateState() {
     btScalar rayLength = _radius;
     int16_t collisionGroup = computeCollisionGroup();
     if (collisionGroup == BULLET_COLLISION_GROUP_MY_AVATAR) {
-        rayLength += MAX_FALL_HEIGHT;
+        rayLength += _scaleFactor * DEFAULT_AVATAR_FALL_HEIGHT;
     } else {
         rayLength += MIN_HOVER_HEIGHT;
     }
@@ -707,11 +735,15 @@ void CharacterController::updateState() {
                 SET_STATE(State::Hover, "no ground");
             } else if ((now - _takeoffToInAirStartTime) > TAKE_OFF_TO_IN_AIR_PERIOD) {
                 SET_STATE(State::InAir, "takeoff done");
-                velocity += _jumpSpeed * _currentUp;
+
+                // compute jumpSpeed based on the scaled jump height for the default avatar in default gravity.
+                float jumpSpeed = sqrtf(2.0f * DEFAULT_AVATAR_GRAVITY * _scaleFactor * DEFAULT_AVATAR_JUMP_HEIGHT);
+                velocity += jumpSpeed * _currentUp;
                 _rigidBody->setLinearVelocity(velocity);
             }
             break;
         case State::InAir: {
+            const float JUMP_SPEED = _scaleFactor * DEFAULT_AVATAR_JUMP_SPEED;
             if ((velocity.dot(_currentUp) <= (JUMP_SPEED / 2.0f)) && ((_floorDistance < FLY_TO_GROUND_THRESHOLD) || _hasSupport)) {
                 SET_STATE(State::Ground, "hit ground");
             } else {
@@ -724,6 +756,9 @@ void CharacterController::updateState() {
                     SET_STATE(State::Hover, "double jump button");
                 } else if ((jumpButtonHeld || vertTargetSpeedIsNonZero) && (now - _jumpButtonDownStartTime) > JUMP_TO_HOVER_PERIOD) {
                     SET_STATE(State::Hover, "jump button held");
+                } else if (_floorDistance > _scaleFactor * DEFAULT_AVATAR_FALL_HEIGHT) {
+                    // Transition to hover if we are above the fall threshold
+                    SET_STATE(State::Hover, "above fall threshold");
                 }
             }
             break;

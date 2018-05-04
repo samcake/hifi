@@ -16,16 +16,18 @@ import "../js/Utils.js" as Utils
 
 Item {
     id: frame
+    objectName: "Frame"
     HifiConstants { id: hifi }
 
     default property var decoration
-
+    property string qmlFile: "N/A"
     property bool gradientsSupported: desktop.gradientsSupported
 
     readonly property int frameMarginLeft: frame.decoration ? frame.decoration.frameMarginLeft : 0
     readonly property int frameMarginRight: frame.decoration ? frame.decoration.frameMarginRight : 0
     readonly property int frameMarginTop: frame.decoration ? frame.decoration.frameMarginTop : 0
     readonly property int frameMarginBottom: frame.decoration ? frame.decoration.frameMarginBottom : 0
+    readonly property int offsetCorrection: 20
 
     // Frames always fill their parents, but their decorations may extend
     // beyond the window via negative margin sizes
@@ -42,7 +44,8 @@ Item {
     Text {
         id: debugZ
         visible: DebugQML
-        text: window ? "Z: " + window.z : ""
+        color: "red"
+        text: (window ? "Z: " + window.z : "") + " " + qmlFile
         y: window ? window.height + 4 : 0
     }
 
@@ -73,7 +76,7 @@ Item {
     Rectangle {
         id: sizeOutline
         x: -frameMarginLeft
-        y: -frameMarginTop
+        y: -frameMarginTop - offsetCorrection
         width: window ? window.width + frameMarginLeft + frameMarginRight + 2 : 0
         height: window ? window.height + frameMarginTop + frameMarginBottom + 2 : 0
         color: hifi.colors.baseGrayHighlight15

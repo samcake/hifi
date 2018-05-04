@@ -40,7 +40,6 @@ var HOVER_TEXTURES = {
 var UNSELECTED_COLOR = { red: 0x1F, green: 0xC6, blue: 0xA6};
 var SELECTED_COLOR = {red: 0xF3, green: 0x91, blue: 0x29};
 var HOVER_COLOR = {red: 0xD0, green: 0xD0, blue: 0xD0}; // almost white for now
-
 var conserveResources = true;
 
 Script.include("/~/system/libraries/controllers.js");
@@ -189,7 +188,6 @@ function HighlightedEntity(id, entityProperties) {
             green: 0x91,
             blue: 0x29
         },
-        lineWidth: 1.0,
         ignoreRayIntersection: true,
         drawInFront: false // Arguable. For now, let's not distract with mysterious wires around the scene.
     });
@@ -334,7 +332,7 @@ function updateUser(data) {
 // User management services
 //
 // These are prototype versions that will be changed when the back end changes.
-var METAVERSE_BASE = location.metaverseServerUrl;
+var METAVERSE_BASE = Account.metaverseServerURL;
 
 function requestJSON(url, callback) { // callback(data) if successfull. Logs otherwise.
     request({
@@ -362,7 +360,7 @@ function getProfilePicture(username, callback) { // callback(url) if successfull
     });
 }
 function getAvailableConnections(domain, callback) { // callback([{usename, location}...]) if successfull. (Logs otherwise)
-    url = METAVERSE_BASE + '/api/v1/users?'
+    url = METAVERSE_BASE + '/api/v1/users?per_page=400&'
     if (domain) {
         url += 'status=' + domain.slice(1, -1); // without curly braces
     } else {
@@ -479,12 +477,13 @@ function populateNearbyUserList(selectData, oldAudioData) {
             admin: false,
             personalMute: !!id && Users.getPersonalMuteStatus(id), // expects proper boolean, not null
             ignore: !!id && Users.getIgnoreStatus(id), // ditto
-            isPresent: true
+            isPresent: true,
+            isReplicated: avatar.isReplicated
         };
+        // Everyone needs to see admin status. Username and fingerprint returns default constructor output if the requesting user isn't an admin.
+        Users.requestUsernameFromID(id);
         if (id) {
             addAvatarNode(id); // No overlay for ourselves
-            // Everyone needs to see admin status. Username and fingerprint returns default constructor output if the requesting user isn't an admin.
-            Users.requestUsernameFromID(id);
             avatarsOfInterest[id] = true;
         } else {
             // Return our username from the Account API
@@ -493,7 +492,7 @@ function populateNearbyUserList(selectData, oldAudioData) {
         data.push(avatarPalDatum);
         print('PAL data:', JSON.stringify(avatarPalDatum));
     });
-    getConnectionData(false, location.domainId); // Even admins don't get relationship data in requestUsernameFromID (which is still needed for admin status, which comes from domain).
+    getConnectionData(false, location.domainID); // Even admins don't get relationship data in requestUsernameFromID (which is still needed for admin status, which comes from domain).
     conserveResources = Object.keys(avatarsOfInterest).length > 20;
     sendToQml({ method: 'nearbyUsers', params: data });
     if (selectData) {
@@ -668,84 +667,26 @@ triggerMapping.from(Controller.Standard.RTClick).peek().to(makeClickHandler(Cont
 triggerMapping.from(Controller.Standard.LTClick).peek().to(makeClickHandler(Controller.Standard.LeftHand));
 triggerPressMapping.from(Controller.Standard.RT).peek().to(makePressHandler(Controller.Standard.RightHand));
 triggerPressMapping.from(Controller.Standard.LT).peek().to(makePressHandler(Controller.Standard.LeftHand));
-//
-// Manage the connection between the button and the window.
-//
-var button;
-var buttonName = "PEOPLE";
-var tablet = null;
-
-function startup() {
-    tablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
-    button = tablet.addButton({
-        text: buttonName,
-        icon: "icons/tablet-icons/people-i.svg",
-        activeIcon: "icons/tablet-icons/people-a.svg",
-        sortOrder: 7
-    });
-    button.clicked.connect(onTabletButtonClicked);
-    tablet.screenChanged.connect(onTabletScreenChanged);
-    Users.usernameFromIDReply.connect(usernameFromIDReply);
-    Window.domainChanged.connect(clearLocalQMLDataAndClosePAL);
-    Window.domainConnectionRefused.connect(clearLocalQMLDataAndClosePAL);
-    Messages.subscribe(CHANNEL);
-    Messages.messageReceived.connect(receiveMessage);
-    Users.avatarDisconnected.connect(avatarDisconnected);
-    AvatarList.avatarAddedEvent.connect(avatarAdded);
-    AvatarList.avatarRemovedEvent.connect(avatarRemoved);
-    AvatarList.avatarSessionChangedEvent.connect(avatarSessionChanged);
-}
-
-startup();
-
-var isWired = false;
-var audioTimer;
-var AUDIO_LEVEL_UPDATE_INTERVAL_MS = 100; // 10hz for now (change this and change the AVERAGING_RATIO too)
-var AUDIO_LEVEL_CONSERVED_UPDATE_INTERVAL_MS = 300;
-function off() {
-    if (isWired) { // It is not ok to disconnect these twice, hence guard.
-        Script.update.disconnect(updateOverlays);
-        Controller.mousePressEvent.disconnect(handleMouseEvent);
-        Controller.mouseMoveEvent.disconnect(handleMouseMoveEvent);
-        tablet.tabletShownChanged.disconnect(tabletVisibilityChanged);
-        isWired = false;
-    }
-    if (audioTimer) {
-        Script.clearInterval(audioTimer);
-    }
-    triggerMapping.disable(); // It's ok if we disable twice.
-    triggerPressMapping.disable(); // see above
-    removeOverlays();
-    Users.requestsDomainListData = false;
-}
 
 function tabletVisibilityChanged() {
     if (!tablet.tabletShown) {
+        ContextOverlay.enabled = true;
         tablet.gotoHomeScreen();
     }
 }
 
 var onPalScreen = false;
-var shouldActivateButton = false;
-
+var PAL_QML_SOURCE = "hifi/Pal.qml";
 function onTabletButtonClicked() {
+    if (!tablet) {
+        print("Warning in onTabletButtonClicked(): 'tablet' undefined!");
+        return;
+    }
     if (onPalScreen) {
-        // for toolbar-mode: go back to home screen, this will close the window.
+        // In Toolbar Mode, `gotoHomeScreen` will close the app window.
         tablet.gotoHomeScreen();
     } else {
-        shouldActivateButton = true;
-        tablet.loadQMLSource("../Pal.qml");
-        tablet.tabletShownChanged.connect(tabletVisibilityChanged);
-        onPalScreen = true;
-        Users.requestsDomainListData = true;
-        populateNearbyUserList();
-        isWired = true;
-        Script.update.connect(updateOverlays);
-        Controller.mousePressEvent.connect(handleMouseEvent);
-        Controller.mouseMoveEvent.connect(handleMouseMoveEvent);
-        triggerMapping.enable();
-        triggerPressMapping.enable();
-        audioTimer = createAudioInterval(conserveResources ? AUDIO_LEVEL_CONSERVED_UPDATE_INTERVAL_MS : AUDIO_LEVEL_UPDATE_INTERVAL_MS);
+        tablet.loadQMLSource(PAL_QML_SOURCE);
     }
 }
 var hasEventBridge = false;
@@ -764,15 +705,30 @@ function wireEventBridge(on) {
 }
 
 function onTabletScreenChanged(type, url) {
-    wireEventBridge(shouldActivateButton);
+    onPalScreen = (type === "QML" && url === PAL_QML_SOURCE);
+    wireEventBridge(onPalScreen);
     // for toolbar mode: change button to active when window is first openend, false otherwise.
-    button.editProperties({isActive: shouldActivateButton});
-    shouldActivateButton = false;
-    onPalScreen = false;
+    button.editProperties({isActive: onPalScreen});
 
-    // disable sphere overlays when not on pal screen.
-    if (type !== "QML" || url !== "../Pal.qml") {
+    if (onPalScreen) {
+        isWired = true;
+
+        ContextOverlay.enabled = false;
+        Users.requestsDomainListData = true;
+
+        audioTimer = createAudioInterval(conserveResources ? AUDIO_LEVEL_CONSERVED_UPDATE_INTERVAL_MS : AUDIO_LEVEL_UPDATE_INTERVAL_MS);
+
+        tablet.tabletShownChanged.connect(tabletVisibilityChanged);
+        Script.update.connect(updateOverlays);
+        Controller.mousePressEvent.connect(handleMouseEvent);
+        Controller.mouseMoveEvent.connect(handleMouseMoveEvent);
+        Users.usernameFromIDReply.connect(usernameFromIDReply);
+        triggerMapping.enable();
+        triggerPressMapping.enable();
+        populateNearbyUserList();
+    } else {
         off();
+        ContextOverlay.enabled = true;
     }
 }
 
@@ -865,6 +821,10 @@ function avatarDisconnected(nodeID) {
 
 function clearLocalQMLDataAndClosePAL() {
     sendToQml({ method: 'clearLocalQMLData' });
+    if (onPalScreen) {
+        ContextOverlay.enabled = true;
+        tablet.gotoHomeScreen();
+    }
 }
 
 function avatarAdded(avatarID) {
@@ -879,6 +839,58 @@ function avatarSessionChanged(avatarID) {
     sendToQml({ method: 'palIsStale', params: [avatarID, 'avatarSessionChanged'] });
 }
 
+
+var button;
+var buttonName = "PEOPLE";
+var tablet = null;
+function startup() {
+    tablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
+    button = tablet.addButton({
+        text: buttonName,
+        icon: "icons/tablet-icons/people-i.svg",
+        activeIcon: "icons/tablet-icons/people-a.svg",
+        sortOrder: 7
+    });
+    button.clicked.connect(onTabletButtonClicked);
+    tablet.screenChanged.connect(onTabletScreenChanged);
+    Window.domainChanged.connect(clearLocalQMLDataAndClosePAL);
+    Window.domainConnectionRefused.connect(clearLocalQMLDataAndClosePAL);
+    Messages.subscribe(CHANNEL);
+    Messages.messageReceived.connect(receiveMessage);
+    Users.avatarDisconnected.connect(avatarDisconnected);
+    AvatarList.avatarAddedEvent.connect(avatarAdded);
+    AvatarList.avatarRemovedEvent.connect(avatarRemoved);
+    AvatarList.avatarSessionChangedEvent.connect(avatarSessionChanged);
+}
+startup();
+
+
+var isWired = false;
+var audioTimer;
+var AUDIO_LEVEL_UPDATE_INTERVAL_MS = 100; // 10hz for now (change this and change the AVERAGING_RATIO too)
+var AUDIO_LEVEL_CONSERVED_UPDATE_INTERVAL_MS = 300;
+function off() {
+    if (isWired) {
+        Script.update.disconnect(updateOverlays);
+        Controller.mousePressEvent.disconnect(handleMouseEvent);
+        Controller.mouseMoveEvent.disconnect(handleMouseMoveEvent);
+        tablet.tabletShownChanged.disconnect(tabletVisibilityChanged);
+        Users.usernameFromIDReply.disconnect(usernameFromIDReply);
+        ContextOverlay.enabled = true
+        triggerMapping.disable();
+        triggerPressMapping.disable();
+        Users.requestsDomainListData = false;
+
+        isWired = false;
+
+        if (audioTimer) {
+            Script.clearInterval(audioTimer);
+        }
+    }
+
+    removeOverlays();
+}
+
 function shutdown() {
     if (onPalScreen) {
         tablet.gotoHomeScreen();
@@ -886,7 +898,6 @@ function shutdown() {
     button.clicked.disconnect(onTabletButtonClicked);
     tablet.removeButton(button);
     tablet.screenChanged.disconnect(onTabletScreenChanged);
-    Users.usernameFromIDReply.disconnect(usernameFromIDReply);
     Window.domainChanged.disconnect(clearLocalQMLDataAndClosePAL);
     Window.domainConnectionRefused.disconnect(clearLocalQMLDataAndClosePAL);
     Messages.subscribe(CHANNEL);
@@ -897,10 +908,6 @@ function shutdown() {
     AvatarList.avatarSessionChangedEvent.disconnect(avatarSessionChanged);
     off();
 }
-
-//
-// Cleanup.
-//
 Script.scriptEnding.connect(shutdown);
 
 }()); // END LOCAL_SCOPE

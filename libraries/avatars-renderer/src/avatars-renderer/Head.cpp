@@ -253,7 +253,7 @@ void Head::setScale (float scale) {
 }
 
 glm::quat Head::getFinalOrientationInWorldFrame() const {
-    return _owningAvatar->getOrientation() * getFinalOrientationInLocalFrame();
+    return _owningAvatar->getWorldOrientation() * getFinalOrientationInLocalFrame();
 }
 
 glm::quat Head::getFinalOrientationInLocalFrame() const {
@@ -302,18 +302,6 @@ glm::quat Head::getEyeRotation(const glm::vec3& eyePosition) const {
     glm::quat orientation = getOrientation();
     glm::vec3 lookAtDelta = _lookAtPosition - eyePosition;
     return rotationBetween(orientation * IDENTITY_FORWARD, lookAtDelta + glm::length(lookAtDelta) * _saccade) * orientation;
-}
-
-void Head::setFinalPitch(float finalPitch) {
-    _deltaPitch = glm::clamp(finalPitch, MIN_HEAD_PITCH, MAX_HEAD_PITCH) - _basePitch;
-}
-
-void Head::setFinalYaw(float finalYaw) {
-    _deltaYaw = glm::clamp(finalYaw, MIN_HEAD_YAW, MAX_HEAD_YAW) - _baseYaw;
-}
-
-void Head::setFinalRoll(float finalRoll) {
-    _deltaRoll = glm::clamp(finalRoll, MIN_HEAD_ROLL, MAX_HEAD_ROLL) - _baseRoll;
 }
 
 float Head::getFinalYaw() const {

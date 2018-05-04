@@ -12,6 +12,7 @@
 #define hifi_gpu_Framebuffer_h
 
 #include "Texture.h"
+#include "ResourceSwapChain.h"
 #include <memory>
 
 class Transform; // Texcood transform util
@@ -107,6 +108,8 @@ public:
     TexturePointer getRenderBuffer(uint32 slot) const;
     uint32 getRenderBufferSubresource(uint32 slot) const;
 
+    bool setDepthBuffer(const TexturePointer& texture, const Format& format, uint32 subresource = 0);
+    bool setStencilBuffer(const TexturePointer& texture, const Format& format, uint32 subresource = 0);
     bool setDepthStencilBuffer(const TexturePointer& texture, const Format& format, uint32 subresource = 0);
     TexturePointer getDepthStencilBuffer() const;
     uint32 getDepthStencilBufferSubresource() const;
@@ -132,7 +135,11 @@ public:
 
     float getAspectRatio() const { return getWidth() / (float) getHeight() ; }
 
+#if !defined(Q_OS_ANDROID)
     static const uint32 MAX_NUM_RENDER_BUFFERS = 8; 
+#else    
+    static const uint32 MAX_NUM_RENDER_BUFFERS = 4;
+#endif
     static uint32 getMaxNumRenderBuffers() { return MAX_NUM_RENDER_BUFFERS; }
 
     const GPUObjectPointer gpuObject {};
@@ -164,12 +171,15 @@ protected:
     uint16 _numSamples = 0;
 
     void updateSize(const TexturePointer& texture);
+    bool assignDepthStencilBuffer(const TexturePointer& texture, const Format& format, uint32 subresource);
 
     // Non exposed
     Framebuffer(const Framebuffer& framebuffer) = delete;
     Framebuffer() {}
 };
 typedef std::shared_ptr<Framebuffer> FramebufferPointer;
+typedef ResourceSwapChain<Framebuffer> FramebufferSwapChain;
+typedef std::shared_ptr<FramebufferSwapChain> FramebufferSwapChainPointer;
 
 }
 

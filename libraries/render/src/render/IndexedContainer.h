@@ -12,7 +12,9 @@
 #ifndef hifi_render_IndexedContainer_h
 #define hifi_render_IndexedContainer_h
 
+#include <cassert>
 #include <vector>
+#include <algorithm>
 
 namespace render {
 namespace indexed_container {
@@ -85,7 +87,7 @@ namespace indexed_container {
                 if (index < (Index) _elements.size()) {
                     _elements[index] = e;
                 } else {
-                    assert(index == _elements.size());
+                    assert(index == (Index)_elements.size());
                     _elements.emplace_back(e);
                 }
             }
@@ -95,6 +97,10 @@ namespace indexed_container {
         const Element& freeElement(Index index) {
             _allocator.freeIndex(index);
             return _elements[index];
+        }
+
+        bool isElementFreed(Index index) const {
+            return std::find(_allocator._freeIndices.begin(), _allocator._freeIndices.end(), index) != _allocator._freeIndices.end();
         }
 
         const Element& get(Index index) const {

@@ -11,13 +11,12 @@
 
 #include <QtWidgets/QStackedWidget>
 
-#include "../Oven.h"
-#include "OvenMainWindow.h"
+#include "../OvenGUIApplication.h"
 
 #include "BakeWidget.h"
 
 BakeWidget::BakeWidget(QWidget* parent, Qt::WindowFlags flags) :
-	QWidget(parent, flags)
+    QWidget(parent, flags)
 {
 
 }
@@ -28,7 +27,7 @@ BakeWidget::~BakeWidget() {
     auto it = _bakers.begin();
     while (it != _bakers.end()) {
         auto resultRow = it->second;
-        auto resultsWindow = qApp->getMainWindow()->showResultsWindow();
+        auto resultsWindow = OvenGUIApplication::instance()->getMainWindow()->showResultsWindow();
 
         resultsWindow->changeStatusForRow(resultRow, "Cancelled");
 
@@ -42,5 +41,5 @@ void BakeWidget::cancelButtonClicked() {
     auto stackedWidget = qobject_cast<QStackedWidget*>(parentWidget());
     stackedWidget->removeWidget(this);
 
-    this->deleteLater();
+    deleteLater();
 }

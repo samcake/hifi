@@ -9,6 +9,8 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 
+#include "AudioMixerSlave.h"
+
 #include <algorithm>
 
 #include <glm/glm.hpp>
@@ -34,8 +36,6 @@
 #include "InjectedAudioStream.h"
 #include "AudioHelpers.h"
 
-#include "AudioMixerSlave.h"
-
 using AudioStreamMap = AudioMixerClientData::AudioStreamMap;
 
 // packet helpers
@@ -48,8 +48,8 @@ void sendEnvironmentPacket(const SharedNodePointer& node, AudioMixerClientData& 
 // mix helpers
 inline float approximateGain(const AvatarAudioStream& listeningNodeStream, const PositionalAudioStream& streamToAdd,
         const glm::vec3& relativePosition);
-inline float computeGain(const AvatarAudioStream& listeningNodeStream, const PositionalAudioStream& streamToAdd,
-        const glm::vec3& relativePosition, bool isEcho);
+inline float computeGain(const AudioMixerClientData& listenerNodeData, const AvatarAudioStream& listeningNodeStream,
+        const PositionalAudioStream& streamToAdd, const glm::vec3& relativePosition, float distance, bool isEcho);
 inline float computeAzimuth(const AvatarAudioStream& listeningNodeStream, const PositionalAudioStream& streamToAdd,
         const glm::vec3& relativePosition);
 
@@ -71,6 +71,10 @@ void AudioMixerSlave::mix(const SharedNodePointer& node) {
     // check that the node is valid
     AudioMixerClientData* data = (AudioMixerClientData*)node->getLinkedData();
     if (data == nullptr) {
+        return;
+    }
+
+    if (node->isUpstream()) {
         return;
     }
 
@@ -125,6 +129,12 @@ bool AudioMixerSlave::prepareMix(const SharedNodePointer& listener) {
     AvatarAudioStream* listenerAudioStream = static_cast<AudioMixerClientData*>(listener->getLinkedData())->getAvatarAudioStream();
     AudioMixerClientData* listenerData = static_cast<AudioMixerClientData*>(listener->getLinkedData());
 
+    // if we received an invalid position from this listener, then refuse to make them a mix
+    // because we don't know how to do it properly
+    if (!listenerAudioStream->hasValidPosition()) {
+        return false;
+    }
+
     // zero out the mix for this listener
     memset(_mixSamples, 0, sizeof(_mixSamples));
 
@@ -166,7 +176,7 @@ bool AudioMixerSlave::prepareMix(const SharedNodePointer& listener) {
                 auto nodeID = node->getUUID();
 
                 // compute the node's max relative volume
-                float nodeVolume;
+                float nodeVolume = 0.0f;
                 for (auto& streamPair : nodeData->getAudioStreams()) {
                     auto nodeStream = streamPair.second;
 
@@ -183,10 +193,8 @@ bool AudioMixerSlave::prepareMix(const SharedNodePointer& listener) {
                 }
 
                 // max-heapify the nodes by relative volume
-                throttledNodes.push_back(std::make_pair(nodeVolume, node));
-                if (!throttledNodes.empty()) {
-                    std::push_heap(throttledNodes.begin(), throttledNodes.end());
-                }
+                throttledNodes.push_back({ nodeVolume, node });
+                std::push_heap(throttledNodes.begin(), throttledNodes.end());
             }
         }
     });
@@ -240,12 +248,18 @@ bool AudioMixerSlave::prepareMix(const SharedNodePointer& listener) {
 
 void AudioMixerSlave::throttleStream(AudioMixerClientData& listenerNodeData, const QUuid& sourceNodeID,
         const AvatarAudioStream& listeningNodeStream, const PositionalAudioStream& streamToAdd) {
-    addStream(listenerNodeData, sourceNodeID, listeningNodeStream, streamToAdd, true);
+    // only throttle this stream to the mix if it has a valid position, we won't know how to mix it otherwise
+    if (streamToAdd.hasValidPosition()) {
+        addStream(listenerNodeData, sourceNodeID, listeningNodeStream, streamToAdd, true);
+    }
 }
 
 void AudioMixerSlave::mixStream(AudioMixerClientData& listenerNodeData, const QUuid& sourceNodeID,
         const AvatarAudioStream& listeningNodeStream, const PositionalAudioStream& streamToAdd) {
-    addStream(listenerNodeData, sourceNodeID, listeningNodeStream, streamToAdd, false);
+    // only add the stream to the mix if it has a valid position, we won't know how to mix it otherwise
+    if (streamToAdd.hasValidPosition()) {
+        addStream(listenerNodeData, sourceNodeID, listeningNodeStream, streamToAdd, false);
+    }
 }
 
 void AudioMixerSlave::addStream(AudioMixerClientData& listenerNodeData, const QUuid& sourceNodeID,
@@ -262,7 +276,7 @@ void AudioMixerSlave::addStream(AudioMixerClientData& listenerNodeData, const QU
     glm::vec3 relativePosition = streamToAdd.getPosition() - listeningNodeStream.getPosition();
 
     float distance = glm::max(glm::length(relativePosition), EPSILON);
-    float gain = computeGain(listeningNodeStream, streamToAdd, relativePosition, isEcho);
+    float gain = computeGain(listenerNodeData, listeningNodeStream, streamToAdd, relativePosition, distance, isEcho);
     float azimuth = isEcho ? 0.0f : computeAzimuth(listeningNodeStream, listeningNodeStream, relativePosition);
     const int HRTF_DATASET_INDEX = 1;
 
@@ -308,8 +322,16 @@ void AudioMixerSlave::addStream(AudioMixerClientData& listenerNodeData, const QU
 
     // stereo sources are not passed through HRTF
     if (streamToAdd.isStereo()) {
-        for (int i = 0; i < AudioConstants::NETWORK_FRAME_SAMPLES_STEREO; ++i) {
-            _mixSamples[i] += float(streamPopOutput[i] * gain / AudioConstants::MAX_SAMPLE_VALUE);
+
+        // apply the avatar gain adjustment
+        auto& hrtf = listenerNodeData.hrtfForStream(sourceNodeID, streamToAdd.getStreamIdentifier());
+        gain *= hrtf.getGainAdjustment();
+
+        const float scale = 1/32768.0f; // int16_t to float
+
+        for (int i = 0; i < AudioConstants::NETWORK_FRAME_SAMPLES_PER_CHANNEL; i++) {
+            _mixSamples[2*i+0] += (float)streamPopOutput[2*i+0] * gain * scale;
+            _mixSamples[2*i+1] += (float)streamPopOutput[2*i+1] * gain * scale;
         }
 
         ++stats.manualStereoMixes;
@@ -318,10 +340,13 @@ void AudioMixerSlave::addStream(AudioMixerClientData& listenerNodeData, const QU
 
     // echo sources are not passed through HRTF
     if (isEcho) {
-        for (int i = 0; i < AudioConstants::NETWORK_FRAME_SAMPLES_STEREO; i += 2) {
-            auto monoSample = float(streamPopOutput[i / 2] * gain / AudioConstants::MAX_SAMPLE_VALUE);
-            _mixSamples[i] += monoSample;
-            _mixSamples[i + 1] += monoSample;
+
+        const float scale = 1/32768.0f; // int16_t to float
+
+        for (int i = 0; i < AudioConstants::NETWORK_FRAME_SAMPLES_PER_CHANNEL; i++) {
+            float sample = (float)streamPopOutput[i] * gain * scale;
+            _mixSamples[2*i+0] += sample;
+            _mixSamples[2*i+1] += sample;
         }
 
         ++stats.manualEchoMixes;
@@ -349,6 +374,11 @@ void AudioMixerSlave::addStream(AudioMixerClientData& listenerNodeData, const QU
 
         ++stats.hrtfThrottleRenders;
         return;
+    }
+
+    if (streamToAdd.getType() == PositionalAudioStream::Injector) {
+        // apply per-avatar gain to positional audio injectors, which wouldn't otherwise be affected by PAL sliders
+        hrtf.setGainAdjustment(listenerNodeData.hrtfForStream(sourceNodeID, QUuid()).getGainAdjustment());
     }
 
     hrtf.render(_bufferSamples, _mixSamples, HRTF_DATASET_INDEX, azimuth, distance, gain,
@@ -475,15 +505,14 @@ float approximateGain(const AvatarAudioStream& listeningNodeStream, const Positi
     // avatar: skip attenuation - it is too costly to approximate
 
     // distance attenuation: approximate, ignore zone-specific attenuations
-    // this is a good approximation for streams further than ATTENUATION_START_DISTANCE
-    // those streams closer will be amplified; amplifying close streams is acceptable
-    // when throttling, as close streams are expected to be heard by a user
     float distance = glm::length(relativePosition);
     return gain / distance;
+
+    // avatar: skip master gain - it is constant for all streams
 }
 
-float computeGain(const AvatarAudioStream& listeningNodeStream, const PositionalAudioStream& streamToAdd,
-        const glm::vec3& relativePosition, bool isEcho) {
+float computeGain(const AudioMixerClientData& listenerNodeData, const AvatarAudioStream& listeningNodeStream,
+        const PositionalAudioStream& streamToAdd, const glm::vec3& relativePosition, float distance, bool isEcho) {
     float gain = 1.0f;
 
     // injector: apply attenuation
@@ -493,15 +522,19 @@ float computeGain(const AvatarAudioStream& listeningNodeStream, const Positional
     // avatar: apply fixed off-axis attenuation to make them quieter as they turn away
     } else if (!isEcho && (streamToAdd.getType() == PositionalAudioStream::Microphone)) {
         glm::vec3 rotatedListenerPosition = glm::inverse(streamToAdd.getOrientation()) * relativePosition;
-        float angleOfDelivery = glm::angle(glm::vec3(0.0f, 0.0f, -1.0f),
-                                           glm::normalize(rotatedListenerPosition));
+
+        // source directivity is based on angle of emission, in local coordinates
+        glm::vec3 direction = glm::normalize(rotatedListenerPosition);
+        float angleOfDelivery = fastAcosf(glm::clamp(-direction.z, -1.0f, 1.0f));   // UNIT_NEG_Z is "forward"
 
         const float MAX_OFF_AXIS_ATTENUATION = 0.2f;
         const float OFF_AXIS_ATTENUATION_STEP = (1 - MAX_OFF_AXIS_ATTENUATION) / 2.0f;
-        float offAxisCoefficient = MAX_OFF_AXIS_ATTENUATION +
-            (angleOfDelivery * (OFF_AXIS_ATTENUATION_STEP / PI_OVER_TWO));
+        float offAxisCoefficient = MAX_OFF_AXIS_ATTENUATION + (angleOfDelivery * (OFF_AXIS_ATTENUATION_STEP / PI_OVER_TWO));
 
         gain *= offAxisCoefficient;
+
+        // apply master gain, only to avatars
+        gain *= listenerNodeData.getMasterAvatarGain();
     }
 
     auto& audioZones = AudioMixer::getAudioZones();
@@ -516,23 +549,13 @@ float computeGain(const AvatarAudioStream& listeningNodeStream, const Positional
             break;
         }
     }
+    // translate the zone setting to gain per log2(distance)
+    float g = glm::clamp(1.0f - attenuationPerDoublingInDistance, EPSILON, 1.0f);
 
-    // distance attenuation
-    const float ATTENUATION_START_DISTANCE = 1.0f;
-    float distance = glm::length(relativePosition);
-    assert(ATTENUATION_START_DISTANCE > EPSILON);
-    if (distance >= ATTENUATION_START_DISTANCE) {
-
-        // translate the zone setting to gain per log2(distance)
-        float g = 1.0f - attenuationPerDoublingInDistance;
-        g = glm::clamp(g, EPSILON, 1.0f);
-
-        // calculate the distance coefficient using the distance to this node
-        float distanceCoefficient = fastExp2f(fastLog2f(g) * fastLog2f(distance/ATTENUATION_START_DISTANCE));
-
-        // multiply the current attenuation coefficient by the distance coefficient
-        gain *= distanceCoefficient;
-    }
+    // calculate the attenuation using the distance to this node
+    // reference attenuation of 0dB at distance = 1.0m
+    gain *= fastExp2f(fastLog2f(g) * fastLog2f(std::max(distance, HRTF_NEARFIELD_MIN)));
+    gain = std::min(gain, 1.0f / HRTF_NEARFIELD_MIN);
 
     return gain;
 }
@@ -541,7 +564,6 @@ float computeAzimuth(const AvatarAudioStream& listeningNodeStream, const Positio
         const glm::vec3& relativePosition) {
     glm::quat inverseOrientation = glm::inverse(listeningNodeStream.getOrientation());
 
-    //  Compute sample delay for the two ears to create phase panning
     glm::vec3 rotatedSourcePosition = inverseOrientation * relativePosition;
 
     // project the rotated source position vector onto the XZ plane
@@ -549,11 +571,16 @@ float computeAzimuth(const AvatarAudioStream& listeningNodeStream, const Positio
 
     const float SOURCE_DISTANCE_THRESHOLD = 1e-30f;
 
-    if (glm::length2(rotatedSourcePosition) > SOURCE_DISTANCE_THRESHOLD) {
+    float rotatedSourcePositionLength2 = glm::length2(rotatedSourcePosition);
+    if (rotatedSourcePositionLength2 > SOURCE_DISTANCE_THRESHOLD) {
+        
         // produce an oriented angle about the y-axis
-        return glm::orientedAngle(glm::vec3(0.0f, 0.0f, -1.0f), glm::normalize(rotatedSourcePosition), glm::vec3(0.0f, -1.0f, 0.0f));
-    } else {
-        // there is no distance between listener and source - return no azimuth
-        return 0;
+        glm::vec3 direction = rotatedSourcePosition * (1.0f / fastSqrtf(rotatedSourcePositionLength2));
+        float angle = fastAcosf(glm::clamp(-direction.z, -1.0f, 1.0f)); // UNIT_NEG_Z is "forward"
+        return (direction.x < 0.0f) ? -angle : angle;
+
+    } else {   
+        // no azimuth if they are in same spot
+        return 0.0f; 
     }
 }

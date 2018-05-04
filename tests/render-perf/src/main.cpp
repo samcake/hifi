@@ -42,11 +42,16 @@
 #include <LogHandler.h>
 #include <AssetClient.h>
 
+#include <gl/OffscreenGLCanvas.h>
+
 #include <gpu/gl/GLBackend.h>
 #include <gpu/gl/GLFramebuffer.h>
 #include <gpu/gl/GLTexture.h>
 #include <gpu/StandardShaderLib.h>
 
+#include <ui/OffscreenQmlSurface.h>
+
+#include <AnimationCache.h>
 #include <SimpleEntitySimulation.h>
 #include <EntityDynamicInterface.h>
 #include <EntityDynamicFactoryInterface.h>
@@ -54,13 +59,15 @@
 #include <OctreeUtils.h>
 #include <render/Engine.h>
 #include <Model.h>
-#include <model/Stage.h>
+#include <graphics/Stage.h>
 #include <TextureCache.h>
 #include <FramebufferCache.h>
 #include <model-networking/ModelCache.h>
 #include <GeometryCache.h>
 #include <DeferredLightingEffect.h>
 #include <render/RenderFetchCullSortTask.h>
+#include <UpdateSceneTask.h>
+#include <RenderViewTask.h>
 #include <RenderShadowTask.h>
 #include <RenderDeferredTask.h>
 #include <RenderForwardTask.h>
@@ -219,9 +226,7 @@ public:
         _context.makeCurrent();
         window->setSurfaceType(QSurface::OpenGLSurface);
         _context.makeCurrent(_context.qglContext(), window);
-#ifdef Q_OS_WIN
-        wglSwapIntervalEXT(0);
-#endif
+        gl::setSwapInterval(0);
         // GPU library init
         gpu::Context::init<gpu::gl::GLBackend>();
         _gpuContext = std::make_shared<gpu::Context>();
@@ -409,7 +414,7 @@ namespace render {
         auto backgroundMode = skyStage->getBackgroundMode();
 
         switch (backgroundMode) {
-            case model::SunSkyStage::SKY_BOX: {
+            case graphics::SunSkyStage::SKY_BOX: {
                 auto skybox = skyStage->getSkybox();
                 if (skybox) {
                     PerformanceTimer perfTimer("skybox");
@@ -424,6 +429,10 @@ namespace render {
     }
 }
 
+OffscreenGLCanvas* _chromiumShareContext{ nullptr };
+Q_GUI_EXPORT void qt_gl_set_global_share_context(QOpenGLContext *context);
+
+
 // Create a simple OpenGL window that renders text in various ways
 class QTestWindow : public QWindow, public AbstractViewStateInterface {
 
@@ -432,8 +441,14 @@ protected:
         viewOut = _viewFrustum;
     }
 
-    void copyShadowViewFrustum(ViewFrustum& viewOut) const override {
-        viewOut = _shadowViewFrustum;
+    void copyViewFrustum(ViewFrustum& viewOut) const override {
+        viewOut = _viewFrustum;
+    }
+
+    void copySecondaryViewFrustum(ViewFrustum& viewOut) const override {}
+
+    bool hasSecondaryViewFrustum() const override {
+        return false;
     }
 
     QThread* getMainThread() override {
@@ -448,8 +463,8 @@ protected:
         return vec3();
     }
 
-    bool isAboutToQuit() const override { return false; }
-    void postLambdaEvent(std::function<void()> f) override {}
+    void postLambdaEvent(const std::function<void()>& f) override {}
+    void sendLambdaEvent(const std::function<void()>& f) override {}
 
     qreal getDevicePixelRatio() override {
         return 1.0f;
@@ -464,7 +479,7 @@ protected:
     }
 
     std::map<void*, std::function<void()>> _postUpdateLambdas;
-    void pushPostUpdateLambda(void* key, std::function<void()> func) override {
+    void pushPostUpdateLambda(void* key, const std::function<void()>& func) override {
         _postUpdateLambdas[key] = func;
     }
 
@@ -503,11 +518,8 @@ public:
         AbstractViewStateInterface::setInstance(this);
         _octree = DependencyManager::set<EntityTreeRenderer>(false, this, nullptr);
         _octree->init();
-        // Prevent web entities from rendering
-        REGISTER_ENTITY_TYPE_WITH_FACTORY(Web, WebEntityItem::factory);
 
         DependencyManager::set<ParentFinder>(_octree->getTree());
-        getEntities()->setViewFrustum(_viewFrustum);
         auto nodeList = DependencyManager::get<LimitedNodeList>();
         NodePermissions permissions;
         permissions.setAll(true);
@@ -520,7 +532,7 @@ public:
             _entitySimulation = simpleSimulation;
         }
 
-        ResourceManager::init();
+        DependencyManager::set<ResourceManager>();
 
         setFlags(Qt::MSWindowsOwnDC | Qt::Window | Qt::Dialog | Qt::WindowMinMaxButtonsHint | Qt::WindowTitleHint);
         _size = QSize(800, 600);
@@ -533,20 +545,33 @@ public:
         _renderThread.initialize(this, _initContext);
         _initContext.makeCurrent();
 
+        if (nsightActive()) {
+            // Prevent web entities from rendering
+            REGISTER_ENTITY_TYPE_WITH_FACTORY(Web, WebEntityItem::factory);
+        } else {
+            _chromiumShareContext = new OffscreenGLCanvas();
+            _chromiumShareContext->setObjectName("ChromiumShareContext");
+            _chromiumShareContext->create(_initContext.qglContext());
+            _chromiumShareContext->makeCurrent();
+            qt_gl_set_global_share_context(_chromiumShareContext->getContext());
+
+            // Make sure all QML surfaces share the main thread GL context
+            OffscreenQmlSurface::setSharedContext(_initContext.qglContext());
+
+            _initContext.makeCurrent();
+        }
+
+
         // FIXME use a wait condition
         QThread::msleep(1000);
         _renderThread.submitFrame(gpu::FramePointer());
         _initContext.makeCurrent();
+        DependencyManager::get<GeometryCache>()->initializeShapePipelines();
         // Render engine init
-        _renderEngine->addJob<RenderShadowTask>("RenderShadowTask", _cullFunctor);
-        const auto items = _renderEngine->addJob<RenderFetchCullSortTask>("FetchCullSort", _cullFunctor);
-        assert(items.canCast<RenderFetchCullSortTask::Output>());
         static const QString RENDER_FORWARD = "HIFI_RENDER_FORWARD";
-        if (QProcessEnvironment::systemEnvironment().contains(RENDER_FORWARD)) {
-            _renderEngine->addJob<RenderForwardTask>("RenderForwardTask", items);
-        } else {
-            _renderEngine->addJob<RenderDeferredTask>("RenderDeferredTask", items);
-        }
+        bool isDeferred = !QProcessEnvironment::systemEnvironment().contains(RENDER_FORWARD);
+        _renderEngine->addJob<UpdateSceneTask>("UpdateScene");
+        _renderEngine->addJob<RenderViewTask>("RenderMainView", _cullFunctor, isDeferred);
         _renderEngine->load();
         _renderEngine->registerScene(_main3DScene);
 
@@ -575,7 +600,7 @@ public:
         DependencyManager::destroy<ModelCache>();
         DependencyManager::destroy<GeometryCache>();
         DependencyManager::destroy<ScriptCache>();
-        ResourceManager::cleanup();
+        DependencyManager::get<ResourceManager>()->cleanup();
         // remove the NodeList from the DependencyManager
         DependencyManager::destroy<NodeList>();
     }
@@ -681,7 +706,8 @@ private:
         _renderCount = _renderThread._presentCount.load();
         update();
 
-        RenderArgs renderArgs(_renderThread._gpuContext, _octree, DEFAULT_OCTREE_SIZE_SCALE,
+        _initContext.makeCurrent();
+        RenderArgs renderArgs(_renderThread._gpuContext, DEFAULT_OCTREE_SIZE_SCALE,
             0, RenderArgs::DEFAULT_RENDER_MODE,
             RenderArgs::MONO, RenderArgs::RENDER_DEBUG_NONE);
 
@@ -721,6 +747,7 @@ private:
         // Viewport is assigned to the size of the framebuffer
         renderArgs._viewport = ivec4(0, 0, windowSize.width(), windowSize.height());
         renderArgs.setViewFrustum(_viewFrustum);
+        renderArgs._scene = _main3DScene;
 
         // Final framebuffer that will be handled to the display-plugin
         render(&renderArgs);
@@ -735,8 +762,8 @@ private:
     class EntityUpdateOperator : public RecurseOctreeOperator {
     public:
         EntityUpdateOperator(const qint64& now) : now(now) {}
-        bool preRecursion(OctreeElementPointer element) override { return true; }
-        bool postRecursion(OctreeElementPointer element) override {
+        bool preRecursion(const OctreeElementPointer& element) override { return true; }
+        bool postRecursion(const OctreeElementPointer& element) override {
             EntityTreeElementPointer entityTreeElement = std::static_pointer_cast<EntityTreeElement>(element);
             entityTreeElement->forEachEntity([&](EntityItemPointer entityItem) {
                 if (!entityItem->isParentIDValid()) {
@@ -865,7 +892,6 @@ private:
             }
         }
 
-        getEntities()->setViewFrustum(_viewFrustum);
         EntityUpdateOperator updateOperator(now);
         //getEntities()->getTree()->recurseTreeWithOperator(&updateOperator);
         {
@@ -877,7 +903,7 @@ private:
 
         last = now;
 
-        getEntities()->update();
+        getEntities()->update(false);
 
         // The pending changes collecting the changes here
         render::Transaction transaction;
@@ -889,11 +915,6 @@ private:
             auto backgroundRenderPayload = std::make_shared<BackgroundRenderData::Payload>(backgroundRenderData);
             BackgroundRenderData::_item = _main3DScene->allocateID();
             transaction.resetItem(BackgroundRenderData::_item, backgroundRenderPayload);
-        }
-        // Setup the current Zone Entity lighting
-        {
-            auto stage = DependencyManager::get<SceneScriptingInterface>()->getSkyStage();
-            DependencyManager::get<DeferredLightingEffect>()->setGlobalLight(stage->getSunLight());
         }
 
         {
@@ -908,15 +929,13 @@ private:
     void render(RenderArgs* renderArgs) {
         auto& gpuContext = renderArgs->_context;
         gpuContext->beginFrame();
-        gpu::doInBatch(gpuContext, [&](gpu::Batch& batch) {
+        gpu::doInBatch("QTestWindow::render", gpuContext, [&](gpu::Batch& batch) {
             batch.resetStages();
         });
         PROFILE_RANGE(render, __FUNCTION__);
         PerformanceTimer perfTimer("draw");
         // The pending changes collecting the changes here
         render::Transaction transaction;
-        // Setup the current Zone Entity lighting
-        DependencyManager::get<DeferredLightingEffect>()->setGlobalLight(_sunSkyStage.getSunLight());
         {
             PerformanceTimer perfTimer("SceneProcessTransaction");
             _main3DScene->enqueueTransaction(transaction);
@@ -999,7 +1018,7 @@ private:
         QFileInfo atpPathInfo(atpPath);
         if (atpPathInfo.exists()) {
             QString atpUrl = QUrl::fromLocalFile(atpPath).toString();
-            ResourceManager::setUrlPrefixOverride("atp:/", atpUrl + "/");
+            DependencyManager::get<ResourceManager>()->setUrlPrefixOverride("atp:/", atpUrl + "/");
         }
         _octree->clear();
         _octree->getTree()->readFromURL(fileName);
@@ -1103,9 +1122,8 @@ private:
     RenderThread _renderThread;
     QWindowCamera _camera;
     ViewFrustum _viewFrustum; // current state of view frustum, perspective, orientation, etc.
-    ViewFrustum _shadowViewFrustum; // current state of view frustum, perspective, orientation, etc.
-    model::SunSkyStage _sunSkyStage;
-    model::LightPointer _globalLight { std::make_shared<model::Light>() };
+    graphics::SunSkyStage _sunSkyStage;
+    graphics::LightPointer _globalLight { std::make_shared<graphics::Light>() };
     bool _ready { false };
     EntitySimulationPointer _entitySimulation;
 
@@ -1130,31 +1148,17 @@ private:
 
 bool QTestWindow::_cullingEnabled = true;
 
-void messageHandler(QtMsgType type, const QMessageLogContext& context, const QString& message) {
-    QString logMessage = LogHandler::getInstance().printMessage((LogMsgType)type, context, message);
-
-    if (!logMessage.isEmpty()) {
-#ifdef Q_OS_WIN
-        OutputDebugStringA(logMessage.toLocal8Bit().constData());
-        OutputDebugStringA("\n");
-#endif
-        logger->addMessage(qPrintable(logMessage + "\n"));
-    }
-}
-
 const char * LOG_FILTER_RULES = R"V0G0N(
 hifi.gpu=true
 )V0G0N";
 
 
 int main(int argc, char** argv) {
+    setupHifiApplication("RenderPerf");
+
     QApplication app(argc, argv);
-    QCoreApplication::setApplicationName("RenderPerf");
-    QCoreApplication::setOrganizationName("High Fidelity");
-    QCoreApplication::setOrganizationDomain("highfidelity.com");
     logger.reset(new FileLogger());
 
-    qInstallMessageHandler(messageHandler);
     QLoggingCategory::setFilterRules(LOG_FILTER_RULES);
     QTestWindow::setup();
     QTestWindow window;

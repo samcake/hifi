@@ -8,29 +8,33 @@
 
 #include "RenderableWebEntityItem.h"
 
-#include <QMouseEvent>
-#include <QQuickItem>
-#include <QQuickWindow>
-#include <QQmlContext>
-#include <QOpenGLContext>
+#include <QtCore/QTimer>
+#include <QtGui/QOpenGLContext>
+#include <QtGui/QTouchDevice>
+#include <QtQuick/QQuickItem>
+#include <QtQuick/QQuickWindow>
+#include <QtQml/QQmlContext>
 
-#include <glm/gtx/quaternion.hpp>
 
 #include <GeometryCache.h>
-#include <PerfStat.h>
-#include <AbstractViewStateInterface.h>
-#include <GLMHelpers.h>
 #include <PathUtils.h>
-#include <TextureCache.h>
-#include <gpu/Context.h>
-#include <TabletScriptingInterface.h>
+#include <PointerEvent.h>
+#include <gl/GLHelpers.h>
+#include <ui/OffscreenQmlSurface.h>
+#include <ui/TabletScriptingInterface.h>
+#include <EntityScriptingInterface.h>
 
-#include "EntityTreeRenderer.h"
 #include "EntitiesRendererLogging.h"
+#include <NetworkingConstants.h>
+
+using namespace render;
+using namespace render::entities;
+
+static const QString WEB_ENTITY_QML = "controls/WebEntityView.qml";
 
 const float METERS_TO_INCHES = 39.3701f;
-static uint32_t _currentWebCount { 0 };
-// Don't allow more than 100 concurrent web views
+static uint32_t _currentWebCount{ 0 };
+// Don't allow more than 20 concurrent web views
 static const uint32_t MAX_CONCURRENT_WEB_VIEWS = 20;
 // If a web-view hasn't been rendered for 30 seconds, de-allocate the framebuffer
 static uint64_t MAX_NO_RENDER_INTERVAL = 30 * USECS_PER_SECOND;
@@ -40,28 +44,39 @@ static float OPAQUE_ALPHA_THRESHOLD = 0.99f;
 static int DEFAULT_MAX_FPS = 10;
 static int YOUTUBE_MAX_FPS = 30;
 
-EntityItemPointer RenderableWebEntityItem::factory(const EntityItemID& entityID, const EntityItemProperties& properties) {
-    EntityItemPointer entity{ new RenderableWebEntityItem(entityID) };
-    entity->setProperties(properties);
-    return entity;
+static QTouchDevice _touchDevice;
+static const char* URL_PROPERTY = "url";
+
+WebEntityRenderer::ContentType WebEntityRenderer::getContentType(const QString& urlString) {
+    if (urlString.isEmpty()) {
+        return ContentType::NoContent;
+    }
+
+    const QUrl url(urlString);
+    if (url.scheme() == URL_SCHEME_HTTP || url.scheme() == URL_SCHEME_HTTPS ||
+        urlString.toLower().endsWith(".htm") || urlString.toLower().endsWith(".html")) {
+        return ContentType::HtmlContent;
+    }
+    return ContentType::QmlContent;
 }
 
-RenderableWebEntityItem::RenderableWebEntityItem(const EntityItemID& entityItemID) :
-    WebEntityItem(entityItemID) {
-
-    qCDebug(entities) << "Created web entity " << getID();
-
-    _touchDevice.setCapabilities(QTouchDevice::Position);
-    _touchDevice.setType(QTouchDevice::TouchScreen);
-    _touchDevice.setName("RenderableWebEntityItemTouchDevice");
-    _touchDevice.setMaximumTouchPoints(4);
+WebEntityRenderer::WebEntityRenderer(const EntityItemPointer& entity) : Parent(entity) {
+    static std::once_flag once;
+    std::call_once(once, [&]{
+        _touchDevice.setCapabilities(QTouchDevice::Position);
+        _touchDevice.setType(QTouchDevice::TouchScreen);
+        _touchDevice.setName("WebEntityRendererTouchDevice");
+        _touchDevice.setMaximumTouchPoints(4);
+    });
     _geometryId = DependencyManager::get<GeometryCache>()->allocateID();
+    _texture = gpu::Texture::createExternal(OffscreenQmlSurface::getDiscardLambda());
+    _texture->setSource(__FUNCTION__);
+    _timer.setInterval(MSECS_PER_SECOND);
+    connect(&_timer, &QTimer::timeout, this, &WebEntityRenderer::onTimeout);
 }
 
-RenderableWebEntityItem::~RenderableWebEntityItem() {
+void WebEntityRenderer::onRemoveFromSceneTyped(const TypedEntityPointer& entity) {
     destroyWebSurface();
-
-    qCDebug(entities) << "Destroyed web entity " << getID();
 
     auto geometryCache = DependencyManager::get<GeometryCache>();
     if (geometryCache) {
@@ -69,112 +84,265 @@ RenderableWebEntityItem::~RenderableWebEntityItem() {
     }
 }
 
-bool RenderableWebEntityItem::buildWebSurface(QSharedPointer<EntityTreeRenderer> renderer) {
+bool WebEntityRenderer::needsRenderUpdateFromTypedEntity(const TypedEntityPointer& entity) const {
+    if (_contextPosition != entity->getWorldPosition()) {
+        return true;
+    }
+
+    {
+        QSharedPointer<OffscreenQmlSurface> webSurface;
+        withReadLock([&] {
+            webSurface = _webSurface;
+        });
+        if (webSurface && uvec2(getWindowSize(entity)) != toGlm(webSurface->size())) {
+            return true;
+        }
+    }
+
+    if (_lastSourceUrl != entity->getSourceUrl()) {
+        return true;
+    }
+
+    if (_lastDPI != entity->getDPI()) {
+        return true;
+    }
+
+    if (_lastLocked != entity->getLocked()) {
+        return true;
+    }
+
+    return false;
+}
+
+bool WebEntityRenderer::needsRenderUpdate() const {
+    {
+        QSharedPointer<OffscreenQmlSurface> webSurface;
+        withReadLock([&] {
+            webSurface = _webSurface;
+        });
+        if (!webSurface) {
+            // If we have rendered recently, and there is no web surface, we're going to create one
+            return true;
+        }
+    }
+
+    return Parent::needsRenderUpdate();
+}
+
+void WebEntityRenderer::onTimeout() {
+    bool needsCheck = resultWithReadLock<bool>([&] {
+        return (_lastRenderTime != 0 && (bool)_webSurface);
+    });
+
+    if (!needsCheck) {
+        return;
+    }
+
+    uint64_t interval;
+    withReadLock([&] {
+        interval = usecTimestampNow() - _lastRenderTime;
+    });
+
+    if (interval > MAX_NO_RENDER_INTERVAL) {
+        destroyWebSurface();
+    }
+}
+
+void WebEntityRenderer::doRenderUpdateSynchronousTyped(const ScenePointer& scene, Transaction& transaction, const TypedEntityPointer& entity) {
+    // If the content type has changed, or the old content type was QML, we need to 
+    // destroy the existing surface (because surfaces don't support changing the root 
+    // object, so subsequent loads of content just overlap the existing content
+    bool urlChanged = false;
+    {
+        auto newSourceUrl = entity->getSourceUrl();
+        auto newContentType = getContentType(newSourceUrl);
+        auto currentContentType = ContentType::NoContent;
+        withReadLock([&] {
+            urlChanged = _lastSourceUrl != newSourceUrl;
+            currentContentType = _contentType;
+        });
+
+        if (urlChanged) {
+            if (newContentType != ContentType::HtmlContent || currentContentType != ContentType::HtmlContent) {
+                destroyWebSurface();
+                // If we destroyed the surface, the URL change will be implicitly handled by the re-creation
+                urlChanged = false;
+            }
+
+            withWriteLock([&] {
+                _lastSourceUrl = newSourceUrl;
+                _contentType = newContentType;
+            });
+        }
+    }
+
+
+    withWriteLock([&] {
+        if (_contentType == ContentType::NoContent) {
+            return;
+        }
+
+        // This work must be done on the main thread
+        // If we couldn't create a new web surface, exit
+        if (!hasWebSurface() && !buildWebSurface(entity)) {
+            return;
+        }
+        
+        if (urlChanged && _contentType == ContentType::HtmlContent) {
+            _webSurface->getRootItem()->setProperty(URL_PROPERTY, _lastSourceUrl);
+        }
+
+        if (_contextPosition != entity->getWorldPosition()) {
+            // update globalPosition
+            _contextPosition = entity->getWorldPosition();
+            _webSurface->getSurfaceContext()->setContextProperty("globalPosition", vec3toVariant(_contextPosition));
+        }
+
+        _lastDPI = entity->getDPI();
+        _lastLocked = entity->getLocked();
+
+        glm::vec2 windowSize = getWindowSize(entity);
+        _webSurface->resize(QSize(windowSize.x, windowSize.y));
+        _renderTransform = getModelTransform();
+        _renderTransform.postScale(entity->getScaledDimensions());
+    });
+}
+
+void WebEntityRenderer::doRender(RenderArgs* args) {
+    withWriteLock([&] {
+        _lastRenderTime = usecTimestampNow();
+    });
+
+#ifdef WANT_EXTRA_DEBUGGING
+    {
+        gpu::Batch& batch = *args->_batch;
+        batch.setModelTransform(getTransformToCenter()); // we want to include the scale as well
+        glm::vec4 cubeColor{ 1.0f, 0.0f, 0.0f, 1.0f };
+        DependencyManager::get<GeometryCache>()->renderWireCube(batch, 1.0f, cubeColor);
+    }
+#endif
+
+    // Try to update the texture
+    {
+        QSharedPointer<OffscreenQmlSurface> webSurface;
+        withReadLock([&] {
+            webSurface = _webSurface;
+        });
+        if (!webSurface) {
+            return;
+        }
+
+        OffscreenQmlSurface::TextureAndFence newTextureAndFence;
+        bool newTextureAvailable = webSurface->fetchTexture(newTextureAndFence);
+        if (newTextureAvailable) {
+            _texture->setExternalTexture(newTextureAndFence.first, newTextureAndFence.second);
+        }
+    }
+
+    PerformanceTimer perfTimer("WebEntityRenderer::render");
+    static const glm::vec2 texMin(0.0f), texMax(1.0f), topLeft(-0.5f), bottomRight(0.5f);
+
+    gpu::Batch& batch = *args->_batch;
+    withReadLock([&] {
+        batch.setModelTransform(_renderTransform);
+    });
+    batch.setResourceTexture(0, _texture);
+    float fadeRatio = _isFading ? Interpolate::calculateFadeRatio(_fadeStartTime) : 1.0f;
+
+    // Turn off jitter for these entities
+    batch.pushProjectionJitter();
+    DependencyManager::get<GeometryCache>()->bindWebBrowserProgram(batch, fadeRatio < OPAQUE_ALPHA_THRESHOLD);
+    DependencyManager::get<GeometryCache>()->renderQuad(batch, topLeft, bottomRight, texMin, texMax, glm::vec4(1.0f, 1.0f, 1.0f, fadeRatio), _geometryId);
+    batch.popProjectionJitter();
+}
+
+bool WebEntityRenderer::hasWebSurface() {
+    return (bool)_webSurface && _webSurface->getRootItem();
+}
+
+static const auto WebSurfaceDeleter = [](OffscreenQmlSurface* webSurface) {
+    AbstractViewStateInterface::instance()->sendLambdaEvent([webSurface] {
+        // WebEngineView may run other threads (wasapi), so they must be deleted for a clean shutdown
+        // if the application has already stopped its event loop, delete must be explicit
+        delete webSurface;
+    });
+};
+
+bool WebEntityRenderer::buildWebSurface(const TypedEntityPointer& entity) {
     if (_currentWebCount >= MAX_CONCURRENT_WEB_VIEWS) {
         qWarning() << "Too many concurrent web views to create new view";
-        return false;
-    }
-    QString javaScriptToInject;
-    QFile webChannelFile(":qtwebchannel/qwebchannel.js");
-    QFile createGlobalEventBridgeFile(PathUtils::resourcesPath() + "/html/createGlobalEventBridge.js");
-    if (webChannelFile.open(QFile::ReadOnly | QFile::Text) &&
-        createGlobalEventBridgeFile.open(QFile::ReadOnly | QFile::Text)) {
-        QString webChannelStr = QTextStream(&webChannelFile).readAll();
-        QString createGlobalEventBridgeStr = QTextStream(&createGlobalEventBridgeFile).readAll();
-
-        // concatenate these js files
-        _javaScriptToInject = webChannelStr + createGlobalEventBridgeStr;
-    } else {
-        qCWarning(entitiesrenderer) << "unable to find qwebchannel.js or createGlobalEventBridge.js";
-    }
-
-    // Save the original GL context, because creating a QML surface will create a new context
-    QOpenGLContext* currentContext = QOpenGLContext::currentContext();
-    if (!currentContext) {
         return false;
     }
 
     ++_currentWebCount;
 
-    qCDebug(entities) << "Building web surface: " << getID() << ", #" << _currentWebCount << ", url = " << _sourceUrl;
-
-    QSurface * currentSurface = currentContext->surface();
-
-    auto deleter = [](OffscreenQmlSurface* webSurface) {
-        AbstractViewStateInterface::instance()->postLambdaEvent([webSurface] {
-            if (AbstractViewStateInterface::instance()->isAboutToQuit()) {
-                // WebEngineView may run other threads (wasapi), so they must be deleted for a clean shutdown
-                // if the application has already stopped its event loop, delete must be explicit
-                delete webSurface;
-            } else {
-                webSurface->deleteLater();
-            }
-        });
-    };
-    _webSurface = QSharedPointer<OffscreenQmlSurface>(new OffscreenQmlSurface(), deleter);
-
+    // FIXME use the surface cache instead of explicit creation
+    _webSurface = QSharedPointer<OffscreenQmlSurface>(new OffscreenQmlSurface(), WebSurfaceDeleter);
     // FIXME, the max FPS could be better managed by being dynamic (based on the number of current surfaces
     // and the current rendering load)
     _webSurface->setMaxFps(DEFAULT_MAX_FPS);
-
-    // The lifetime of the QML surface MUST be managed by the main thread
-    // Additionally, we MUST use local variables copied by value, rather than
-    // member variables, since they would implicitly refer to a this that
-    // is no longer valid
-    _webSurface->create(currentContext);
-
-    loadSourceURL();
-
-    _webSurface->resume();
-    _webSurface->getRootItem()->setProperty("url", _sourceUrl);
-    _webSurface->getRootContext()->setContextProperty("desktop", QVariant());
-    // FIXME - Keyboard HMD only: Possibly add "HMDinfo" object to context for WebView.qml.
+    QObject::connect(_webSurface.data(), &OffscreenQmlSurface::rootContextCreated, [](QQmlContext* surfaceContext) {
+        // FIXME - Keyboard HMD only: Possibly add "HMDinfo" object to context for WebView.qml.
+        surfaceContext->setContextProperty("desktop", QVariant());
+        // Let us interact with the keyboard
+        surfaceContext->setContextProperty("tabletInterface", DependencyManager::get<TabletScriptingInterface>().data());
+    });
 
     // forward web events to EntityScriptingInterface
     auto entities = DependencyManager::get<EntityScriptingInterface>();
-    const EntityItemID entityItemID = getID();
+    const EntityItemID entityItemID = entity->getID();
     QObject::connect(_webSurface.data(), &OffscreenQmlSurface::webEventReceived, [=](const QVariant& message) {
         emit entities->webEventReceived(entityItemID, message);
     });
 
-    // Restore the original GL context
-    currentContext->makeCurrent(currentSurface);
+    if (_contentType == ContentType::HtmlContent) {
+        // We special case YouTube URLs since we know they are videos that we should play with at least 30 FPS.
+        // FIXME this doesn't handle redirects or shortened URLs, consider using a signaling method from the 
+        // web entity
+        if (QUrl(_lastSourceUrl).host().endsWith("youtube.com", Qt::CaseInsensitive)) {
+            _webSurface->setMaxFps(YOUTUBE_MAX_FPS);
+        } else {
+            _webSurface->setMaxFps(DEFAULT_MAX_FPS);
+        }
+        _webSurface->load("controls/WebEntityView.qml", [this](QQmlContext* context, QObject* item) {
+            item->setProperty(URL_PROPERTY, _lastSourceUrl);
+        });
+    } else if (_contentType == ContentType::QmlContent) {
+        _webSurface->load(_lastSourceUrl);
+    }
+    _fadeStartTime = usecTimestampNow();
+    _webSurface->resume();
 
-    auto forwardPointerEvent = [=](const EntityItemID& entityItemID, const PointerEvent& event) {
-        if (entityItemID == getID()) {
-            handlePointerEvent(event);
-        }
-    };
-    _mousePressConnection = QObject::connect(renderer.data(), &EntityTreeRenderer::mousePressOnEntity, forwardPointerEvent);
-    _mouseReleaseConnection = QObject::connect(renderer.data(), &EntityTreeRenderer::mouseReleaseOnEntity, forwardPointerEvent);
-    _mouseMoveConnection = QObject::connect(renderer.data(), &EntityTreeRenderer::mouseMoveOnEntity, forwardPointerEvent);
-    _hoverLeaveConnection = QObject::connect(renderer.data(), &EntityTreeRenderer::hoverLeaveEntity,
-                                             [=](const EntityItemID& entityItemID, const PointerEvent& event) {
-        if (this->_pressed && this->getID() == entityItemID) {
-            // If the user mouses off the entity while the button is down, simulate a touch end.
-            QTouchEvent::TouchPoint point;
-            point.setId(event.getID());
-            point.setState(Qt::TouchPointReleased);
-            glm::vec2 windowPos = event.getPos2D() * (METERS_TO_INCHES * _dpi);
-            QPointF windowPoint(windowPos.x, windowPos.y);
-            point.setScenePos(windowPoint);
-            point.setPos(windowPoint);
-            QList<QTouchEvent::TouchPoint> touchPoints;
-            touchPoints.push_back(point);
-            QTouchEvent* touchEvent = new QTouchEvent(QEvent::TouchEnd, nullptr,
-                                                      Qt::NoModifier, Qt::TouchPointReleased, touchPoints);
-            touchEvent->setWindow(_webSurface->getWindow());
-            touchEvent->setDevice(&_touchDevice);
-            touchEvent->setTarget(_webSurface->getRootItem());
-            QCoreApplication::postEvent(_webSurface->getWindow(), touchEvent);
-        }
-    });
-    return true;
+    return _webSurface->getRootItem();
 }
 
-glm::vec2 RenderableWebEntityItem::getWindowSize() const {
-    glm::vec2 dims = glm::vec2(getDimensions());
-    dims *= METERS_TO_INCHES * _dpi;
+void WebEntityRenderer::destroyWebSurface() {
+    QSharedPointer<OffscreenQmlSurface> webSurface;
+    ContentType contentType{ ContentType::NoContent };
+    withWriteLock([&] {
+        webSurface.swap(_webSurface);
+        std::swap(contentType, _contentType);
+    });
+
+    if (webSurface) {
+        --_currentWebCount;
+        QQuickItem* rootItem = webSurface->getRootItem();
+
+        // Fix for crash in QtWebEngineCore when rapidly switching domains
+        // Call stop on the QWebEngineView before destroying OffscreenQMLSurface.
+        if (rootItem && contentType == ContentType::HtmlContent) {
+            // stop loading
+            QMetaObject::invokeMethod(rootItem, "stop");
+        }
+
+        webSurface->pause();
+        webSurface.reset();
+    }
+}
+
+glm::vec2 WebEntityRenderer::getWindowSize(const TypedEntityPointer& entity) const {
+    glm::vec2 dims = glm::vec2(entity->getScaledDimensions());
+    dims *= METERS_TO_INCHES * _lastDPI;
 
     // ensure no side is never larger then MAX_WINDOW_SIZE
     float max = (dims.x > dims.y) ? dims.x : dims.y;
@@ -185,264 +353,46 @@ glm::vec2 RenderableWebEntityItem::getWindowSize() const {
     return dims;
 }
 
-void RenderableWebEntityItem::render(RenderArgs* args) {
-    checkFading();
-
-    #ifdef WANT_EXTRA_DEBUGGING
-    {
-        gpu::Batch& batch = *args->_batch;
-        batch.setModelTransform(getTransformToCenter()); // we want to include the scale as well
-        glm::vec4 cubeColor{ 1.0f, 0.0f, 0.0f, 1.0f};
-        DependencyManager::get<GeometryCache>()->renderWireCube(batch, 1.0f, cubeColor);
-    }
-    #endif
-
-    if (!_webSurface) {
-        auto renderer = qSharedPointerCast<EntityTreeRenderer>(args->_renderer);
-        if (!buildWebSurface(renderer)) {
-            return;
-        }
-        _fadeStartTime = usecTimestampNow();
-    }
-
-    _lastRenderTime = usecTimestampNow();
-
-    glm::vec2 windowSize = getWindowSize();
-
-    // The offscreen surface is idempotent for resizes (bails early
-    // if it's a no-op), so it's safe to just call resize every frame
-    // without worrying about excessive overhead.
-    _webSurface->resize(QSize(windowSize.x, windowSize.y));
-
-    if (!_texture) {
-        auto webSurface = _webSurface;
-        _texture = gpu::Texture::createExternal(OffscreenQmlSurface::getDiscardLambda());
-        _texture->setSource(__FUNCTION__);
-    }
-    OffscreenQmlSurface::TextureAndFence newTextureAndFence;
-    bool newTextureAvailable = _webSurface->fetchTexture(newTextureAndFence);
-    if (newTextureAvailable) {
-        _texture->setExternalTexture(newTextureAndFence.first, newTextureAndFence.second);
-    }
-
-    PerformanceTimer perfTimer("RenderableWebEntityItem::render");
-    Q_ASSERT(getType() == EntityTypes::Web);
-    static const glm::vec2 texMin(0.0f), texMax(1.0f), topLeft(-0.5f), bottomRight(0.5f);
-
-    Q_ASSERT(args->_batch);
-    gpu::Batch& batch = *args->_batch;
-
-    bool success;
-    batch.setModelTransform(getTransformToCenter(success));
-    if (!success) {
-        return;
-    }
-    batch.setResourceTexture(0, _texture);
-
-    float fadeRatio = _isFading ? Interpolate::calculateFadeRatio(_fadeStartTime) : 1.0f;
-
-    batch._glColor4f(1.0f, 1.0f, 1.0f, fadeRatio);
-
-    const bool IS_AA = true;
-    if (fadeRatio < OPAQUE_ALPHA_THRESHOLD) {
-        DependencyManager::get<GeometryCache>()->bindTransparentWebBrowserProgram(batch, IS_AA);
-    } else {
-        DependencyManager::get<GeometryCache>()->bindOpaqueWebBrowserProgram(batch, IS_AA);
-    }
-    DependencyManager::get<GeometryCache>()->renderQuad(batch, topLeft, bottomRight, texMin, texMax, glm::vec4(1.0f, 1.0f, 1.0f, fadeRatio), _geometryId);
-}
-
-void RenderableWebEntityItem::loadSourceURL() {
-    QUrl sourceUrl(_sourceUrl);
-    if (sourceUrl.scheme() == "http" || sourceUrl.scheme() == "https" ||
-        _sourceUrl.toLower().endsWith(".htm") || _sourceUrl.toLower().endsWith(".html")) {
-        _contentType = htmlContent;
-        _webSurface->setBaseUrl(QUrl::fromLocalFile(PathUtils::resourcesPath() + "qml/controls/"));
-
-        // We special case YouTube URLs since we know they are videos that we should play with at least 30 FPS.
-        if (sourceUrl.host().endsWith("youtube.com", Qt::CaseInsensitive)) {
-            _webSurface->setMaxFps(YOUTUBE_MAX_FPS);
-        } else {
-            _webSurface->setMaxFps(DEFAULT_MAX_FPS);
-        }
-
-        _webSurface->load("WebEntityView.qml", [&](QQmlContext* context, QObject* obj) {
-            context->setContextProperty("eventBridgeJavaScriptToInject", QVariant(_javaScriptToInject));
-        });
-
-        _webSurface->getRootItem()->setProperty("url", _sourceUrl);
-        _webSurface->getRootContext()->setContextProperty("desktop", QVariant());
-
-    } else {
-        _contentType = qmlContent;
-        _webSurface->setBaseUrl(QUrl::fromLocalFile(PathUtils::resourcesPath()));
-        _webSurface->load(_sourceUrl, [&](QQmlContext* context, QObject* obj) {});
-
-        if (_webSurface->getRootItem() && _webSurface->getRootItem()->objectName() == "tabletRoot") {
-            auto tabletScriptingInterface = DependencyManager::get<TabletScriptingInterface>();
-            tabletScriptingInterface->setQmlTabletRoot("com.highfidelity.interface.tablet.system",
-                                                       _webSurface->getRootItem(), _webSurface.data());
-        }
-    }
-    _webSurface->getRootContext()->setContextProperty("globalPosition", vec3toVariant(getPosition()));
-}
-
-
-void RenderableWebEntityItem::setSourceUrl(const QString& value) {
-    auto valueBeforeSuperclassSet = _sourceUrl;
-
-    WebEntityItem::setSourceUrl(value);
-
-    if (_sourceUrl != valueBeforeSuperclassSet && _webSurface) {
-        qCDebug(entities) << "Changing web entity source URL to " << _sourceUrl;
-
-        AbstractViewStateInterface::instance()->postLambdaEvent([this] {
-            loadSourceURL();
-            if (_contentType == htmlContent) {
-                _webSurface->getRootItem()->setProperty("url", _sourceUrl);
-            }
-        });
+void WebEntityRenderer::hoverEnterEntity(const PointerEvent& event) {
+    if (!_lastLocked && _webSurface) {
+        PointerEvent webEvent = event;
+        webEvent.setPos2D(event.getPos2D() * (METERS_TO_INCHES * _lastDPI));
+        _webSurface->hoverBeginEvent(webEvent, _touchDevice);
     }
 }
 
-void RenderableWebEntityItem::setProxyWindow(QWindow* proxyWindow) {
+void WebEntityRenderer::hoverLeaveEntity(const PointerEvent& event) {
+    if (!_lastLocked && _webSurface) {
+        PointerEvent webEvent = event;
+        webEvent.setPos2D(event.getPos2D() * (METERS_TO_INCHES * _lastDPI));
+        _webSurface->hoverEndEvent(webEvent, _touchDevice);
+    }
+}
+
+void WebEntityRenderer::handlePointerEvent(const PointerEvent& event) {
+    // Ignore mouse interaction if we're locked
+    if (!_lastLocked && _webSurface) {
+        PointerEvent webEvent = event;
+        webEvent.setPos2D(event.getPos2D() * (METERS_TO_INCHES * _lastDPI));
+        _webSurface->handlePointerEvent(webEvent, _touchDevice);
+    }
+}
+
+void WebEntityRenderer::setProxyWindow(QWindow* proxyWindow) {
     if (_webSurface) {
         _webSurface->setProxyWindow(proxyWindow);
     }
 }
 
-QObject* RenderableWebEntityItem::getEventHandler() {
+QObject* WebEntityRenderer::getEventHandler() {
     if (!_webSurface) {
         return nullptr;
     }
     return _webSurface->getEventHandler();
 }
 
-void RenderableWebEntityItem::handlePointerEvent(const PointerEvent& event) {
-
-    // Ignore mouse interaction if we're locked
-    if (getLocked() || !_webSurface) {
-        return;
-    }
-
-    glm::vec2 windowPos = event.getPos2D() * (METERS_TO_INCHES * _dpi);
-    QPointF windowPoint(windowPos.x, windowPos.y);
-    if (event.getType() == PointerEvent::Move) {
-        // Forward a mouse move event to webSurface
-        QMouseEvent* mouseEvent = new QMouseEvent(QEvent::MouseMove, windowPoint, windowPoint, windowPoint, Qt::NoButton, Qt::NoButton, Qt::NoModifier);
-        QCoreApplication::postEvent(_webSurface->getWindow(), mouseEvent);
-    }
-
-    {
-        // Forward a touch update event to webSurface
-        if (event.getType() == PointerEvent::Press) {
-            this->_pressed = true;
-        } else if (event.getType() == PointerEvent::Release) {
-            this->_pressed = false;
-        }
-
-        QEvent::Type type;
-        Qt::TouchPointState touchPointState;
-        switch (event.getType()) {
-        case PointerEvent::Press:
-            type = QEvent::TouchBegin;
-            touchPointState = Qt::TouchPointPressed;
-            break;
-        case PointerEvent::Release:
-            type = QEvent::TouchEnd;
-            touchPointState = Qt::TouchPointReleased;
-            break;
-        case PointerEvent::Move:
-        default:
-            type = QEvent::TouchUpdate;
-            touchPointState = Qt::TouchPointMoved;
-            break;
-        }
-
-        QTouchEvent::TouchPoint point;
-        point.setId(event.getID());
-        point.setState(touchPointState);
-        point.setPos(windowPoint);
-        point.setScreenPos(windowPoint);
-        QList<QTouchEvent::TouchPoint> touchPoints;
-        touchPoints.push_back(point);
-
-        QTouchEvent* touchEvent = new QTouchEvent(type);
-        touchEvent->setWindow(_webSurface->getWindow());
-        touchEvent->setDevice(&_touchDevice);
-        touchEvent->setTarget(_webSurface->getRootItem());
-        touchEvent->setTouchPoints(touchPoints);
-        touchEvent->setTouchPointStates(touchPointState);
-
-        QCoreApplication::postEvent(_webSurface->getWindow(), touchEvent);
-    }
-}
-
-void RenderableWebEntityItem::destroyWebSurface() {
-    if (_webSurface) {
-        --_currentWebCount;
-
-        QQuickItem* rootItem = _webSurface->getRootItem();
-
-        if (rootItem && rootItem->objectName() == "tabletRoot") {
-            auto tabletScriptingInterface = DependencyManager::get<TabletScriptingInterface>();
-            tabletScriptingInterface->setQmlTabletRoot("com.highfidelity.interface.tablet.system", nullptr, nullptr);
-        }
-
-        // Fix for crash in QtWebEngineCore when rapidly switching domains
-        // Call stop on the QWebEngineView before destroying OffscreenQMLSurface.
-        if (rootItem) {
-            QObject* obj = rootItem->findChild<QObject*>("webEngineView");
-            if (obj) {
-                // stop loading
-                QMetaObject::invokeMethod(obj, "stop");
-            }
-        }
-
-        _webSurface->pause();
-
-        _webSurface->disconnect(_connection);
-        QObject::disconnect(_mousePressConnection);
-        _mousePressConnection = QMetaObject::Connection();
-        QObject::disconnect(_mouseReleaseConnection);
-        _mouseReleaseConnection = QMetaObject::Connection();
-        QObject::disconnect(_mouseMoveConnection);
-        _mouseMoveConnection = QMetaObject::Connection();
-        QObject::disconnect(_hoverLeaveConnection);
-        _hoverLeaveConnection = QMetaObject::Connection();
-        _webSurface.reset();
-
-        qCDebug(entities) << "Delete web surface: " << getID() << ", #" << _currentWebCount << ", url = " << _sourceUrl;
-    }
-}
-
-void RenderableWebEntityItem::update(const quint64& now) {
-
-    if (_webSurface) {
-        // update globalPosition
-        _webSurface->getRootContext()->setContextProperty("globalPosition", vec3toVariant(getPosition()));
-    }
-
-    auto interval = now - _lastRenderTime;
-    if (interval > MAX_NO_RENDER_INTERVAL) {
-        destroyWebSurface();
-    }
-}
-
-bool RenderableWebEntityItem::isTransparent() {
+bool WebEntityRenderer::isTransparent() const {
     float fadeRatio = _isFading ? Interpolate::calculateFadeRatio(_fadeStartTime) : 1.0f;
     return fadeRatio < OPAQUE_ALPHA_THRESHOLD;
 }
 
-QObject* RenderableWebEntityItem::getRootItem() {
-    if (_webSurface) {
-        return dynamic_cast<QObject*>(_webSurface->getRootItem());
-    }
-    return nullptr;
-}
-
-void RenderableWebEntityItem::emitScriptEvent(const QVariant& message) {
-    if (_webSurface) {
-        _webSurface->emitScriptEvent(message);
-    }
-}

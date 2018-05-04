@@ -65,6 +65,8 @@ public:
     void flagIdentityChange() { _identityChangeTimestamp = usecTimestampNow(); }
     bool getAvatarSessionDisplayNameMustChange() const { return _avatarSessionDisplayNameMustChange; }
     void setAvatarSessionDisplayNameMustChange(bool set = true) { _avatarSessionDisplayNameMustChange = set; }
+    bool getAvatarSkeletonModelUrlMustChange() const { return _avatarSkeletonModelUrlMustChange; }
+    void setAvatarSkeletonModelUrlMustChange(bool set = true) { _avatarSkeletonModelUrlMustChange = set; }
 
     void resetNumAvatarsSentLastFrame() { _numAvatarsSentLastFrame = 0; }
     void incrementNumAvatarsSentLastFrame() { ++_numAvatarsSentLastFrame; }
@@ -89,14 +91,14 @@ public:
 
     void loadJSONStats(QJsonObject& jsonObject) const;
 
-    glm::vec3 getPosition() const { return _avatar ? _avatar->getPosition() : glm::vec3(0); }
+    glm::vec3 getPosition() const { return _avatar ? _avatar->getWorldPosition() : glm::vec3(0); }
     glm::vec3 getGlobalBoundingBoxCorner() const { return _avatar ? _avatar->getGlobalBoundingBoxCorner() : glm::vec3(0); }
     bool isRadiusIgnoring(const QUuid& other) const { return _radiusIgnoredOthers.find(other) != _radiusIgnoredOthers.end(); }
     void addToRadiusIgnoringSet(const QUuid& other) { _radiusIgnoredOthers.insert(other); }
     void removeFromRadiusIgnoringSet(SharedNodePointer self, const QUuid& other);
     void ignoreOther(SharedNodePointer self, SharedNodePointer other);
 
-    void readViewFrustumPacket(const QByteArray& message);
+    void readViewFrustumPacket(QByteArray message);
 
     bool otherAvatarInView(const AABox& otherAvatarBox);
 
@@ -108,21 +110,12 @@ public:
     bool getRequestsDomainListData() { return _requestsDomainListData; }
     void setRequestsDomainListData(bool requesting) { _requestsDomainListData = requesting; }
 
-    ViewFrustum getViewFrustom() const { return _currentViewFrustum; }
+    const ViewFrustums& getViewFrustums() const { return _currentViewFrustums; }
 
-    quint64 getLastOtherAvatarEncodeTime(QUuid otherAvatar) {
-        quint64 result = 0;
-        if (_lastOtherAvatarEncodeTime.find(otherAvatar) != _lastOtherAvatarEncodeTime.end()) {
-            result = _lastOtherAvatarEncodeTime[otherAvatar];
-        }
-        _lastOtherAvatarEncodeTime[otherAvatar] = usecTimestampNow();
-        return result;
-    }
+    uint64_t getLastOtherAvatarEncodeTime(QUuid otherAvatar) const;
+    void setLastOtherAvatarEncodeTime(const QUuid& otherAvatar, uint64_t time);
 
-    QVector<JointData>& getLastOtherAvatarSentJoints(QUuid otherAvatar) {
-        _lastOtherAvatarSentJoints[otherAvatar].resize(_avatar->getJointCount());
-        return _lastOtherAvatarSentJoints[otherAvatar];
-    }
+    QVector<JointData>& getLastOtherAvatarSentJoints(QUuid otherAvatar) { return _lastOtherAvatarSentJoints[otherAvatar]; }
 
     void queuePacket(QSharedPointer<ReceivedMessage> message, SharedNodePointer node);
     int processPackets(); // returns number of packets processed
@@ -141,11 +134,12 @@ private:
 
     // this is a map of the last time we encoded an "other" avatar for
     // sending to "this" node
-    std::unordered_map<QUuid, quint64> _lastOtherAvatarEncodeTime;
+    std::unordered_map<QUuid, uint64_t> _lastOtherAvatarEncodeTime;
     std::unordered_map<QUuid, QVector<JointData>> _lastOtherAvatarSentJoints;
 
     uint64_t _identityChangeTimestamp;
     bool _avatarSessionDisplayNameMustChange{ true };
+    bool _avatarSkeletonModelUrlMustChange{ false };
 
     int _numAvatarsSentLastFrame = 0;
     int _numFramesSinceAdjustment = 0;
@@ -156,7 +150,7 @@ private:
 
     SimpleMovingAverage _avgOtherAvatarDataRate;
     std::unordered_set<QUuid> _radiusIgnoredOthers;
-    ViewFrustum _currentViewFrustum;
+    ViewFrustums _currentViewFrustums;
 
     int _recentOtherAvatarsInView { 0 };
     int _recentOtherAvatarsOutOfView { 0 };

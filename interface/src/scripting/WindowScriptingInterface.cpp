@@ -9,11 +9,14 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 
+#include "WindowScriptingInterface.h"
+
 #include <QClipboard>
 #include <QtCore/QDir>
 #include <QMessageBox>
 #include <QScriptValue>
 
+#include <shared/QtHelpers.h>
 #include <SettingHandle.h>
 
 #include <display-plugins/CompositorHelper.h>
@@ -24,30 +27,16 @@
 #include "Menu.h"
 #include "OffscreenUi.h"
 
-#include "WindowScriptingInterface.h"
-
 static const QString DESKTOP_LOCATION = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
 static const QString LAST_BROWSE_LOCATION_SETTING = "LastBrowseLocation";
 static const QString LAST_BROWSE_ASSETS_LOCATION_SETTING = "LastBrowseAssetsLocation";
 
 
-QScriptValue CustomPromptResultToScriptValue(QScriptEngine* engine, const CustomPromptResult& result) {
-    if (!result.value.isValid()) {
-        return QScriptValue::UndefinedValue;
-    }
-
-    Q_ASSERT(result.value.userType() == qMetaTypeId<QVariantMap>());
-    return engine->toScriptValue(result.value.toMap());
-}
-
-void CustomPromptResultFromScriptValue(const QScriptValue& object, CustomPromptResult& result) {
-    result.value = object.toVariant();
-}
-
-
 WindowScriptingInterface::WindowScriptingInterface() {
     const DomainHandler& domainHandler = DependencyManager::get<NodeList>()->getDomainHandler();
     connect(&domainHandler, &DomainHandler::connectedToDomain, this, &WindowScriptingInterface::domainChanged);
+    connect(&domainHandler, &DomainHandler::disconnectedFromDomain, this, &WindowScriptingInterface::disconnectedFromDomain);
+
     connect(&domainHandler, &DomainHandler::domainConnectionRefused, this, &WindowScriptingInterface::domainConnectionRefused);
 
     connect(qApp, &Application::svoImportRequested, [this](const QString& urlString) {
@@ -58,11 +47,11 @@ WindowScriptingInterface::WindowScriptingInterface() {
             QUrl url(urlString);
             emit svoImportRequested(url.url());
         } else {
-            OffscreenUi::warning("Import SVO Error", "You need to be running edit.js to import entities.");
+            OffscreenUi::asyncWarning("Import SVO Error", "You need to be running edit.js to import entities.");
         }
     });
 
-    connect(qApp->getWindow(), &MainWindow::windowGeometryChanged, this, &WindowScriptingInterface::geometryChanged);
+    connect(qApp->getWindow(), &MainWindow::windowGeometryChanged, this, &WindowScriptingInterface::onWindowGeometryChanged);
 }
 
 WindowScriptingInterface::~WindowScriptingInterface() {
@@ -85,31 +74,33 @@ QScriptValue WindowScriptingInterface::hasFocus() {
 void WindowScriptingInterface::setFocus() {
     // It's forbidden to call focus() from another thread.
     qApp->postLambdaEvent([] {
-        auto window = qApp->getWindow();
-        window->activateWindow();
-        window->setFocus();
+        qApp->setFocus();
+    });
+}
+
+void WindowScriptingInterface::raise() {
+    // It's forbidden to call raise() from another thread.
+    qApp->postLambdaEvent([] {
+        qApp->raise();
     });
 }
 
 void WindowScriptingInterface::raiseMainWindow() {
-    // It's forbidden to call raise() from another thread.
-    qApp->postLambdaEvent([] {
-        qApp->getWindow()->raise();
-    });
+    raise();
 }
 
 /// Display an alert box
 /// \param const QString& message message to display
 /// \return QScriptValue::UndefinedValue
 void WindowScriptingInterface::alert(const QString& message) {
-    OffscreenUi::warning("", message);
+    OffscreenUi::asyncWarning("", message, QMessageBox::Ok, QMessageBox::Ok);
 }
 
 /// Display a confirmation box with the options 'Yes' and 'No'
 /// \param const QString& message message to display
 /// \return QScriptValue `true` if 'Yes' was clicked, `false` otherwise
 QScriptValue WindowScriptingInterface::confirm(const QString& message) {
-    return QScriptValue((QMessageBox::Yes == OffscreenUi::question("", message, QMessageBox::Yes | QMessageBox::No)));
+    return QScriptValue((QMessageBox::Yes == OffscreenUi::question("", message, QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes)));
 }
 
 /// Display a prompt with a text box
@@ -117,17 +108,27 @@ QScriptValue WindowScriptingInterface::confirm(const QString& message) {
 /// \param const QString& defaultText default text in the text box
 /// \return QScriptValue string text value in text box if the dialog was accepted, `null` otherwise.
 QScriptValue WindowScriptingInterface::prompt(const QString& message, const QString& defaultText) {
-    bool ok = false;
-    QString result = OffscreenUi::getText(nullptr, "", message, QLineEdit::Normal, defaultText, &ok);
-    return ok ? QScriptValue(result) : QScriptValue::NullValue;
+    QString result = OffscreenUi::getText(nullptr, "", message, QLineEdit::Normal, defaultText);
+    if (QScriptValue(result).equals("")) {
+        return QScriptValue::NullValue;
+    }
+    return QScriptValue(result);
 }
 
-CustomPromptResult WindowScriptingInterface::customPrompt(const QVariant& config) {
-    CustomPromptResult result;
+/// Display a prompt with a text box
+/// \param const QString& message message to display
+/// \param const QString& defaultText default text in the text box
+void WindowScriptingInterface::promptAsync(const QString& message, const QString& defaultText) {
     bool ok = false;
-    auto configMap = config.toMap();
-    result.value = OffscreenUi::getCustomInfo(OffscreenUi::ICON_NONE, "", configMap, &ok);
-    return ok ? result : CustomPromptResult();
+    ModalDialogListener* dlg = OffscreenUi::getTextAsync(nullptr, "", message, QLineEdit::Normal, defaultText, &ok);
+    connect(dlg, &ModalDialogListener::response, this, [=] (QVariant result) {
+        disconnect(dlg, &ModalDialogListener::response, this, nullptr);
+        emit promptTextChanged(result.toString());
+    });
+}
+
+void WindowScriptingInterface::disconnectedFromDomain() {
+    emit domainChanged(QUrl());
 }
 
 QString fixupPathForMac(const QString& directory) {
@@ -159,6 +160,11 @@ void WindowScriptingInterface::setPreviousBrowseAssetLocation(const QString& loc
     Setting::Handle<QVariant>(LAST_BROWSE_ASSETS_LOCATION_SETTING).set(location);
 }
 
+bool  WindowScriptingInterface::isPointOnDesktopWindow(QVariant point) {
+    auto offscreenUi = DependencyManager::get<OffscreenUi>();
+    return offscreenUi->isPointOnDesktopWindow(point);
+}
+
 /// Makes sure that the reticle is visible, use this in blocking forms that require a reticle and
 /// might be in same thread as a script that sets the reticle to invisible
 void WindowScriptingInterface::ensureReticleVisible() const {
@@ -171,8 +177,7 @@ void WindowScriptingInterface::ensureReticleVisible() const {
 /// Display a "browse to directory" dialog.  If `directory` is an invalid file or directory the browser will start at the current
 /// working directory.
 /// \param const QString& title title of the window
-/// \param const QString& directory directory to start the file browser at
-/// \param const QString& nameFilter filter to filter filenames by - see `QFileDialog`
+/// \param const QString& directory directory to start the directory browser at
 /// \return QScriptValue file path as a string if one was selected, otherwise `QScriptValue::NullValue`
 QScriptValue WindowScriptingInterface::browseDir(const QString& title, const QString& directory) {
     ensureReticleVisible();
@@ -190,8 +195,30 @@ QScriptValue WindowScriptingInterface::browseDir(const QString& title, const QSt
     return result.isEmpty() ? QScriptValue::NullValue : QScriptValue(result);
 }
 
-/// Display an open file dialog.  If `directory` is an invalid file or directory the browser will start at the current
+/// Display a "browse to directory" dialog.  If `directory` is an invalid file or directory the browser will start at the current
 /// working directory.
+/// \param const QString& title title of the window
+/// \param const QString& directory directory to start the directory browser at
+void WindowScriptingInterface::browseDirAsync(const QString& title, const QString& directory) {
+    ensureReticleVisible();
+    QString path = directory;
+    if (path.isEmpty()) {
+        path = getPreviousBrowseLocation();
+    }
+#ifndef Q_OS_WIN
+    path = fixupPathForMac(directory);
+#endif
+    ModalDialogListener* dlg = OffscreenUi::getExistingDirectoryAsync(nullptr, title, path);
+    connect(dlg, &ModalDialogListener::response, this, [=] (QVariant response) {
+        const QString& result = response.toString();
+        disconnect(dlg, &ModalDialogListener::response, this, nullptr);
+        if (!result.isEmpty()) {
+            setPreviousBrowseLocation(QFileInfo(result).absolutePath());
+        }
+        emit browseDirChanged(result);
+    });
+}
+
 /// \param const QString& title title of the window
 /// \param const QString& directory directory to start the file browser at
 /// \param const QString& nameFilter filter to filter filenames by - see `QFileDialog`
@@ -210,6 +237,31 @@ QScriptValue WindowScriptingInterface::browse(const QString& title, const QStrin
         setPreviousBrowseLocation(QFileInfo(result).absolutePath());
     }
     return result.isEmpty() ? QScriptValue::NullValue : QScriptValue(result);
+}
+
+/// Display an open file dialog.  If `directory` is an invalid file or directory the browser will start at the current
+/// working directory.
+/// \param const QString& title title of the window
+/// \param const QString& directory directory to start the file browser at
+/// \param const QString& nameFilter filter to filter filenames by - see `QFileDialog`
+void WindowScriptingInterface::browseAsync(const QString& title, const QString& directory, const QString& nameFilter) {
+    ensureReticleVisible();
+    QString path = directory;
+    if (path.isEmpty()) {
+        path = getPreviousBrowseLocation();
+    }
+#ifndef Q_OS_WIN
+    path = fixupPathForMac(directory);
+#endif
+    ModalDialogListener* dlg = OffscreenUi::getOpenFileNameAsync(nullptr, title, path, nameFilter);
+    connect(dlg, &ModalDialogListener::response, this, [=] (QVariant response) {
+        const QString& result = response.toString();
+        disconnect(dlg, &ModalDialogListener::response, this, nullptr);
+        if (!result.isEmpty()) {
+            setPreviousBrowseLocation(QFileInfo(result).absolutePath());
+        }
+        emit browseChanged(result);
+    });
 }
 
 /// Display a save file dialog.  If `directory` is an invalid file or directory the browser will start at the current
@@ -234,7 +286,32 @@ QScriptValue WindowScriptingInterface::save(const QString& title, const QString&
     return result.isEmpty() ? QScriptValue::NullValue : QScriptValue(result);
 }
 
-/// Display a select asset dialog that lets the user select an asset from the Asset Server.  If `directory` is an invalid 
+/// Display a save file dialog.  If `directory` is an invalid file or directory the browser will start at the current
+/// working directory.
+/// \param const QString& title title of the window
+/// \param const QString& directory directory to start the file browser at
+/// \param const QString& nameFilter filter to filter filenames by - see `QFileDialog`
+void WindowScriptingInterface::saveAsync(const QString& title, const QString& directory, const QString& nameFilter) {
+    ensureReticleVisible();
+    QString path = directory;
+    if (path.isEmpty()) {
+        path = getPreviousBrowseLocation();
+    }
+#ifndef Q_OS_WIN
+    path = fixupPathForMac(directory);
+#endif
+    ModalDialogListener* dlg = OffscreenUi::getSaveFileNameAsync(nullptr, title, path, nameFilter);
+    connect(dlg, &ModalDialogListener::response, this, [=] (QVariant response) {
+        const QString& result = response.toString();
+        disconnect(dlg, &ModalDialogListener::response, this, nullptr);
+        if (!result.isEmpty()) {
+            setPreviousBrowseLocation(QFileInfo(result).absolutePath());
+        }
+        emit saveFileChanged(result);
+    });
+}
+
+/// Display a select asset dialog that lets the user select an asset from the Asset Server.  If `directory` is an invalid
 /// directory the browser will start at the root directory.
 /// \param const QString& title title of the window
 /// \param const QString& directory directory to start the asset browser at
@@ -259,8 +336,45 @@ QScriptValue WindowScriptingInterface::browseAssets(const QString& title, const 
     return result.isEmpty() ? QScriptValue::NullValue : QScriptValue(result);
 }
 
+/// Display a select asset dialog that lets the user select an asset from the Asset Server.  If `directory` is an invalid
+/// directory the browser will start at the root directory.
+/// \param const QString& title title of the window
+/// \param const QString& directory directory to start the asset browser at
+/// \param const QString& nameFilter filter to filter asset names by - see `QFileDialog`
+void WindowScriptingInterface::browseAssetsAsync(const QString& title, const QString& directory, const QString& nameFilter) {
+    ensureReticleVisible();
+    QString path = directory;
+    if (path.isEmpty()) {
+        path = getPreviousBrowseAssetLocation();
+    }
+    if (path.left(1) != "/") {
+        path = "/" + path;
+    }
+    if (path.right(1) != "/") {
+        path = path + "/";
+    }
+
+    ModalDialogListener* dlg = OffscreenUi::getOpenAssetNameAsync(nullptr, title, path, nameFilter);
+    connect(dlg, &ModalDialogListener::response, this, [=] (QVariant response) {
+        const QString& result = response.toString();
+        disconnect(dlg, &ModalDialogListener::response, this, nullptr);
+        if (!result.isEmpty()) {
+            setPreviousBrowseAssetLocation(QFileInfo(result).absolutePath());
+        }
+        emit assetsDirChanged(result);
+    });
+}
+
 void WindowScriptingInterface::showAssetServer(const QString& upload) {
     QMetaObject::invokeMethod(qApp, "showAssetServerWidget", Qt::QueuedConnection, Q_ARG(QString, upload));
+}
+
+QString WindowScriptingInterface::checkVersion() {
+    return QCoreApplication::applicationVersion();
+}
+
+QString WindowScriptingInterface::protocolSignature() {
+    return protocolVersionsSignatureBase64();
 }
 
 int WindowScriptingInterface::getInnerWidth() {
@@ -268,24 +382,53 @@ int WindowScriptingInterface::getInnerWidth() {
 }
 
 int WindowScriptingInterface::getInnerHeight() {
-    return qApp->getWindow()->geometry().height();
+    return qApp->getWindow()->geometry().height() - qApp->getPrimaryMenu()->geometry().height();
+}
+
+glm::vec2 WindowScriptingInterface::getDeviceSize() const {
+    return qApp->getDeviceSize();
 }
 
 int WindowScriptingInterface::getX() {
-    return qApp->getWindow()->x();
+    return qApp->getWindow()->geometry().x();
 }
 
 int WindowScriptingInterface::getY() {
-    return qApp->getWindow()->y();
+    auto menu = qApp->getPrimaryMenu();
+    int menuHeight = menu ? menu->geometry().height() : 0;
+    return qApp->getWindow()->geometry().y() + menuHeight;
+}
+
+void WindowScriptingInterface::onWindowGeometryChanged(const QRect& windowGeometry) {
+    auto geometry = windowGeometry;
+    auto menu = qApp->getPrimaryMenu();
+    if (menu) {
+        geometry.setY(geometry.y() + menu->geometry().height());
+    }
+    emit geometryChanged(geometry);
 }
 
 void WindowScriptingInterface::copyToClipboard(const QString& text) {
+    if (QThread::currentThread() != qApp->thread()) {
+        QMetaObject::invokeMethod(this, "copyToClipboard", Q_ARG(QString, text));
+        return;
+    }
+
     qDebug() << "Copying";
     QApplication::clipboard()->setText(text);
 }
 
-void WindowScriptingInterface::takeSnapshot(bool notify, bool includeAnimated, float aspectRatio) {
-    qApp->takeSnapshot(notify, includeAnimated, aspectRatio);
+
+bool WindowScriptingInterface::setDisplayTexture(const QString& name) {
+    return  qApp->getActiveDisplayPlugin()->setDisplayTexture(name);   // Plugins that don't know how, answer false.
+}
+
+void WindowScriptingInterface::takeSnapshot(bool notify, bool includeAnimated, float aspectRatio, const QString& filename) {
+    qApp->takeSnapshot(notify, includeAnimated, aspectRatio, filename);
+}
+
+void WindowScriptingInterface::takeSecondaryCameraSnapshot(const QString& filename) {
+    qApp->takeSecondaryCameraSnapshot(filename);
 }
 
 void WindowScriptingInterface::shareSnapshot(const QString& path, const QUrl& href) {
@@ -311,7 +454,7 @@ bool WindowScriptingInterface::isPhysicsEnabled() {
 int WindowScriptingInterface::openMessageBox(QString title, QString text, int buttons, int defaultButton) {
     if (QThread::currentThread() != thread()) {
         int result;
-        QMetaObject::invokeMethod(this, "openMessageBox", Qt::BlockingQueuedConnection,
+        BLOCKING_INVOKE_METHOD(this, "openMessageBox",
             Q_RETURN_ARG(int, result),
             Q_ARG(QString, title),
             Q_ARG(QString, text),
@@ -323,6 +466,41 @@ int WindowScriptingInterface::openMessageBox(QString title, QString text, int bu
     return createMessageBox(title, text, buttons, defaultButton);
 }
 
+/**jsdoc
+ * <p>The buttons that may be included in a message box created by {@link Window.openMessageBox|openMessageBox} are defined by
+ * numeric values:
+ * <table>
+ *   <thead>
+ *     <tr>
+ *       <th>Button</th>
+ *       <th>Value</th>
+ *       <th>Description</th>
+ *     </tr>
+ *   </thead>
+ *   <tbody>
+ *     <tr> <td><strong>NoButton</strong></td> <td><code>0x0</code></td> <td>An invalid button.</td> </tr>
+ *     <tr> <td><strong>Ok</strong></td> <td><code>0x400</code></td> <td>"OK"</td> </tr>
+ *     <tr> <td><strong>Save</strong></td> <td><code>0x800</code></td> <td>"Save"</td> </tr>
+ *     <tr> <td><strong>SaveAll</strong></td> <td><code>0x1000</code></td> <td>"Save All"</td> </tr>
+ *     <tr> <td><strong>Open</strong></td> <td><code>0x2000</code></td> <td>"Open"</td> </tr>
+ *     <tr> <td><strong>Yes</strong></td> <td><code>0x4000</code></td> <td>"Yes"</td> </tr>
+ *     <tr> <td><strong>YesToAll</strong></td> <td><code>0x8000</code></td> <td>"Yes to All"</td> </tr>
+ *     <tr> <td><strong>No</strong></td> <td><code>0x10000</code></td> <td>"No"</td> </tr>
+ *     <tr> <td><strong>NoToAll</strong></td> <td><code>0x20000</code></td> <td>"No to All"</td> </tr>
+ *     <tr> <td><strong>Abort</strong></td> <td><code>0x40000</code></td> <td>"Abort"</td> </tr>
+ *     <tr> <td><strong>Retry</strong></td> <td><code>0x80000</code></td> <td>"Retry"</td> </tr>
+ *     <tr> <td><strong>Ignore</strong></td> <td><code>0x100000</code></td> <td>"Ignore"</td> </tr>
+ *     <tr> <td><strong>Close</strong></td> <td><code>0x200000</code></td> <td>"Close"</td> </tr>
+ *     <tr> <td><strong>Cancel</strong></td> <td><code>0x400000</code></td> <td>"Cancel"</td> </tr>
+ *     <tr> <td><strong>Discard</strong></td> <td><code>0x800000</code></td> <td>"Discard" or "Don't Save"</td> </tr>
+ *     <tr> <td><strong>Help</strong></td> <td><code>0x1000000</code></td> <td>"Help"</td> </tr>
+ *     <tr> <td><strong>Apply</strong></td> <td><code>0x2000000</code></td> <td>"Apply"</td> </tr>
+ *     <tr> <td><strong>Reset</strong></td> <td><code>0x4000000</code></td> <td>"Reset"</td> </tr>
+ *     <tr> <td><strong>RestoreDefaults</strong></td> <td><code>0x8000000</code></td> <td>"Restore Defaults"</td> </tr>
+ *   </tbody>
+ * </table>
+ * @typedef Window.MessageBoxButton
+ */
 int WindowScriptingInterface::createMessageBox(QString title, QString text, int buttons, int defaultButton) {
     auto messageBox = DependencyManager::get<OffscreenUi>()->createMessageBox(OffscreenUi::ICON_INFORMATION, title, text,
         static_cast<QFlags<QMessageBox::StandardButton>>(buttons), static_cast<QMessageBox::StandardButton>(defaultButton));

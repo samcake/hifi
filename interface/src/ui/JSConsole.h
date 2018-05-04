@@ -12,11 +12,11 @@
 #ifndef hifi_JSConsole_h
 #define hifi_JSConsole_h
 
-#include <QDialog>
-#include <QEvent>
 #include <QFutureWatcher>
 #include <QObject>
-#include <QWidget>
+#include <QSharedPointer>
+#include <QCompleter>
+#include <QtCore/QJsonArray>
 
 #include "ui_console.h"
 #include "ScriptEngine.h"
@@ -29,10 +29,10 @@ const int CONSOLE_HEIGHT = 200;
 class JSConsole : public QWidget {
     Q_OBJECT
 public:
-    JSConsole(QWidget* parent, ScriptEngine* scriptEngine = NULL);
+    JSConsole(QWidget* parent, const ScriptEnginePointer& scriptEngine = ScriptEnginePointer());
     ~JSConsole();
 
-    void setScriptEngine(ScriptEngine* scriptEngine = NULL);
+    void setScriptEngine(const ScriptEnginePointer& scriptEngine = ScriptEnginePointer());
     void clear();
 
 public slots:
@@ -53,22 +53,31 @@ protected slots:
     void handleError(const QString& message, const QString& scriptName);
     void commandFinished();
 
+private slots:
+    void insertCompletion(const QModelIndex& completion);
+    void highlightedCompletion(const QModelIndex& completion);
+
 private:
     void appendMessage(const QString& gutter, const QString& message);
     void setToNextCommandInHistory();
     void setToPreviousCommandInHistory();
     void resetCurrentCommandHistory();
-    QScriptValue executeCommandInWatcher(const QString& command);
+
+    void readAPI();
+
+    QStandardItemModel* getAutoCompleteModel(const QString& memberOf = nullptr);
 
     QFutureWatcher<QScriptValue> _executeWatcher;
     Ui::Console* _ui;
     int _currentCommandInHistory;
+    QString _savedHistoryFilename;
     QList<QString> _commandHistory;
-    // Keeps track if the script engine is created inside the JSConsole
-    bool _ownScriptEngine;
     QString _rootCommand;
-    ScriptEngine* _scriptEngine;
+    ScriptEnginePointer _scriptEngine;
     static const QString _consoleFileName;
+    QJsonArray _apiDocs;
+    QCompleter* _completer;
+    QString _completerModule {""};
 };
 
 

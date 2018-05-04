@@ -9,6 +9,8 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 
+#include "AudioMixerClientData.h"
+
 #include <random>
 
 #include <QtCore/QDebug>
@@ -19,10 +21,9 @@
 
 #include "InjectedAudioStream.h"
 
+#include "AudioLogging.h"
 #include "AudioHelpers.h"
 #include "AudioMixer.h"
-#include "AudioMixerClientData.h"
-
 
 AudioMixerClientData::AudioMixerClientData(const QUuid& nodeID) :
     NodeData(nodeID),
@@ -67,10 +68,23 @@ void AudioMixerClientData::processPackets() {
             case PacketType::MicrophoneAudioNoEcho:
             case PacketType::MicrophoneAudioWithEcho:
             case PacketType::InjectAudio:
-            case PacketType::AudioStreamStats:
             case PacketType::SilentAudioFrame: {
+
+                if (node->isUpstream()) {
+                    setupCodecForReplicatedAgent(packet);
+                }
+
                 QMutexLocker lock(&getMutex());
                 parseData(*packet);
+
+                optionallyReplicatePacket(*packet, *node);
+
+                break;
+            }
+            case PacketType::AudioStreamStats: {
+                QMutexLocker lock(&getMutex());
+                parseData(*packet);
+
                 break;
             }
             case PacketType::NegotiateAudioFormat:
@@ -95,6 +109,59 @@ void AudioMixerClientData::processPackets() {
         _packetQueue.pop();
     }
     assert(_packetQueue.empty());
+}
+
+bool isReplicatedPacket(PacketType packetType) {
+    return packetType == PacketType::ReplicatedMicrophoneAudioNoEcho
+        || packetType == PacketType::ReplicatedMicrophoneAudioWithEcho
+        || packetType == PacketType::ReplicatedInjectAudio
+        || packetType == PacketType::ReplicatedSilentAudioFrame;
+}
+
+void AudioMixerClientData::optionallyReplicatePacket(ReceivedMessage& message, const Node& node) {
+
+    // first, make sure that this is a packet from a node we are supposed to replicate
+    if (node.isReplicated()) {
+
+        // now make sure it's a packet type that we want to replicate
+
+        // first check if it is an original type that we should replicate
+        PacketType mirroredType = PacketTypeEnum::getReplicatedPacketMapping().value(message.getType());
+
+        if (mirroredType == PacketType::Unknown) {
+            // if it wasn't check if it is a replicated type that we should re-replicate
+            if (PacketTypeEnum::getReplicatedPacketMapping().key(message.getType()) != PacketType::Unknown) {
+                mirroredType = message.getType();
+            } else {
+                qCDebug(audio) << "Packet passed to optionallyReplicatePacket was not a replicatable type - returning";
+                return;
+            }
+        }
+
+        std::unique_ptr<NLPacket> packet;
+        auto nodeList = DependencyManager::get<NodeList>();
+
+        // enumerate the downstream audio mixers and send them the replicated version of this packet
+        nodeList->unsafeEachNode([&](const SharedNodePointer& downstreamNode) {
+            if (AudioMixer::shouldReplicateTo(node, *downstreamNode)) {
+                // construct the packet only once, if we have any downstream audio mixers to send to
+                if (!packet) {
+                    // construct an NLPacket to send to the replicant that has the contents of the received packet
+                    packet = NLPacket::create(mirroredType);
+
+                    if (!isReplicatedPacket(message.getType())) {
+                        // since this packet will be non-sourced, we add the replicated node's ID here
+                        packet->write(node.getUUID().toRfc4122());
+                    }
+
+                    packet->write(message.getMessage());
+                }
+                
+                nodeList->sendUnreliablePacket(*packet, *downstreamNode);
+            }
+        });
+    }
+
 }
 
 void AudioMixerClientData::negotiateAudioFormat(ReceivedMessage& message, const SharedNodePointer& node) {
@@ -123,8 +190,16 @@ void AudioMixerClientData::parsePerAvatarGainSet(ReceivedMessage& message, const
     uint8_t packedGain;
     message.readPrimitive(&packedGain);
     float gain = unpackFloatGainFromByte(packedGain);
-    hrtfForStream(avatarUuid, QUuid()).setGainAdjustment(gain);
-    qDebug() << "Setting gain adjustment for hrtf[" << uuid << "][" << avatarUuid << "] to " << gain;
+
+    if (avatarUuid.isNull()) {
+        // set the MASTER avatar gain
+        setMasterAvatarGain(gain);
+        qCDebug(audio) << "Setting MASTER avatar gain for " << uuid << " to " << gain;
+    } else {
+        // set the per-source avatar gain
+        hrtfForStream(avatarUuid, QUuid()).setGainAdjustment(gain);
+        qCDebug(audio) << "Setting avatar gain adjustment for hrtf[" << uuid << "][" << avatarUuid << "] to " << gain;
+    }
 }
 
 void AudioMixerClientData::parseNodeIgnoreRequest(QSharedPointer<ReceivedMessage> message, const SharedNodePointer& node) {
@@ -188,8 +263,11 @@ int AudioMixerClientData::parseData(ReceivedMessage& message) {
         bool isMicStream = false;
 
         if (packetType == PacketType::MicrophoneAudioWithEcho
+            || packetType == PacketType::ReplicatedMicrophoneAudioWithEcho
             || packetType == PacketType::MicrophoneAudioNoEcho
-            || packetType == PacketType::SilentAudioFrame) {
+            || packetType == PacketType::ReplicatedMicrophoneAudioNoEcho
+            || packetType == PacketType::SilentAudioFrame
+            || packetType == PacketType::ReplicatedSilentAudioFrame) {
 
             QWriteLocker writeLocker { &_streamsLock };
 
@@ -197,19 +275,31 @@ int AudioMixerClientData::parseData(ReceivedMessage& message) {
             if (micStreamIt == _audioStreams.end()) {
                 // we don't have a mic stream yet, so add it
 
-                // read the channel flag to see if our stream is stereo or not
+                // hop past the sequence number that leads the packet
                 message.seek(sizeof(quint16));
 
-                quint8 channelFlag;
-                message.readPrimitive(&channelFlag);
+                // pull the codec string from the packet
+                auto codecString = message.readString();
 
-                bool isStereo = channelFlag == 1;
+                // determine if the stream is stereo or not
+                bool isStereo;
+                if (packetType == PacketType::SilentAudioFrame
+                    || packetType == PacketType::ReplicatedSilentAudioFrame) {
+                    quint16 numSilentSamples;
+                    message.readPrimitive(&numSilentSamples);
+                    isStereo = numSilentSamples == AudioConstants::NETWORK_FRAME_SAMPLES_STEREO;
+                } else {
+                    quint8 channelFlag;
+                    message.readPrimitive(&channelFlag);
+                    isStereo = channelFlag == 1;
+                }
 
                 auto avatarAudioStream = new AvatarAudioStream(isStereo, AudioMixer::getStaticJitterFrames());
-                avatarAudioStream->setupCodec(_codec, _selectedCodecName, AudioConstants::MONO);
-                qDebug() << "creating new AvatarAudioStream... codec:" << _selectedCodecName;
+                avatarAudioStream->setupCodec(_codec, _selectedCodecName, isStereo ? AudioConstants::STEREO : AudioConstants::MONO);
+                qCDebug(audio) << "creating new AvatarAudioStream... codec:" << _selectedCodecName << "isStereo:" << isStereo;
 
-                connect(avatarAudioStream, &InboundAudioStream::mismatchedAudioCodec, this, &AudioMixerClientData::handleMismatchAudioFormat);
+                connect(avatarAudioStream, &InboundAudioStream::mismatchedAudioCodec,
+                        this, &AudioMixerClientData::handleMismatchAudioFormat);
 
                 auto emplaced = _audioStreams.emplace(
                     QUuid(),
@@ -224,10 +314,12 @@ int AudioMixerClientData::parseData(ReceivedMessage& message) {
             writeLocker.unlock();
 
             isMicStream = true;
-        } else if (packetType == PacketType::InjectAudio) {
+        } else if (packetType == PacketType::InjectAudio
+                   || packetType == PacketType::ReplicatedInjectAudio) {
             // this is injected audio
             // grab the stream identifier for this injected audio
             message.seek(sizeof(quint16));
+
             QUuid streamIdentifier = QUuid::fromRfc4122(message.readWithoutCopy(NUM_BYTES_RFC4122_UUID));
 
             bool isStereo;
@@ -243,7 +335,7 @@ int AudioMixerClientData::parseData(ReceivedMessage& message) {
 
 #if INJECTORS_SUPPORT_CODECS
                 injectorStream->setupCodec(_codec, _selectedCodecName, isStereo ? AudioConstants::STEREO : AudioConstants::MONO);
-                qDebug() << "creating new injectorStream... codec:" << _selectedCodecName;
+                qCDebug(audio) << "creating new injectorStream... codec:" << _selectedCodecName << "isStereo:" << isStereo;
 #endif
 
                 auto emplaced = _audioStreams.emplace(
@@ -267,8 +359,8 @@ int AudioMixerClientData::parseData(ReceivedMessage& message) {
         auto parseResult = matchingStream->parseData(message);
 
         if (matchingStream->getOverflowCount() > overflowBefore) {
-            qDebug() << "Just overflowed on stream from" << message.getSourceID() << "at" << message.getSenderSockAddr();
-            qDebug() << "This stream is for" << (isMicStream ? "microphone audio" : "injected audio");
+            qCDebug(audio) << "Just overflowed on stream from" << message.getSourceID() << "at" << message.getSenderSockAddr();
+            qCDebug(audio) << "This stream is for" << (isMicStream ? "microphone audio" : "injected audio");
         }
 
         return parseResult;
@@ -486,7 +578,8 @@ void AudioMixerClientData::setupCodec(CodecPluginPointer codec, const QString& c
 
     auto avatarAudioStream = getAvatarAudioStream();
     if (avatarAudioStream) {
-        avatarAudioStream->setupCodec(codec, codecName, AudioConstants::MONO);
+        avatarAudioStream->setupCodec(codec, codecName, avatarAudioStream->isStereo() ? AudioConstants::STEREO : AudioConstants::MONO);
+        qCDebug(audio) << "setting AvatarAudioStream... codec:" << _selectedCodecName << "isStereo:" << avatarAudioStream->isStereo();
     }
 
 #if INJECTORS_SUPPORT_CODECS
@@ -607,4 +700,23 @@ bool AudioMixerClientData::shouldIgnore(const SharedNodePointer self, const Shar
     nodeData->_nodeSourcesIgnoreMap[self->getUUID()].cache(shouldIgnore);
 
     return shouldIgnore;
+}
+
+void AudioMixerClientData::setupCodecForReplicatedAgent(QSharedPointer<ReceivedMessage> message) {
+    // hop past the sequence number that leads the packet
+    message->seek(sizeof(quint16));
+
+    // pull the codec string from the packet
+    auto codecString = message->readString();
+
+    if (codecString != _selectedCodecName) {
+        qCDebug(audio) << "Manually setting codec for replicated agent" << uuidStringWithoutCurlyBraces(getNodeID())
+        << "-" << codecString;
+
+        const std::pair<QString, CodecPluginPointer> codec = AudioMixer::negotiateCodec({ codecString });
+        setupCodec(codec.second, codec.first);
+
+        // seek back to the beginning of the message so other readers are in the right place
+        message->seek(0);
+    }
 }

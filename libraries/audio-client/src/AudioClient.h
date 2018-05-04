@@ -18,7 +18,7 @@
 #include <mutex>
 #include <queue>
 
-#include <QtCore/qsystemdetection.h>
+#include <QtCore/QtGlobal>
 #include <QtCore/QByteArray>
 #include <QtCore/QElapsedTimer>
 #include <QtCore/QObject>
@@ -26,7 +26,6 @@
 #include <QtMultimedia/QAudio>
 #include <QtMultimedia/QAudioFormat>
 #include <QtMultimedia/QAudioInput>
-
 #include <AbstractAudioInterface.h>
 #include <AudioEffectOptions.h>
 #include <AudioStreamStats.h>
@@ -47,11 +46,13 @@
 #include <AudioConstants.h>
 #include <AudioGate.h>
 
+
 #include <shared/RateCounter.h>
 
 #include <plugins/CodecPlugin.h>
 
 #include "AudioIOStats.h"
+#include "AudioFileWav.h"
 
 #ifdef _WIN32
 #pragma warning( push )
@@ -66,7 +67,6 @@
 class QAudioInput;
 class QAudioOutput;
 class QIODevice;
-
 
 class Transform;
 class NLPacket;
@@ -104,6 +104,7 @@ public:
         int _unfulfilledReads;
     };
 
+    void startThread();
     void negotiateAudioFormat();
     void selectAudioFormat(const QString& selectedCodecName);
 
@@ -117,12 +118,12 @@ public:
     const MixedProcessedAudioStream& getReceivedAudioStream() const { return _receivedAudioStream; }
     MixedProcessedAudioStream& getReceivedAudioStream() { return _receivedAudioStream; }
 
+    const QAudioFormat& getOutputFormat() const { return _outputFormat; }
+
     float getLastInputLoudness() const { return _lastInputLoudness; }   // TODO: relative to noise floor?
 
     float getTimeSinceLastClip() const { return _timeSinceLastClip; }
     float getAudioAverageInputLoudness() const { return _lastInputLoudness; }
-
-    bool isMuted() { return _muted; }
 
     const AudioIOStats& getStats() const { return _stats; }
 
@@ -143,13 +144,28 @@ public:
     void setIsPlayingBackRecording(bool isPlayingBackRecording) { _isPlayingBackRecording = isPlayingBackRecording; }
 
     Q_INVOKABLE void setAvatarBoundingBoxParameters(glm::vec3 corner, glm::vec3 scale);
+    
+    bool outputLocalInjector(const AudioInjectorPointer& injector) override;
 
-    bool outputLocalInjector(AudioInjector* injector) override;
+    QAudioDeviceInfo getActiveAudioDevice(QAudio::Mode mode) const;
+    QList<QAudioDeviceInfo> getAudioDevices(QAudio::Mode mode) const;
+
+    void enablePeakValues(bool enable) { _enablePeakValues = enable; }
+    bool peakValuesAvailable() const;
 
     static const float CALLBACK_ACCELERATOR_RATIO;
 
+    bool getNamedAudioDeviceForModeExists(QAudio::Mode mode, const QString& deviceName);
+
+    void setRecording(bool isRecording) { _isRecording = isRecording; };
+    bool getRecording() { return _isRecording; };
+
+    bool startRecording(const QString& filename);
+    void stopRecording();
+
+
 #ifdef Q_OS_WIN
-    static QString friendlyNameForAudioDevice(wchar_t* guid);
+    static QString getWinDeviceName(wchar_t* guid);
 #endif
 
 public slots:
@@ -166,16 +182,28 @@ public slots:
 
     void sendDownstreamAudioStatsPacket() { _stats.publish(); }
     void handleMicAudioInput();
+    void audioInputStateChanged(QAudio::State state);
+    void checkInputTimeout();
+    void handleDummyAudioInput();
     void handleRecordedAudioInput(const QByteArray& audio);
     void reset();
     void audioMixerKilled();
-    void toggleMute();
 
-    virtual void setIsStereoInput(bool stereo) override;
+    void setMuted(bool muted, bool emitSignal = true);
+    bool isMuted() { return _muted; }
 
-    void toggleAudioNoiseReduction() { _isNoiseGateEnabled = !_isNoiseGateEnabled; }
+    virtual bool setIsStereoInput(bool stereo) override;
+    virtual bool isStereoInput() override { return _isStereoInput; }
 
+    void setNoiseReduction(bool isNoiseGateEnabled, bool emitSignal = true);
+    bool isNoiseReductionEnabled() const { return _isNoiseGateEnabled; }
+
+    bool getLocalEcho() { return _shouldEchoLocally; }
+    void setLocalEcho(bool localEcho) { _shouldEchoLocally = localEcho; }
     void toggleLocalEcho() { _shouldEchoLocally = !_shouldEchoLocally; }
+
+    bool getServerEcho() { return _shouldEchoToServer; }
+    void setServerEcho(bool serverEcho) { _shouldEchoToServer = serverEcho; }
     void toggleServerEcho() { _shouldEchoToServer = !_shouldEchoToServer; }
 
     void processReceivedSamples(const QByteArray& inputBuffer, QByteArray& outputBuffer);
@@ -185,15 +213,12 @@ public slots:
 
     bool shouldLoopbackInjectors() override { return _shouldEchoToServer; }
 
-    bool switchInputToAudioDevice(const QString& inputDeviceName);
-    bool switchOutputToAudioDevice(const QString& outputDeviceName);
-    QString getDeviceName(QAudio::Mode mode) const { return (mode == QAudio::AudioInput) ?
-                                                            _inputAudioDeviceName : _outputAudioDeviceName; }
-    QString getDefaultDeviceName(QAudio::Mode mode);
-    QVector<QString> getDeviceNames(QAudio::Mode mode);
+    // calling with a null QAudioDevice will use the system default
+    bool switchAudioDevice(QAudio::Mode mode, const QAudioDeviceInfo& deviceInfo = QAudioDeviceInfo());
+    bool switchAudioDevice(QAudio::Mode mode, const QString& deviceName);
 
     float getInputVolume() const { return (_audioInput) ? (float)_audioInput->volume() : 0.0f; }
-    void setInputVolume(float volume) { if (_audioInput) _audioInput->setVolume(volume); }
+    void setInputVolume(float volume, bool emitSignal = true);
     void setReverb(bool reverb);
     void setReverbOptions(const AudioEffectOptions* options);
 
@@ -203,16 +228,22 @@ public slots:
     void saveSettings();
 
 signals:
-    bool muteToggled();
+    void inputVolumeChanged(float volume);
+    void muteToggled(bool muted);
+    void noiseReductionChanged(bool noiseReductionEnabled);
     void mutedByMixer();
     void inputReceived(const QByteArray& inputSamples);
+    void inputLoudnessChanged(float loudness);
     void outputBytesToNetwork(int numBytes);
     void inputBytesFromNetwork(int numBytes);
     void noiseGateOpened();
     void noiseGateClosed();
 
     void changeDevice(const QAudioDeviceInfo& outputDeviceInfo);
-    void deviceChanged();
+
+    void deviceChanged(QAudio::Mode mode, const QAudioDeviceInfo& device);
+    void devicesChanged(QAudio::Mode mode, const QList<QAudioDeviceInfo>& devices);
+    void peakValueListChanged(const QList<float> peakValueList);
 
     void receivedFirstPacket();
     void disconnected();
@@ -221,8 +252,7 @@ signals:
 
     void muteEnvironmentRequested(glm::vec3 position, float radius);
 
-    void currentOutputDeviceChanged(const QString& name);
-    void currentInputDeviceChanged(const QString& name);
+    void outputBufferReceived(const QByteArray _outputBuffer);
 
 protected:
     AudioClient();
@@ -234,13 +264,21 @@ private:
     friend class CheckDevicesThread;
     friend class LocalInjectorsThread;
 
+    // background tasks
+    void checkDevices();
+    void checkPeakValues();
+
     void outputFormatChanged();
     void handleAudioInput(QByteArray& audioBuffer);
-    void checkDevices();
     void prepareLocalAudioInjectors(std::unique_ptr<Lock> localAudioLock = nullptr);
     bool mixLocalAudioInjectors(float* mixBuffer);
     float azimuthForSource(const glm::vec3& relativePosition);
     float gainForSource(float distance, float volume);
+
+#ifdef Q_OS_ANDROID
+    QTimer _checkInputTimer;
+    long _inputReadsSinceLastCheck = 0l;
+#endif
 
     class Gate {
     public:
@@ -270,6 +308,7 @@ private:
 
     Mutex _injectorsMutex;
     QAudioInput* _audioInput;
+    QTimer* _dummyAudioInput;
     QAudioFormat _desiredInputFormat;
     QAudioFormat _inputFormat;
     QIODevice* _inputDevice;
@@ -289,9 +328,7 @@ private:
     std::atomic<bool> _localInjectorsAvailable { false };
     MixedProcessedAudioStream _receivedAudioStream;
     bool _isStereoInput;
-
-    QString _inputAudioDeviceName;
-    QString _outputAudioDeviceName;
+    std::atomic<bool> _enablePeakValues { false };
 
     quint64 _outputStarveDetectionStartTimeMsec;
     int _outputStarveDetectionCount;
@@ -337,17 +374,16 @@ private:
     int16_t _localScratchBuffer[AudioConstants::NETWORK_FRAME_SAMPLES_AMBISONIC];
     float* _localOutputMixBuffer { NULL };
     Mutex _localAudioMutex;
-
     AudioLimiter _audioLimiter;
-
+    
     // Adds Reverb
     void configureReverb();
     void updateReverbOptions();
 
     void handleLocalEchoAndReverb(QByteArray& inputByteArray);
 
-    bool switchInputToAudioDevice(const QAudioDeviceInfo& inputDeviceInfo);
-    bool switchOutputToAudioDevice(const QAudioDeviceInfo& outputDeviceInfo);
+    bool switchInputToAudioDevice(const QAudioDeviceInfo inputDeviceInfo, bool isShutdownRequest = false);
+    bool switchOutputToAudioDevice(const QAudioDeviceInfo outputDeviceInfo, bool isShutdownRequest = false);
 
     // Callback acceleration dependent calculations
     int calculateNumberOfInputCallbackBytes(const QAudioFormat& format) const;
@@ -360,7 +396,7 @@ private:
     AudioIOStats _stats;
 
     AudioGate* _audioGate { nullptr };
-    bool _audioGateOpen { false };
+    bool _audioGateOpen { true };
 
     AudioPositionGetter _positionGetter;
     AudioOrientationGetter _orientationGetter;
@@ -368,12 +404,17 @@ private:
     glm::vec3 avatarBoundingBoxCorner;
     glm::vec3 avatarBoundingBoxScale;
 
-    QVector<QString> _inputDevices;
-    QVector<QString> _outputDevices;
+    QAudioDeviceInfo _inputDeviceInfo;
+    QAudioDeviceInfo _outputDeviceInfo;
+
+    QList<QAudioDeviceInfo> _inputDevices;
+    QList<QAudioDeviceInfo> _outputDevices;
+
+    AudioFileWav _audioFileWav;
 
     bool _hasReceivedFirstPacket { false };
 
-    QVector<AudioInjector*> _activeLocalAudioInjectors;
+    QVector<AudioInjectorPointer> _activeLocalAudioInjectors;
 
     bool _isPlayingBackRecording { false };
 
@@ -386,8 +427,14 @@ private:
     RateCounter<> _silentInbound;
     RateCounter<> _audioInbound;
 
-    QThread* _checkDevicesThread { nullptr };
-    QThread* _localInjectorsThread { nullptr };
+#if defined(Q_OS_ANDROID)
+    bool _shouldRestartInputSetup { true }; // Should we restart the input device because of an unintended stop?
+#endif
+    
+    QTimer* _checkDevicesTimer { nullptr };
+    QTimer* _checkPeakValuesTimer { nullptr };
+
+    bool _isRecording { false };
 };
 
 

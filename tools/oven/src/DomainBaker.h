@@ -55,11 +55,13 @@ private:
     QString _baseOutputPath;
     QString _uniqueOutputPath;
     QString _contentOutputPath;
+    QString _bakedOutputPath;
+    QString _originalOutputPath;
     QUrl _destinationPath;
 
     QJsonArray _entities;
 
-    QHash<QUrl, QSharedPointer<FBXBaker>> _modelBakers;
+    QHash<QUrl, QSharedPointer<ModelBaker>> _modelBakers;
     QHash<QUrl, QSharedPointer<TextureBaker>> _skyboxBakers;
     
     QMultiHash<QUrl, QJsonValueRef> _entitiesNeedingRewrite;

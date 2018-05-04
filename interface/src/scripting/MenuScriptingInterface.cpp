@@ -14,6 +14,7 @@
 #include <QtCore/QCoreApplication>
 #include <QtCore/QThread>
 
+#include <shared/QtHelpers.h>
 #include <MenuItemProperties.h>
 #include "Menu.h"
 
@@ -43,7 +44,7 @@ bool MenuScriptingInterface::menuExists(const QString& menu) {
         return Menu::getInstance()->menuExists(menu);
     }
     bool result;
-    QMetaObject::invokeMethod(Menu::getInstance(), "menuExists", Qt::BlockingQueuedConnection,
+    BLOCKING_INVOKE_METHOD(Menu::getInstance(), "menuExists",
                 Q_RETURN_ARG(bool, result), 
                 Q_ARG(const QString&, menu));
     return result;
@@ -86,27 +87,11 @@ bool MenuScriptingInterface::menuItemExists(const QString& menu, const QString& 
         return Menu::getInstance()->menuItemExists(menu, menuitem);
     }
     bool result;
-    QMetaObject::invokeMethod(Menu::getInstance(), "menuItemExists", Qt::BlockingQueuedConnection,
+    BLOCKING_INVOKE_METHOD(Menu::getInstance(), "menuItemExists",
         Q_RETURN_ARG(bool, result),
         Q_ARG(const QString&, menu),
         Q_ARG(const QString&, menuitem));
     return result;
-}
-
-void MenuScriptingInterface::addActionGroup(const QString& groupName, const QStringList& actionList,
-                                            const QString& selected) {
-    static const char* slot = SLOT(menuItemTriggered());
-    QMetaObject::invokeMethod(Menu::getInstance(), "addActionGroup",
-                              Q_ARG(const QString&, groupName),
-                              Q_ARG(const QStringList&, actionList),
-                              Q_ARG(const QString&, selected),
-                              Q_ARG(QObject*, this),
-                              Q_ARG(const char*, slot));
-}
-
-void MenuScriptingInterface::removeActionGroup(const QString& groupName) {
-    QMetaObject::invokeMethod(Menu::getInstance(), "removeActionGroup",
-                              Q_ARG(const QString&, groupName));
 }
 
 bool MenuScriptingInterface::isOptionChecked(const QString& menuOption) {
@@ -114,7 +99,7 @@ bool MenuScriptingInterface::isOptionChecked(const QString& menuOption) {
         return Menu::getInstance()->isOptionChecked(menuOption);
     }
     bool result;
-    QMetaObject::invokeMethod(Menu::getInstance(), "isOptionChecked", Qt::BlockingQueuedConnection,
+    BLOCKING_INVOKE_METHOD(Menu::getInstance(), "isOptionChecked",
                 Q_RETURN_ARG(bool, result), 
                 Q_ARG(const QString&, menuOption));
     return result;
@@ -131,7 +116,7 @@ bool MenuScriptingInterface::isMenuEnabled(const QString& menuOption) {
         return Menu::getInstance()->isOptionChecked(menuOption);
     }
     bool result;
-    QMetaObject::invokeMethod(Menu::getInstance(), "isMenuEnabled", Qt::BlockingQueuedConnection,
+    BLOCKING_INVOKE_METHOD(Menu::getInstance(), "isMenuEnabled",
         Q_RETURN_ARG(bool, result),
         Q_ARG(const QString&, menuOption));
     return result;
@@ -146,15 +131,3 @@ void MenuScriptingInterface::setMenuEnabled(const QString& menuOption, bool isCh
 void MenuScriptingInterface::triggerOption(const QString& menuOption) {
     QMetaObject::invokeMethod(Menu::getInstance(), "triggerOption", Q_ARG(const QString&, menuOption));    
 }
-
-void MenuScriptingInterface::closeInfoView(const QString& path) {
-    QMetaObject::invokeMethod(Menu::getInstance(), "closeInfoView", Q_ARG(const QString&, path));
-}
-
-bool MenuScriptingInterface::isInfoViewVisible(const QString& path) {
-    bool result;
-    QMetaObject::invokeMethod(Menu::getInstance(), "isInfoViewVisible", Qt::BlockingQueuedConnection,
-                              Q_RETURN_ARG(bool, result), Q_ARG(const QString&, path));
-    return result;
-}
-

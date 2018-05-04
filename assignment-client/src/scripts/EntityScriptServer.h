@@ -19,10 +19,10 @@
 #include <QtCore/QUuid>
 
 #include <EntityEditPacketSender.h>
-#include <EntityTreeHeadlessViewer.h>
 #include <plugins/CodecPlugin.h>
 #include <ScriptEngine.h>
 #include <ThreadedAssignment.h>
+#include "../entities/EntityTreeHeadlessViewer.h"
 
 class EntityScriptServer : public ThreadedAssignment {
     Q_OBJECT
@@ -41,7 +41,6 @@ public slots:
 
 private slots:
     void handleOctreePacket(QSharedPointer<ReceivedMessage> message, SharedNodePointer senderNode);
-    void handleJurisdictionPacket(QSharedPointer<ReceivedMessage> message, SharedNodePointer senderNode);
     void handleSelectedAudioFormat(QSharedPointer<ReceivedMessage> message);
 
     void handleReloadEntityServerScriptPacket(QSharedPointer<ReceivedMessage> message, SharedNodePointer senderNode);
@@ -53,6 +52,9 @@ private slots:
     void handleEntityServerScriptLogPacket(QSharedPointer<ReceivedMessage> message, SharedNodePointer senderNode);
 
     void pushLogs();
+
+    void handleEntityScriptCallMethodPacket(QSharedPointer<ReceivedMessage> message, SharedNodePointer senderNode);
+
 
 private:
     void negotiateAudioFormat();
@@ -72,7 +74,7 @@ private:
     bool _shuttingDown { false };
 
     static int _entitiesScriptEngineCount;
-    QSharedPointer<ScriptEngine> _entitiesScriptEngine;
+    ScriptEnginePointer _entitiesScriptEngine;
     EntityEditPacketSender _entityEditSender;
     EntityTreeHeadlessViewer _entityViewer;
 

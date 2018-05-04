@@ -10,18 +10,18 @@
 //
 
 import QtQuick 2.5
-import QtQuick.Controls 1.4
 import "../styles-uit"
 
 Item {
     property alias text: popupText.text
     property alias headerGlyph: headerGlyph.text
     property alias headerText: headerText.text
+    property alias headerGlyphSize: headerGlyph.size
     property real popupRadius: hifi.dimensions.borderRadius
     property real headerTextPixelSize: 22
     property real popupTextPixelSize: 16
-    FontLoader { id: ralewayRegular; source: "../../fonts/Raleway-Regular.ttf"; }
-    FontLoader { id: ralewaySemiBold; source: "../../fonts/Raleway-SemiBold.ttf"; }
+    property real headerTextMargin: -5
+    property real headerGlyphMargin: -15
     visible: false
     id: letterbox
     anchors.fill: parent
@@ -30,16 +30,35 @@ Item {
         color: "black"
         opacity: 0.5
         radius: popupRadius
+
+        MouseArea {
+            anchors.fill: parent;
+            hoverEnabled: true;
+            acceptedButtons: Qt.LeftButton;
+            propagateComposedEvents: false;
+            onClicked: {
+                letterbox.visible = false;
+            }
+        }
     }
     Rectangle {
-        width: Math.max(parent.width * 0.75, 400)
+        id: textContainer;
+        width: Math.max(parent.width * 0.8, 400)
         height: contentContainer.height + 50
         anchors.centerIn: parent
         radius: popupRadius
         color: "white"
+
+        // Prevent dismissing the popup by clicking on the textContainer
+        MouseArea {
+            anchors.fill: parent;
+            hoverEnabled: true;
+            propagateComposedEvents: false;
+        }
+
         Item {
             id: contentContainer
-            width: parent.width - 60
+            width: parent.width - 50
             height: childrenRect.height
             anchors.centerIn: parent
             Item {
@@ -58,7 +77,7 @@ Item {
                     height: parent.height
                     // Anchors
                     anchors.left: parent.left
-                    anchors.leftMargin: -15
+                    anchors.leftMargin: headerGlyphMargin
                     // Text Size
                     size: headerTextPixelSize*2.5
                     // Style
@@ -74,11 +93,12 @@ Item {
                     height: parent.height
                     // Anchors
                     anchors.left: headerGlyph.right
-                    anchors.leftMargin: -5
+                    anchors.leftMargin: headerTextMargin
                     // Text Size
                     font.pixelSize: headerTextPixelSize
                     // Style
-                    font.family: ralewaySemiBold.name
+                    font.family: "Raleway"
+                    font.weight: Font.DemiBold
                     color: hifi.colors.darkGray
                     horizontalAlignment: Text.AlignHLeft
                     verticalAlignment: Text.AlignVCenter
@@ -92,7 +112,7 @@ Item {
                     anchors.top: parent.top
                     anchors.topMargin: -20
                     anchors.right: parent.right
-                    anchors.rightMargin: -25
+                    anchors.rightMargin: -20
                     MouseArea {
                         anchors.fill: closeGlyphButton
                         hoverEnabled: true
@@ -123,18 +143,14 @@ Item {
                 horizontalAlignment: Text.AlignHLeft
                 // Style
                 font.pixelSize: popupTextPixelSize
-                font.family: ralewayRegular.name
+                font.family: "Raleway"
                 color: hifi.colors.darkGray
                 wrapMode: Text.WordWrap
                 textFormat: Text.StyledText
+                onLinkActivated: {
+                    Qt.openUrlExternally(link)
+                }
             }
-        }
-    }
-    MouseArea {
-        anchors.fill: parent
-        acceptedButtons: Qt.LeftButton
-        onClicked: {
-            letterbox.visible = false
         }
     }
 }

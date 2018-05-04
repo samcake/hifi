@@ -27,6 +27,10 @@ public:
     virtual const render::ShapeKey getShapeKey() override;
 
     virtual Sphere3DOverlay* createClone() const override;
+
+    virtual scriptable::ScriptableModelBase getScriptableModel() override;
+protected:
+    Transform evalRenderTransform() override;
 };
 
  

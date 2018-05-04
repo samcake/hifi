@@ -22,10 +22,9 @@
 #include <DeferredLightingEffect.h>
 #include <FramebufferCache.h>
 #include <TextureCache.h>
-#include <OctreeRenderer.h>
 
 #ifdef DEFERRED_LIGHTING
-extern void initDeferredPipelines(render::ShapePlumber& plumber);
+extern void initDeferredPipelines(render::ShapePlumber& plumber, const render::ShapePipeline::BatchSetter& batchSetter, const render::ShapePipeline::ItemSetter& itemSetter);
 extern void initStencilPipeline(gpu::PipelinePointer& pipeline);
 #endif
 
@@ -45,7 +44,7 @@ TestWindow::TestWindow() {
     });
 
 #ifdef DEFERRED_LIGHTING
-    _light->setType(model::Light::SUN);
+    _light->setType(graphics::Light::SUN);
     _light->setAmbientSpherePreset(gpu::SphericalHarmonics::Preset::OLD_TOWN_SQUARE);
     _light->setIntensity(1.0f);
     _light->setAmbientIntensity(0.5f);
@@ -78,8 +77,7 @@ void TestWindow::initGl() {
 #ifdef DEFERRED_LIGHTING
     auto deferredLightingEffect = DependencyManager::get<DeferredLightingEffect>();
     deferredLightingEffect->init();
-    deferredLightingEffect->setGlobalLight(_light);
-    initDeferredPipelines(*_shapePlumber);
+    initDeferredPipelines(*_shapePlumber, nullptr, nullptr);
 #endif
 }
 
@@ -100,7 +98,7 @@ void TestWindow::beginFrame() {
     _preparePrimaryFramebuffer.run(_renderContext, primaryFramebuffer);
 
     DeferredFrameTransformPointer frameTransform;
-    _generateDeferredFrameTransform.run(_renderContext, frameTransform);
+    _generateDeferredFrameTransform.run(_renderContext, glm::vec2(0.0f, 0.0f), frameTransform);
 
     LightingModelPointer lightingModel;
     _generateLightingModel.run(_renderContext, lightingModel);
@@ -116,14 +114,14 @@ void TestWindow::beginFrame() {
     // the rest of the renderDeferred inputs can be omitted
 
 #else
-    gpu::doInBatch(_renderArgs->_context, [&](gpu::Batch& batch) {
+    gpu::doInBatch("TestWindow::beginFrame", _renderArgs->_context, [&](gpu::Batch& batch) {
         batch.clearColorFramebuffer(gpu::Framebuffer::BUFFER_COLORS, { 0.0f, 0.1f, 0.2f, 1.0f });
         batch.clearDepthFramebuffer(1e4);
         batch.setViewportTransform({ 0, 0, _size.width() * devicePixelRatio(), _size.height() * devicePixelRatio() });
     });
 #endif
 
-    gpu::doInBatch(_renderArgs->_context, [&](gpu::Batch& batch) {
+    gpu::doInBatch("TestWindow::beginFrame", _renderArgs->_context, [&](gpu::Batch& batch) {
         batch.setViewportTransform(_renderArgs->_viewport);
         batch.setStateScissorRect(_renderArgs->_viewport);
         batch.setProjectionTransform(_projectionMatrix);
@@ -133,7 +131,7 @@ void TestWindow::beginFrame() {
 void TestWindow::endFrame() {
 #ifdef DEFERRED_LIGHTING
     RenderArgs* args = _renderContext->args;
-    gpu::doInBatch(args->_context, [&](gpu::Batch& batch) {
+    gpu::doInBatch("TestWindow::endFrame::begin", args->_context, [&](gpu::Batch& batch) {
         args->_batch = &batch;
         auto deferredFboColorDepthStencil = _prepareDeferredOutputs.get0()->getDeferredFramebufferDepthColor();
         batch.setViewportTransform(args->_viewport);
@@ -146,7 +144,7 @@ void TestWindow::endFrame() {
 
     _renderDeferred.run(_renderContext, _renderDeferredInputs);
 
-    gpu::doInBatch(_renderArgs->_context, [&](gpu::Batch& batch) {
+    gpu::doInBatch("TestWindow::endFrame::blit", _renderArgs->_context, [&](gpu::Batch& batch) {
         PROFILE_RANGE_BATCH(batch, "blit");
         // Blit to screen
         auto framebufferCache = DependencyManager::get<FramebufferCache>();
@@ -156,7 +154,7 @@ void TestWindow::endFrame() {
     });
 #endif
 
-    gpu::doInBatch(_renderArgs->_context, [&](gpu::Batch& batch) {
+    gpu::doInBatch("TestWindow::endFrame::finish", _renderArgs->_context, [&](gpu::Batch& batch) {
         batch.resetStages();
     });
     _glContext.swapBuffers(this);

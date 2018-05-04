@@ -13,6 +13,7 @@
 #include <QtWidgets/QGridLayout>
 #include <QtWidgets/QLabel>
 #include <QtWidgets/QLineEdit>
+#include <QtWidgets/QMessageBox>
 #include <QtWidgets/QPushButton>
 #include <QtWidgets/QStackedWidget>
 
@@ -20,8 +21,7 @@
 #include <QtCore/QDebug>
 #include <QtCore/QThread>
 
-#include "../Oven.h"
-#include "OvenMainWindow.h"
+#include "../OvenGUIApplication.h"
 
 #include "SkyboxBakeWidget.h"
 
@@ -155,7 +155,9 @@ void SkyboxBakeWidget::bakeButtonClicked() {
     // make sure we have a valid output directory
     QDir outputDirectory(_outputDirLineEdit->text());
 
+    outputDirectory.mkdir(".");
     if (!outputDirectory.exists()) {
+        QMessageBox::warning(this, "Unable to create directory", "Unable to create output directory. Please create it manually or choose a different directory.");
         return;
     }
 
@@ -181,7 +183,7 @@ void SkyboxBakeWidget::bakeButtonClicked() {
         };
 
         // move the baker to a worker thread
-        baker->moveToThread(qApp->getNextWorkerThread());
+        baker->moveToThread(Oven::instance().getNextWorkerThread());
 
         // invoke the bake method on the baker thread
         QMetaObject::invokeMethod(baker.get(), "bake");
@@ -190,7 +192,7 @@ void SkyboxBakeWidget::bakeButtonClicked() {
         connect(baker.get(), &TextureBaker::finished, this, &SkyboxBakeWidget::handleFinishedBaker);
 
         // add a pending row to the results window to show that this bake is in process
-        auto resultsWindow = qApp->getMainWindow()->showResultsWindow();
+        auto resultsWindow = OvenGUIApplication::instance()->getMainWindow()->showResultsWindow();
         auto resultsRow = resultsWindow->addPendingResultRow(skyboxToBakeURL.fileName(), outputDirectory);
 
         // keep a unique_ptr to this baker
@@ -208,7 +210,7 @@ void SkyboxBakeWidget::handleFinishedBaker() {
 
         if (it != _bakers.end()) {
             auto resultRow = it->second;
-            auto resultsWindow = qApp->getMainWindow()->showResultsWindow();
+            auto resultsWindow = OvenGUIApplication::instance()->getMainWindow()->showResultsWindow();
 
             if (baker->hasErrors()) {
                 resultsWindow->changeStatusForRow(resultRow, baker->getErrors().join("\n"));

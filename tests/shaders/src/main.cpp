@@ -19,6 +19,7 @@
 #include <QGuiApplication>
 
 #include <gl/GLHelpers.h>
+#include <gl/GLShaders.h>
 
 #include <gl/QOpenGLContextWrapper.h>
 
@@ -31,12 +32,8 @@
 #include <render-utils/deferred_light_point_vert.h>
 #include <render-utils/deferred_light_spot_vert.h>
 
-#include <render-utils/directional_light_frag.h>
 #include <render-utils/directional_ambient_light_frag.h>
 #include <render-utils/directional_skybox_light_frag.h>
-
-#include <render-utils/point_light_frag.h>
-#include <render-utils/spot_light_frag.h>
 
 #include <render-utils/standardTransformPNTC_vert.h>
 #include <render-utils/standardDrawTexture_frag.h>
@@ -53,27 +50,18 @@
 #include <render-utils/model_frag.h>
 #include <render-utils/model_shadow_frag.h>
 #include <render-utils/model_normal_map_frag.h>
-#include <render-utils/model_normal_specular_map_frag.h>
-#include <render-utils/model_specular_map_frag.h>
 #include <render-utils/model_lightmap_frag.h>
 #include <render-utils/model_lightmap_normal_map_frag.h>
-#include <render-utils/model_lightmap_normal_specular_map_frag.h>
-#include <render-utils/model_lightmap_specular_map_frag.h>
 #include <render-utils/model_translucent_frag.h>
 
-#include <entities-renderer/untextured_particle_frag.h>
-#include <entities-renderer/untextured_particle_vert.h>
 #include <entities-renderer/textured_particle_frag.h>
 #include <entities-renderer/textured_particle_vert.h>
-
-#include <render-utils/hit_effect_vert.h>
-#include <render-utils/hit_effect_frag.h>
 
 #include <render-utils/overlay3D_vert.h>
 #include <render-utils/overlay3D_frag.h>
 
-#include <model/skybox_vert.h>
-#include <model/skybox_frag.h>
+#include <graphics/skybox_vert.h>
+#include <graphics/skybox_frag.h>
 
 #include <gpu/DrawTransformUnitQuad_vert.h>
 #include <gpu/DrawTexcoordRectTransformUnitQuad_vert.h>
@@ -109,6 +97,7 @@ public:
 
         show();
         makeCurrent();
+        gl::initModuleGl();
         gpu::Context::init<gpu::gl::GLBackend>();
         makeCurrent();
         resize(QSize(800, 600));
@@ -123,12 +112,37 @@ public:
     }
 };
 
-void testShaderBuild(const char* vs_src, const char * fs_src) {
-    auto vs = gpu::Shader::createVertex(std::string(vs_src));
-    auto fs = gpu::Shader::createPixel(std::string(fs_src));
-    auto pr = gpu::Shader::createProgram(vs, fs);
-    if (!gpu::Shader::makeProgram(*pr)) {
+
+
+const std::string VERTEX_SHADER_DEFINES{ R"GLSL(
+#version 410 core
+#define GPU_VERTEX_SHADER
+#define GPU_TRANSFORM_IS_STEREO
+#define GPU_TRANSFORM_STEREO_CAMERA
+#define GPU_TRANSFORM_STEREO_CAMERA_INSTANCED
+#define GPU_TRANSFORM_STEREO_SPLIT_SCREEN
+)GLSL" };
+
+const std::string PIXEL_SHADER_DEFINES{ R"GLSL(
+#version 410 core
+#define GPU_PIXEL_SHADER
+#define GPU_TRANSFORM_IS_STEREO
+#define GPU_TRANSFORM_STEREO_CAMERA
+#define GPU_TRANSFORM_STEREO_CAMERA_INSTANCED
+#define GPU_TRANSFORM_STEREO_SPLIT_SCREEN
+)GLSL" };
+
+void testShaderBuild(const std::string& vs_src, const std::string& fs_src) {
+    std::string error;
+    std::vector<char> binary;
+    GLuint vs, fs;
+    if (!gl::compileShader(GL_VERTEX_SHADER, vs_src, VERTEX_SHADER_DEFINES, vs, error) || 
+        !gl::compileShader(GL_FRAGMENT_SHADER, fs_src, PIXEL_SHADER_DEFINES, fs, error)) {
         throw std::runtime_error("Failed to compile shader");
+    }
+    auto pr = gl::compileProgram({ vs, fs }, error, binary);
+    if (!pr) {
+        throw std::runtime_error("Failed to link shader");
     }
 }
 
@@ -143,82 +157,61 @@ void QTestWindow::draw() {
 
     static std::once_flag once;
     std::call_once(once, [&]{
-        testShaderBuild(sdf_text3D_vert, sdf_text3D_frag);
+        testShaderBuild(sdf_text3D_vert::getSource(), sdf_text3D_frag::getSource());
 
-        testShaderBuild(DrawTransformUnitQuad_vert, DrawTexture_frag);
-        testShaderBuild(DrawTexcoordRectTransformUnitQuad_vert, DrawTexture_frag);
-        testShaderBuild(DrawViewportQuadTransformTexcoord_vert, DrawTexture_frag);
-        testShaderBuild(DrawTransformUnitQuad_vert, DrawTextureOpaque_frag);
-        testShaderBuild(DrawTransformUnitQuad_vert, DrawColoredTexture_frag);
+        testShaderBuild(DrawTransformUnitQuad_vert::getSource(), DrawTexture_frag::getSource());
+        testShaderBuild(DrawTexcoordRectTransformUnitQuad_vert::getSource(), DrawTexture_frag::getSource());
+        testShaderBuild(DrawViewportQuadTransformTexcoord_vert::getSource(), DrawTexture_frag::getSource());
+        testShaderBuild(DrawTransformUnitQuad_vert::getSource(), DrawTextureOpaque_frag::getSource());
+        testShaderBuild(DrawTransformUnitQuad_vert::getSource(), DrawColoredTexture_frag::getSource());
 
-        testShaderBuild(skybox_vert, skybox_frag);
-        testShaderBuild(simple_vert, simple_frag);
-        testShaderBuild(simple_vert, simple_textured_frag);
-        testShaderBuild(simple_vert, simple_textured_unlit_frag);
-        testShaderBuild(deferred_light_vert, directional_light_frag);
-        testShaderBuild(deferred_light_vert, directional_ambient_light_frag);
-        testShaderBuild(deferred_light_vert, directional_skybox_light_frag);
-        testShaderBuild(deferred_light_point_vert, point_light_frag);
-        testShaderBuild(deferred_light_spot_vert, spot_light_frag);
-        testShaderBuild(standardTransformPNTC_vert, standardDrawTexture_frag);
-        testShaderBuild(standardTransformPNTC_vert, DrawTextureOpaque_frag);
+        testShaderBuild(skybox_vert::getSource(), skybox_frag::getSource());
+        testShaderBuild(simple_vert::getSource(), simple_frag::getSource());
+        testShaderBuild(simple_vert::getSource(), simple_textured_frag::getSource());
+        testShaderBuild(simple_vert::getSource(), simple_textured_unlit_frag::getSource());
+        testShaderBuild(deferred_light_vert::getSource(), directional_ambient_light_frag::getSource());
+        testShaderBuild(deferred_light_vert::getSource(), directional_skybox_light_frag::getSource());
+        testShaderBuild(standardTransformPNTC_vert::getSource(), standardDrawTexture_frag::getSource());
+        testShaderBuild(standardTransformPNTC_vert::getSource(), DrawTextureOpaque_frag::getSource());
 
-        testShaderBuild(model_vert, model_frag);
-        testShaderBuild(model_normal_map_vert, model_normal_map_frag);
-        testShaderBuild(model_vert, model_specular_map_frag);
-        testShaderBuild(model_normal_map_vert, model_normal_specular_map_frag);
-        testShaderBuild(model_vert, model_translucent_frag);
-        testShaderBuild(model_normal_map_vert, model_translucent_frag);
-        testShaderBuild(model_lightmap_vert, model_lightmap_frag);
-        testShaderBuild(model_lightmap_normal_map_vert, model_lightmap_normal_map_frag);
-        testShaderBuild(model_lightmap_vert, model_lightmap_specular_map_frag);
-        testShaderBuild(model_lightmap_normal_map_vert, model_lightmap_normal_specular_map_frag);
+        testShaderBuild(model_vert::getSource(), model_frag::getSource());
+        testShaderBuild(model_normal_map_vert::getSource(), model_normal_map_frag::getSource());
+        testShaderBuild(model_vert::getSource(), model_translucent_frag::getSource());
+        testShaderBuild(model_normal_map_vert::getSource(), model_translucent_frag::getSource());
+        testShaderBuild(model_lightmap_vert::getSource(), model_lightmap_frag::getSource());
+        testShaderBuild(model_lightmap_normal_map_vert::getSource(), model_lightmap_normal_map_frag::getSource());
 
-        testShaderBuild(skin_model_vert, model_frag);
-        testShaderBuild(skin_model_normal_map_vert, model_normal_map_frag);
-        testShaderBuild(skin_model_vert, model_specular_map_frag);
-        testShaderBuild(skin_model_normal_map_vert, model_normal_specular_map_frag);
-        testShaderBuild(skin_model_vert, model_translucent_frag);
-        testShaderBuild(skin_model_normal_map_vert, model_translucent_frag);
+        testShaderBuild(skin_model_vert::getSource(), model_frag::getSource());
+        testShaderBuild(skin_model_normal_map_vert::getSource(), model_normal_map_frag::getSource());
+        testShaderBuild(skin_model_vert::getSource(), model_translucent_frag::getSource());
+        testShaderBuild(skin_model_normal_map_vert::getSource(), model_translucent_frag::getSource());
 
-        testShaderBuild(model_shadow_vert, model_shadow_frag);
-        testShaderBuild(untextured_particle_vert, untextured_particle_frag);
-        testShaderBuild(textured_particle_vert, textured_particle_frag);
+        testShaderBuild(model_shadow_vert::getSource(), model_shadow_frag::getSource());
+        testShaderBuild(textured_particle_vert::getSource(), textured_particle_frag::getSource());
 /* FIXME: Bring back the ssao shader tests
-        testShaderBuild(gaussian_blur_vertical_vert, gaussian_blur_frag);
-        testShaderBuild(gaussian_blur_horizontal_vert, gaussian_blur_frag);
-        testShaderBuild(ambient_occlusion_vert, ambient_occlusion_frag);
-        testShaderBuild(ambient_occlusion_vert, occlusion_blend_frag);
+        testShaderBuild(gaussian_blur_vert::getSource()ical_vert::getSource(), gaussian_blur_frag::getSource());
+        testShaderBuild(gaussian_blur_horizontal_vert::getSource(), gaussian_blur_frag::getSource());
+        testShaderBuild(ambient_occlusion_vert::getSource(), ambient_occlusion_frag::getSource());
+        testShaderBuild(ambient_occlusion_vert::getSource(), occlusion_blend_frag::getSource());
 */
-        testShaderBuild(hit_effect_vert, hit_effect_frag);
 
-        testShaderBuild(overlay3D_vert, overlay3D_frag);
+        testShaderBuild(overlay3D_vert::getSource(), overlay3D_frag::getSource());
 
-        testShaderBuild(paintStroke_vert,paintStroke_frag);
-        testShaderBuild(polyvox_vert, polyvox_frag);
+        testShaderBuild(paintStroke_vert::getSource(),paintStroke_frag::getSource());
+        testShaderBuild(polyvox_vert::getSource(), polyvox_frag::getSource());
 
     });
     _context.swapBuffers(this);
-}
-
-void messageHandler(QtMsgType type, const QMessageLogContext& context, const QString& message) {
-    if (!message.isEmpty()) {
-#ifdef Q_OS_WIN
-        OutputDebugStringA(message.toLocal8Bit().constData());
-        OutputDebugStringA("\n");
-#else 
-        std::cout << message.toLocal8Bit().constData() << std::endl;
-#endif
-    }
 }
 
 const char * LOG_FILTER_RULES = R"V0G0N(
 hifi.gpu=true
 )V0G0N";
 
-int main(int argc, char** argv) {    
+int main(int argc, char** argv) {
+    setupHifiApplication("Shaders Test");
+
     QGuiApplication app(argc, argv);
-    qInstallMessageHandler(messageHandler);
     QLoggingCategory::setFilterRules(LOG_FILTER_RULES);
     QTestWindow window;
     QTimer timer;

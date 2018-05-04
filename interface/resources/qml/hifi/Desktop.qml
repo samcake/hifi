@@ -1,13 +1,14 @@
-import QtQuick 2.5
-import QtQuick.Controls 1.4
-import QtWebEngine 1.1;
+import QtQuick 2.7
+import QtWebEngine 1.5;
 import Qt.labs.settings 1.0
-import HFWebEngineProfile 1.0
+
+import QtQuick.Controls 2.3
 
 import "../desktop" as OriginalDesktop
 import ".."
 import "."
 import "./toolbars"
+import "../controls-uit"
 
 OriginalDesktop.Desktop {
     id: desktop
@@ -21,15 +22,6 @@ OriginalDesktop.Desktop {
         onEntered: ApplicationCompositor.reticleOverDesktop = true
         onExited: ApplicationCompositor.reticleOverDesktop = false
         acceptedButtons: Qt.NoButton
-    }
-
-    // The tool window, one instance
-    property alias toolWindow: toolWindow
-    ToolWindow { id: toolWindow }
-
-    property var browserProfile: HFWebEngineProfile {
-        id: webviewProfile
-        storageName: "qmlWebEngine"
     }
 
     Action {
@@ -51,11 +43,13 @@ OriginalDesktop.Desktop {
     Toolbar {
         id: sysToolbar;
         objectName: "com.highfidelity.interface.toolbar.system";
+        property var tablet: Tablet.getTablet("com.highfidelity.interface.tablet.system");
         anchors.horizontalCenter: settings.constrainToolbarToCenterX ? desktop.horizontalCenter : undefined;
         // Literal 50 is overwritten by settings from previous session, and sysToolbar.x comes from settings when not constrained.
         x: sysToolbar.x
         y: 50
-        shown: true
+        buttonModel: tablet.buttons;
+        shown: tablet.toolbarMode;
     }
 
     Settings {

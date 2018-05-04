@@ -18,6 +18,8 @@
 #include <gpu/Context.h>
 
 #include "EngineStats.h"
+#include "SceneTask.h"
+
 #include "Logging.h"
 
 using namespace render;
@@ -34,7 +36,7 @@ public:
     }
 };
 
-Engine::Engine() : Task("Engine", EngineTask::JobModel::create()),
+Engine::Engine() : Task(EngineTask::JobModel::create("Engine")),
     _renderContext(std::make_shared<RenderContext>())
 {
 }
@@ -43,8 +45,8 @@ void Engine::load() {
     auto config = getConfiguration();
     const QString configFile= "config/render.json";
 
-    QUrl path(PathUtils::resourcesPath() + configFile);
-    QFile file(path.toString());
+    QString path(PathUtils::resourcesPath() + configFile);
+    QFile file(path);
     if (!file.exists()) {
         qWarning() << "Engine configuration file" << path << "does not exist";
     } else if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {

@@ -15,6 +15,7 @@
 #include <stdint.h>
 
 #include <glm/glm.hpp>
+#include <glm/gtx/component_wise.hpp>
 
 #include <QtScript/QScriptEngine>
 #include <QtCore/QObject>
@@ -39,30 +40,41 @@
 #include "PolyVoxEntityItem.h"
 #include "SimulationOwner.h"
 #include "SkyboxPropertyGroup.h"
-#include "StagePropertyGroup.h"
+#include "HazePropertyGroup.h"
 #include "TextEntityItem.h"
 #include "ZoneEntityItem.h"
 
+#include "MaterialMappingMode.h"
+
 const quint64 UNKNOWN_CREATED_TIME = 0;
+
+using ComponentPair = std::pair<const ComponentMode, const QString>;
+const std::array<ComponentPair, COMPONENT_MODE_ITEM_COUNT> COMPONENT_MODES = { {
+    ComponentPair { COMPONENT_MODE_INHERIT, { "inherit" } },
+    ComponentPair { COMPONENT_MODE_DISABLED, { "disabled" } },
+    ComponentPair { COMPONENT_MODE_ENABLED, { "enabled" } }
+} };
 
 /// A collection of properties of an entity item used in the scripting API. Translates between the actual properties of an
 /// entity and a JavaScript style hash/QScriptValue storing a set of properties. Used in scripting to set/get the complete
 /// set of entity item properties via JavaScript hashes/QScriptValues
 /// all units for SI units (meter, second, radian, etc) 
 class EntityItemProperties {
-    friend class EntityItem; // TODO: consider removing this friend relationship and use public methods
-    friend class ModelEntityItem; // TODO: consider removing this friend relationship and use public methods
-    friend class BoxEntityItem; // TODO: consider removing this friend relationship and use public methods
-    friend class SphereEntityItem; // TODO: consider removing this friend relationship and use public methods
-    friend class LightEntityItem; // TODO: consider removing this friend relationship and use public methods
-    friend class TextEntityItem; // TODO: consider removing this friend relationship and use public methods
-    friend class ParticleEffectEntityItem; // TODO: consider removing this friend relationship and use public methods
-    friend class ZoneEntityItem; // TODO: consider removing this friend relationship and use public methods
-    friend class WebEntityItem; // TODO: consider removing this friend relationship and use public methods
-    friend class LineEntityItem; // TODO: consider removing this friend relationship and use public methods
-    friend class PolyVoxEntityItem; // TODO: consider removing this friend relationship and use public methods
-    friend class PolyLineEntityItem; // TODO: consider removing this friend relationship and use public methods
-    friend class ShapeEntityItem; // TODO: consider removing this friend relationship and use public methods
+    // TODO: consider removing these friend relationship and use public methods
+    friend class EntityItem;
+    friend class ModelEntityItem;
+    friend class BoxEntityItem;
+    friend class SphereEntityItem;
+    friend class LightEntityItem;
+    friend class TextEntityItem;
+    friend class ParticleEffectEntityItem;
+    friend class ZoneEntityItem;
+    friend class WebEntityItem;
+    friend class LineEntityItem;
+    friend class PolyVoxEntityItem;
+    friend class PolyLineEntityItem;
+    friend class ShapeEntityItem;
+    friend class MaterialEntityItem;
 public:
     EntityItemProperties(EntityPropertyFlags desiredProperties = EntityPropertyFlags());
     virtual ~EntityItemProperties() = default;
@@ -85,8 +97,10 @@ public:
 
     EntityPropertyFlags getChangedProperties() const;
 
-    bool parentDependentPropertyChanged() const; // was there a changed in a property that requires parent info to interpret?
-    bool parentRelatedPropertyChanged() const; // parentDependentPropertyChanged or parentID or parentJointIndex
+    bool transformChanged() const;
+    bool getScalesWithParent() const;
+    bool parentRelatedPropertyChanged() const;
+    bool queryAACubeRelatedPropertyChanged() const;
 
     AABox getAABox() const;
 
@@ -103,6 +117,7 @@ public:
     // bool _fooChanged { false };
 
     DEFINE_PROPERTY(PROP_VISIBLE, Visible, visible, bool, ENTITY_ITEM_DEFAULT_VISIBLE);
+    DEFINE_PROPERTY(PROP_CAN_CAST_SHADOW, CanCastShadow, canCastShadow, bool, ENTITY_ITEM_DEFAULT_CAN_CAST_SHADOW);
     DEFINE_PROPERTY_REF_WITH_SETTER(PROP_POSITION, Position, position, glm::vec3, ENTITY_ITEM_ZERO_VEC3);
     DEFINE_PROPERTY_REF(PROP_DIMENSIONS, Dimensions, dimensions, glm::vec3, ENTITY_ITEM_DEFAULT_DIMENSIONS);
     DEFINE_PROPERTY_REF(PROP_ROTATION, Rotation, rotation, glm::quat, ENTITY_ITEM_DEFAULT_ROTATION);
@@ -118,14 +133,14 @@ public:
     DEFINE_PROPERTY_REF(PROP_SCRIPT, Script, script, QString, ENTITY_ITEM_DEFAULT_SCRIPT);
     DEFINE_PROPERTY(PROP_SCRIPT_TIMESTAMP, ScriptTimestamp, scriptTimestamp, quint64, ENTITY_ITEM_DEFAULT_SCRIPT_TIMESTAMP);
     DEFINE_PROPERTY_REF(PROP_COLLISION_SOUND_URL, CollisionSoundURL, collisionSoundURL, QString, ENTITY_ITEM_DEFAULT_COLLISION_SOUND_URL);
-    DEFINE_PROPERTY_REF(PROP_COLOR, Color, color, xColor, ParticleEffectEntityItem::DEFAULT_COLOR);
-    DEFINE_PROPERTY_REF(PROP_COLOR_SPREAD, ColorSpread, colorSpread, xColor, ParticleEffectEntityItem::DEFAULT_COLOR_SPREAD);
-    DEFINE_PROPERTY_REF(PROP_COLOR_START, ColorStart, colorStart, xColor, ParticleEffectEntityItem::DEFAULT_COLOR);
-    DEFINE_PROPERTY_REF(PROP_COLOR_FINISH, ColorFinish, colorFinish, xColor, ParticleEffectEntityItem::DEFAULT_COLOR);
-    DEFINE_PROPERTY(PROP_ALPHA, Alpha, alpha, float, ParticleEffectEntityItem::DEFAULT_ALPHA);
-    DEFINE_PROPERTY(PROP_ALPHA_SPREAD, AlphaSpread, alphaSpread, float, ParticleEffectEntityItem::DEFAULT_ALPHA_SPREAD);
-    DEFINE_PROPERTY(PROP_ALPHA_START, AlphaStart, alphaStart, float, ParticleEffectEntityItem::DEFAULT_ALPHA);
-    DEFINE_PROPERTY(PROP_ALPHA_FINISH, AlphaFinish, alphaFinish, float, ParticleEffectEntityItem::DEFAULT_ALPHA);
+    DEFINE_PROPERTY_REF(PROP_COLOR, Color, color, xColor, particle::DEFAULT_COLOR);
+    DEFINE_PROPERTY_REF(PROP_COLOR_SPREAD, ColorSpread, colorSpread, xColor, particle::DEFAULT_COLOR_SPREAD);
+    DEFINE_PROPERTY_REF(PROP_COLOR_START, ColorStart, colorStart, xColor, particle::DEFAULT_COLOR);
+    DEFINE_PROPERTY_REF(PROP_COLOR_FINISH, ColorFinish, colorFinish, xColor, particle::DEFAULT_COLOR);
+    DEFINE_PROPERTY(PROP_ALPHA, Alpha, alpha, float, particle::DEFAULT_ALPHA);
+    DEFINE_PROPERTY(PROP_ALPHA_SPREAD, AlphaSpread, alphaSpread, float, particle::DEFAULT_ALPHA_SPREAD);
+    DEFINE_PROPERTY(PROP_ALPHA_START, AlphaStart, alphaStart, float, particle::DEFAULT_ALPHA);
+    DEFINE_PROPERTY(PROP_ALPHA_FINISH, AlphaFinish, alphaFinish, float, particle::DEFAULT_ALPHA);
     DEFINE_PROPERTY_REF(PROP_MODEL_URL, ModelURL, modelURL, QString, "");
     DEFINE_PROPERTY_REF(PROP_COMPOUND_SHAPE_URL, CompoundShapeURL, compoundShapeURL, QString, "");
     DEFINE_PROPERTY_REF(PROP_REGISTRATION_POINT, RegistrationPoint, registrationPoint, glm::vec3, ENTITY_ITEM_DEFAULT_REGISTRATION_POINT);
@@ -148,35 +163,40 @@ public:
     DEFINE_PROPERTY_REF(PROP_TEXT_COLOR, TextColor, textColor, xColor, TextEntityItem::DEFAULT_TEXT_COLOR);
     DEFINE_PROPERTY_REF(PROP_BACKGROUND_COLOR, BackgroundColor, backgroundColor, xColor, TextEntityItem::DEFAULT_BACKGROUND_COLOR);
     DEFINE_PROPERTY_REF_ENUM(PROP_SHAPE_TYPE, ShapeType, shapeType, ShapeType, SHAPE_TYPE_NONE);
-    DEFINE_PROPERTY(PROP_MAX_PARTICLES, MaxParticles, maxParticles, quint32, ParticleEffectEntityItem::DEFAULT_MAX_PARTICLES);
-    DEFINE_PROPERTY(PROP_LIFESPAN, Lifespan, lifespan, float, ParticleEffectEntityItem::DEFAULT_LIFESPAN);
+    DEFINE_PROPERTY(PROP_MAX_PARTICLES, MaxParticles, maxParticles, quint32, particle::DEFAULT_MAX_PARTICLES);
+    DEFINE_PROPERTY(PROP_LIFESPAN, Lifespan, lifespan, float, particle::DEFAULT_LIFESPAN);
     DEFINE_PROPERTY(PROP_EMITTING_PARTICLES, IsEmitting, isEmitting, bool, true);
-    DEFINE_PROPERTY(PROP_EMIT_RATE, EmitRate, emitRate, float, ParticleEffectEntityItem::DEFAULT_EMIT_RATE);
-    DEFINE_PROPERTY(PROP_EMIT_SPEED, EmitSpeed, emitSpeed, float, ParticleEffectEntityItem::DEFAULT_EMIT_SPEED);
-    DEFINE_PROPERTY(PROP_SPEED_SPREAD, SpeedSpread, speedSpread, float, ParticleEffectEntityItem::DEFAULT_SPEED_SPREAD);
-    DEFINE_PROPERTY_REF(PROP_EMIT_ORIENTATION, EmitOrientation, emitOrientation, glm::quat, ParticleEffectEntityItem::DEFAULT_EMIT_ORIENTATION);
-    DEFINE_PROPERTY_REF(PROP_EMIT_DIMENSIONS, EmitDimensions, emitDimensions, glm::vec3, ParticleEffectEntityItem::DEFAULT_EMIT_DIMENSIONS);
-    DEFINE_PROPERTY(PROP_EMIT_RADIUS_START, EmitRadiusStart, emitRadiusStart, float, ParticleEffectEntityItem::DEFAULT_EMIT_RADIUS_START);
-    DEFINE_PROPERTY(PROP_POLAR_START, PolarStart, polarStart, float, ParticleEffectEntityItem::DEFAULT_POLAR_START);
-    DEFINE_PROPERTY(PROP_POLAR_FINISH, PolarFinish, polarFinish, float, ParticleEffectEntityItem::DEFAULT_POLAR_FINISH);
-    DEFINE_PROPERTY(PROP_AZIMUTH_START, AzimuthStart, azimuthStart, float, ParticleEffectEntityItem::DEFAULT_AZIMUTH_START);
-    DEFINE_PROPERTY(PROP_AZIMUTH_FINISH, AzimuthFinish, azimuthFinish, float, ParticleEffectEntityItem::DEFAULT_AZIMUTH_FINISH);
-    DEFINE_PROPERTY_REF(PROP_EMIT_ACCELERATION, EmitAcceleration, emitAcceleration, glm::vec3, ParticleEffectEntityItem::DEFAULT_EMIT_ACCELERATION);
-    DEFINE_PROPERTY_REF(PROP_ACCELERATION_SPREAD, AccelerationSpread, accelerationSpread, glm::vec3, ParticleEffectEntityItem::DEFAULT_ACCELERATION_SPREAD);
-    DEFINE_PROPERTY(PROP_PARTICLE_RADIUS, ParticleRadius, particleRadius, float, ParticleEffectEntityItem::DEFAULT_PARTICLE_RADIUS);
-    DEFINE_PROPERTY(PROP_RADIUS_SPREAD, RadiusSpread, radiusSpread, float, ParticleEffectEntityItem::DEFAULT_RADIUS_SPREAD);
-    DEFINE_PROPERTY(PROP_RADIUS_START, RadiusStart, radiusStart, float, ParticleEffectEntityItem::DEFAULT_RADIUS_START);
-    DEFINE_PROPERTY(PROP_RADIUS_FINISH, RadiusFinish, radiusFinish, float, ParticleEffectEntityItem::DEFAULT_RADIUS_FINISH);
-    DEFINE_PROPERTY(PROP_EMITTER_SHOULD_TRAIL, EmitterShouldTrail, emitterShouldTrail, bool, ParticleEffectEntityItem::DEFAULT_EMITTER_SHOULD_TRAIL);
-    DEFINE_PROPERTY_REF(PROP_MARKETPLACE_ID, MarketplaceID, marketplaceID, QString, ENTITY_ITEM_DEFAULT_MARKETPLACE_ID);
+    DEFINE_PROPERTY(PROP_EMIT_RATE, EmitRate, emitRate, float, particle::DEFAULT_EMIT_RATE);
+    DEFINE_PROPERTY(PROP_EMIT_SPEED, EmitSpeed, emitSpeed, float, particle::DEFAULT_EMIT_SPEED);
+    DEFINE_PROPERTY(PROP_SPEED_SPREAD, SpeedSpread, speedSpread, float, particle::DEFAULT_SPEED_SPREAD);
+    DEFINE_PROPERTY_REF(PROP_EMIT_ORIENTATION, EmitOrientation, emitOrientation, glm::quat, particle::DEFAULT_EMIT_ORIENTATION);
+    DEFINE_PROPERTY_REF(PROP_EMIT_DIMENSIONS, EmitDimensions, emitDimensions, glm::vec3, particle::DEFAULT_EMIT_DIMENSIONS);
+    DEFINE_PROPERTY(PROP_EMIT_RADIUS_START, EmitRadiusStart, emitRadiusStart, float, particle::DEFAULT_EMIT_RADIUS_START);
+    DEFINE_PROPERTY(PROP_POLAR_START, PolarStart, polarStart, float, particle::DEFAULT_POLAR_START);
+    DEFINE_PROPERTY(PROP_POLAR_FINISH, PolarFinish, polarFinish, float, particle::DEFAULT_POLAR_FINISH);
+    DEFINE_PROPERTY(PROP_AZIMUTH_START, AzimuthStart, azimuthStart, float, particle::DEFAULT_AZIMUTH_START);
+    DEFINE_PROPERTY(PROP_AZIMUTH_FINISH, AzimuthFinish, azimuthFinish, float, particle::DEFAULT_AZIMUTH_FINISH);
+    DEFINE_PROPERTY_REF(PROP_EMIT_ACCELERATION, EmitAcceleration, emitAcceleration, glm::vec3, particle::DEFAULT_EMIT_ACCELERATION);
+    DEFINE_PROPERTY_REF(PROP_ACCELERATION_SPREAD, AccelerationSpread, accelerationSpread, glm::vec3, particle::DEFAULT_ACCELERATION_SPREAD);
+    DEFINE_PROPERTY(PROP_PARTICLE_RADIUS, ParticleRadius, particleRadius, float, particle::DEFAULT_PARTICLE_RADIUS);
+    DEFINE_PROPERTY(PROP_RADIUS_SPREAD, RadiusSpread, radiusSpread, float, particle::DEFAULT_RADIUS_SPREAD);
+    DEFINE_PROPERTY(PROP_RADIUS_START, RadiusStart, radiusStart, float, particle::DEFAULT_RADIUS_START);
+    DEFINE_PROPERTY(PROP_RADIUS_FINISH, RadiusFinish, radiusFinish, float, particle::DEFAULT_RADIUS_FINISH);
+    DEFINE_PROPERTY(PROP_EMITTER_SHOULD_TRAIL, EmitterShouldTrail, emitterShouldTrail, bool, particle::DEFAULT_EMITTER_SHOULD_TRAIL);
     DEFINE_PROPERTY_GROUP(KeyLight, keyLight, KeyLightPropertyGroup);
+    DEFINE_PROPERTY_GROUP(AmbientLight, ambientLight, AmbientLightPropertyGroup);
     DEFINE_PROPERTY_REF(PROP_VOXEL_VOLUME_SIZE, VoxelVolumeSize, voxelVolumeSize, glm::vec3, PolyVoxEntityItem::DEFAULT_VOXEL_VOLUME_SIZE);
     DEFINE_PROPERTY_REF(PROP_VOXEL_DATA, VoxelData, voxelData, QByteArray, PolyVoxEntityItem::DEFAULT_VOXEL_DATA);
     DEFINE_PROPERTY_REF(PROP_VOXEL_SURFACE_STYLE, VoxelSurfaceStyle, voxelSurfaceStyle, uint16_t, PolyVoxEntityItem::DEFAULT_VOXEL_SURFACE_STYLE);
     DEFINE_PROPERTY_REF(PROP_NAME, Name, name, QString, ENTITY_ITEM_DEFAULT_NAME);
-    DEFINE_PROPERTY_REF_ENUM(PROP_BACKGROUND_MODE, BackgroundMode, backgroundMode, BackgroundMode, BACKGROUND_MODE_INHERIT);
-    DEFINE_PROPERTY_GROUP(Stage, stage, StagePropertyGroup);
+
+    DEFINE_PROPERTY_REF_ENUM(PROP_KEY_LIGHT_MODE, KeyLightMode, keyLightMode, uint32_t, (uint32_t)COMPONENT_MODE_INHERIT);
+    DEFINE_PROPERTY_REF_ENUM(PROP_SKYBOX_MODE, SkyboxMode, skyboxMode, uint32_t, (uint32_t)COMPONENT_MODE_INHERIT);
+    DEFINE_PROPERTY_REF_ENUM(PROP_AMBIENT_LIGHT_MODE, AmbientLightMode, ambientLightMode, uint32_t, (uint32_t)COMPONENT_MODE_INHERIT);
+    DEFINE_PROPERTY_REF_ENUM(PROP_HAZE_MODE, HazeMode, hazeMode, uint32_t, (uint32_t)COMPONENT_MODE_INHERIT);
+
     DEFINE_PROPERTY_GROUP(Skybox, skybox, SkyboxPropertyGroup);
+    DEFINE_PROPERTY_GROUP(Haze, haze, HazePropertyGroup);
     DEFINE_PROPERTY_GROUP(Animation, animation, AnimationPropertyGroup);
     DEFINE_PROPERTY_REF(PROP_SOURCE_URL, SourceUrl, sourceUrl, QString, "");
     DEFINE_PROPERTY(PROP_LINE_WIDTH, LineWidth, lineWidth, float, LineEntityItem::DEFAULT_LINE_WIDTH);
@@ -185,8 +205,10 @@ public:
     DEFINE_PROPERTY_REF(PROP_DESCRIPTION, Description, description, QString, "");
     DEFINE_PROPERTY(PROP_FACE_CAMERA, FaceCamera, faceCamera, bool, TextEntityItem::DEFAULT_FACE_CAMERA);
     DEFINE_PROPERTY_REF(PROP_ACTION_DATA, ActionData, actionData, QByteArray, QByteArray());
-    DEFINE_PROPERTY(PROP_NORMALS, Normals, normals, QVector<glm::vec3>, QVector<glm::vec3>());
+    DEFINE_PROPERTY(PROP_NORMALS, Normals, normals, QVector<glm::vec3>, ENTITY_ITEM_DEFAULT_EMPTY_VEC3_QVEC);
+    DEFINE_PROPERTY(PROP_STROKE_COLORS, StrokeColors, strokeColors, QVector<glm::vec3>, ENTITY_ITEM_DEFAULT_EMPTY_VEC3_QVEC);
     DEFINE_PROPERTY(PROP_STROKE_WIDTHS, StrokeWidths, strokeWidths, QVector<float>, QVector<float>());
+    DEFINE_PROPERTY(PROP_IS_UV_MODE_STRETCH, IsUVModeStretch, isUVModeStretch, bool, true);
     DEFINE_PROPERTY_REF(PROP_X_TEXTURE_URL, XTextureURL, xTextureURL, QString, "");
     DEFINE_PROPERTY_REF(PROP_Y_TEXTURE_URL, YTextureURL, yTextureURL, QString, "");
     DEFINE_PROPERTY_REF(PROP_Z_TEXTURE_URL, ZTextureURL, zTextureURL, QString, "");
@@ -201,11 +223,34 @@ public:
     DEFINE_PROPERTY_REF(PROP_QUERY_AA_CUBE, QueryAACube, queryAACube, AACube, AACube());
     DEFINE_PROPERTY_REF(PROP_SHAPE, Shape, shape, QString, "Sphere");
 
+    DEFINE_PROPERTY_REF(PROP_MATERIAL_URL, MaterialURL, materialURL, QString, "");
+    DEFINE_PROPERTY_REF_ENUM(PROP_MATERIAL_MAPPING_MODE, MaterialMappingMode, materialMappingMode, MaterialMappingMode, UV);
+    DEFINE_PROPERTY_REF(PROP_MATERIAL_PRIORITY, Priority, priority, quint16, 0);
+    DEFINE_PROPERTY_REF(PROP_PARENT_MATERIAL_NAME, ParentMaterialName, parentMaterialName, QString, "0");
+    DEFINE_PROPERTY_REF(PROP_MATERIAL_MAPPING_POS, MaterialMappingPos, materialMappingPos, glmVec2, glm::vec2(0, 0));
+    DEFINE_PROPERTY_REF(PROP_MATERIAL_MAPPING_SCALE, MaterialMappingScale, materialMappingScale, glmVec2, glm::vec2(1, 1));
+    DEFINE_PROPERTY_REF(PROP_MATERIAL_MAPPING_ROT, MaterialMappingRot, materialMappingRot, float, 0);
+    DEFINE_PROPERTY_REF(PROP_MATERIAL_DATA, MaterialData, materialData, QString, "");
+
+    // Certifiable Properties - related to Proof of Purchase certificates
+    DEFINE_PROPERTY_REF(PROP_ITEM_NAME, ItemName, itemName, QString, ENTITY_ITEM_DEFAULT_ITEM_NAME);
+    DEFINE_PROPERTY_REF(PROP_ITEM_DESCRIPTION, ItemDescription, itemDescription, QString, ENTITY_ITEM_DEFAULT_ITEM_DESCRIPTION);
+    DEFINE_PROPERTY_REF(PROP_ITEM_CATEGORIES, ItemCategories, itemCategories, QString, ENTITY_ITEM_DEFAULT_ITEM_CATEGORIES);
+    DEFINE_PROPERTY_REF(PROP_ITEM_ARTIST, ItemArtist, itemArtist, QString, ENTITY_ITEM_DEFAULT_ITEM_ARTIST);
+    DEFINE_PROPERTY_REF(PROP_ITEM_LICENSE, ItemLicense, itemLicense, QString, ENTITY_ITEM_DEFAULT_ITEM_LICENSE);
+    DEFINE_PROPERTY_REF(PROP_LIMITED_RUN, LimitedRun, limitedRun, quint32, ENTITY_ITEM_DEFAULT_LIMITED_RUN);
+    DEFINE_PROPERTY_REF(PROP_MARKETPLACE_ID, MarketplaceID, marketplaceID, QString, ENTITY_ITEM_DEFAULT_MARKETPLACE_ID);
+    DEFINE_PROPERTY_REF(PROP_EDITION_NUMBER, EditionNumber, editionNumber, quint32, ENTITY_ITEM_DEFAULT_EDITION_NUMBER);
+    DEFINE_PROPERTY_REF(PROP_ENTITY_INSTANCE_NUMBER, EntityInstanceNumber, entityInstanceNumber, quint32, ENTITY_ITEM_DEFAULT_ENTITY_INSTANCE_NUMBER);
+    DEFINE_PROPERTY_REF(PROP_CERTIFICATE_ID, CertificateID, certificateID, QString, ENTITY_ITEM_DEFAULT_CERTIFICATE_ID);
+    DEFINE_PROPERTY_REF(PROP_STATIC_CERTIFICATE_VERSION, StaticCertificateVersion, staticCertificateVersion, quint32, ENTITY_ITEM_DEFAULT_STATIC_CERTIFICATE_VERSION);
+
     // these are used when bouncing location data into and out of scripts
     DEFINE_PROPERTY_REF(PROP_LOCAL_POSITION, LocalPosition, localPosition, glmVec3, ENTITY_ITEM_ZERO_VEC3);
     DEFINE_PROPERTY_REF(PROP_LOCAL_ROTATION, LocalRotation, localRotation, glmQuat, ENTITY_ITEM_DEFAULT_ROTATION);
     DEFINE_PROPERTY_REF(PROP_LOCAL_VELOCITY, LocalVelocity, localVelocity, glmVec3, ENTITY_ITEM_ZERO_VEC3);
     DEFINE_PROPERTY_REF(PROP_LOCAL_ANGULAR_VELOCITY, LocalAngularVelocity, localAngularVelocity, glmVec3, ENTITY_ITEM_ZERO_VEC3);
+    DEFINE_PROPERTY_REF(PROP_LOCAL_DIMENSIONS, LocalDimensions, localDimensions, glmVec3, ENTITY_ITEM_ZERO_VEC3);
 
     DEFINE_PROPERTY_REF(PROP_JOINT_ROTATIONS_SET, JointRotationsSet, jointRotationsSet, QVector<bool>, QVector<bool>());
     DEFINE_PROPERTY_REF(PROP_JOINT_ROTATIONS, JointRotations, jointRotations, QVector<glm::quat>, QVector<glm::quat>());
@@ -224,9 +269,12 @@ public:
     DEFINE_PROPERTY_REF(PROP_LAST_EDITED_BY, LastEditedBy, lastEditedBy, QUuid, ENTITY_ITEM_DEFAULT_LAST_EDITED_BY);
 
     DEFINE_PROPERTY_REF(PROP_SERVER_SCRIPTS, ServerScripts, serverScripts, QString, ENTITY_ITEM_DEFAULT_SERVER_SCRIPTS);
+    DEFINE_PROPERTY(PROP_RELAY_PARENT_JOINTS, RelayParentJoints, relayParentJoints, bool, ENTITY_ITEM_DEFAULT_RELAY_PARENT_JOINTS);
 
-    static QString getBackgroundModeString(BackgroundMode mode);
+    static QString getComponentModeString(uint32_t mode);
+    static QString getComponentModeAsString(uint32_t mode);
 
+    std::array<ComponentPair, COMPONENT_MODE_ITEM_COUNT>::const_iterator findComponent(const QString& mode);
 
 public:
     float getMaxDimension() const { return glm::compMax(_dimensions); }
@@ -241,8 +289,8 @@ public:
     float getLocalRenderAlpha() const { return _localRenderAlpha; }
     void setLocalRenderAlpha(float value) { _localRenderAlpha = value; _localRenderAlphaChanged = true; }
 
-    static bool encodeEntityEditPacket(PacketType command, EntityItemID id, const EntityItemProperties& properties,
-                                       QByteArray& buffer);
+    static OctreeElement::AppendState encodeEntityEditPacket(PacketType command, EntityItemID id, const EntityItemProperties& properties,
+                                       QByteArray& buffer, EntityPropertyFlags requestedProperties, EntityPropertyFlags& didntFitProperties);
 
     static bool encodeEraseEntityMessage(const EntityItemID& entityItemID, QByteArray& buffer);
 
@@ -279,7 +327,7 @@ public:
     void clearSimulationOwner();
     void setSimulationOwner(const QUuid& id, uint8_t priority);
     void setSimulationOwner(const QByteArray& data);
-    void promoteSimulationPriority(quint8 priority) { _simulationOwner.promotePriority(priority); }
+    void promoteSimulationPriority(uint8_t priority) { _simulationOwner.promotePriority(priority); }
 
     void setActionDataDirty() { _actionDataChanged = true; }
 
@@ -303,6 +351,22 @@ public:
     bool getRenderInfoHasTransparent() const { return _renderInfoHasTransparent; }
     void setRenderInfoHasTransparent(bool value) { _renderInfoHasTransparent = value; }
 
+    void setPackedNormals(const QByteArray& value);
+    QVector<glm::vec3> unpackNormals(const QByteArray& normals);
+
+    void setPackedStrokeColors(const QByteArray& value);
+    QVector<glm::vec3> unpackStrokeColors(const QByteArray& strokeColors);
+
+    QByteArray getPackedNormals() const;
+    QByteArray packNormals(const QVector<glm::vec3>& normals) const;
+
+    QByteArray getPackedStrokeColors() const;
+    QByteArray packStrokeColors(const QVector<glm::vec3>& strokeColors) const;
+
+    QByteArray getStaticCertificateJSON() const;
+    QByteArray getStaticCertificateHash() const;
+    bool verifyStaticCertificateProperties();
+    static bool verifySignature(const QString& key, const QByteArray& text, const QByteArray& signature);
 
 protected:
     QString getCollisionMaskAsString() const;
@@ -364,6 +428,7 @@ inline QDebug operator<<(QDebug debug, const EntityItemProperties& properties) {
     DEBUG_PROPERTY_IF_CHANGED(debug, properties, Velocity, velocity, "in meters");
     DEBUG_PROPERTY_IF_CHANGED(debug, properties, Name, name, "");
     DEBUG_PROPERTY_IF_CHANGED(debug, properties, Visible, visible, "");
+    DEBUG_PROPERTY_IF_CHANGED(debug, properties, CanCastShadow, canCastShadow, "");
     DEBUG_PROPERTY_IF_CHANGED(debug, properties, Rotation, rotation, "");
     DEBUG_PROPERTY_IF_CHANGED(debug, properties, Density, density, "");
     DEBUG_PROPERTY_IF_CHANGED(debug, properties, Gravity, gravity, "");
@@ -424,8 +489,31 @@ inline QDebug operator<<(QDebug debug, const EntityItemProperties& properties) {
     DEBUG_PROPERTY_IF_CHANGED(debug, properties, RadiusSpread, radiusSpread, "");
     DEBUG_PROPERTY_IF_CHANGED(debug, properties, RadiusStart, radiusStart, "");
     DEBUG_PROPERTY_IF_CHANGED(debug, properties, RadiusFinish, radiusFinish, "");
+
+    // Certifiable Properties
+    DEBUG_PROPERTY_IF_CHANGED(debug, properties, ItemName, itemName, "");
+    DEBUG_PROPERTY_IF_CHANGED(debug, properties, ItemDescription, itemDescription, "");
+    DEBUG_PROPERTY_IF_CHANGED(debug, properties, ItemCategories, itemCategories, "");
+    DEBUG_PROPERTY_IF_CHANGED(debug, properties, ItemArtist, itemArtist, "");
+    DEBUG_PROPERTY_IF_CHANGED(debug, properties, ItemLicense, itemLicense, "");
+    DEBUG_PROPERTY_IF_CHANGED(debug, properties, LimitedRun, limitedRun, "");
     DEBUG_PROPERTY_IF_CHANGED(debug, properties, MarketplaceID, marketplaceID, "");
-    DEBUG_PROPERTY_IF_CHANGED(debug, properties, BackgroundMode, backgroundMode, "");
+    DEBUG_PROPERTY_IF_CHANGED(debug, properties, EditionNumber, editionNumber, "");
+    DEBUG_PROPERTY_IF_CHANGED(debug, properties, EntityInstanceNumber, entityInstanceNumber, "");
+    DEBUG_PROPERTY_IF_CHANGED(debug, properties, CertificateID, certificateID, "");
+    DEBUG_PROPERTY_IF_CHANGED(debug, properties, StaticCertificateVersion, staticCertificateVersion, "");
+
+    DEBUG_PROPERTY_IF_CHANGED(debug, properties, LocalPosition, localPosition, "");
+    DEBUG_PROPERTY_IF_CHANGED(debug, properties, LocalRotation, localRotation, "");
+    DEBUG_PROPERTY_IF_CHANGED(debug, properties, LocalVelocity, localVelocity, "");
+    DEBUG_PROPERTY_IF_CHANGED(debug, properties, LocalAngularVelocity, localAngularVelocity, "");
+    DEBUG_PROPERTY_IF_CHANGED(debug, properties, LocalDimensions, localDimensions, "");
+
+    DEBUG_PROPERTY_IF_CHANGED(debug, properties, HazeMode, hazeMode, "");
+    DEBUG_PROPERTY_IF_CHANGED(debug, properties, KeyLightMode, keyLightMode, "");
+    DEBUG_PROPERTY_IF_CHANGED(debug, properties, AmbientLightMode, ambientLightMode, "");
+    DEBUG_PROPERTY_IF_CHANGED(debug, properties, SkyboxMode, skyboxMode, "");
+
     DEBUG_PROPERTY_IF_CHANGED(debug, properties, VoxelVolumeSize, voxelVolumeSize, "");
     DEBUG_PROPERTY_IF_CHANGED(debug, properties, VoxelData, voxelData, "");
     DEBUG_PROPERTY_IF_CHANGED(debug, properties, VoxelSurfaceStyle, voxelSurfaceStyle, "");

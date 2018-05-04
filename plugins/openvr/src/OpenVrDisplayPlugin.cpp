@@ -7,6 +7,9 @@
 //
 #include "OpenVrDisplayPlugin.h"
 
+// Odd ordering of header is required to avoid 'macro redinition warnings'
+#include <AudioClient.h>
+
 #include <QtCore/QThread>
 #include <QtCore/QLoggingCategory>
 #include <QtCore/QFileInfo>
@@ -33,7 +36,6 @@
 
 Q_DECLARE_LOGGING_CATEGORY(displayplugins)
 
-const char* OpenVrDisplayPlugin::NAME { "OpenVR (Vive)" };
 const char* StandingHMDSensorMode { "Standing HMD Sensor Mode" }; // this probably shouldn't be hardcoded here
 const char* OpenVrThreadedSubmit { "OpenVR Threaded Submit" }; // this probably shouldn't be hardcoded here
 
@@ -172,12 +174,12 @@ public:
             while (!_queue.empty()) {
                 auto& front = _queue.front();
 
-                auto result = glClientWaitSync(front.fence, 0, 0);
+                auto result = glClientWaitSync((GLsync)front.fence, 0, 0);
 
                 if (GL_TIMEOUT_EXPIRED == result || GL_WAIT_FAILED == result) {
                     break;
                 } else if (GL_CONDITION_SATISFIED == result || GL_ALREADY_SIGNALED == result) {
-                    glDeleteSync(front.fence);
+                    glDeleteSync((GLsync)front.fence);
                 } else {
                     assert(false);
                 }
@@ -197,9 +199,10 @@ public:
             std::string fsSource = HMD_REPROJECTION_FRAG;
             GLuint vertexShader { 0 }, fragmentShader { 0 };
             std::string error;
+            std::vector<char> binary;
             ::gl::compileShader(GL_VERTEX_SHADER, vsSource, "", vertexShader, error);
             ::gl::compileShader(GL_FRAGMENT_SHADER, fsSource, "", fragmentShader, error);
-            _program = ::gl::compileProgram({ { vertexShader, fragmentShader } }, error);
+            _program = ::gl::compileProgram({ { vertexShader, fragmentShader } }, error, binary);
             glDeleteShader(vertexShader);
             glDeleteShader(fragmentShader);
             qDebug() << "Rebuild proigram";
@@ -279,7 +282,7 @@ public:
                 static const vr::VRTextureBounds_t leftBounds{ 0, 0, 0.5f, 1 };
                 static const vr::VRTextureBounds_t rightBounds{ 0.5f, 0, 1, 1 };
 
-                vr::Texture_t texture{ (void*)_colors[currentColorBuffer], vr::TextureType_OpenGL, vr::ColorSpace_Auto };
+                vr::Texture_t texture{ (void*)(uintptr_t)_colors[currentColorBuffer], vr::TextureType_OpenGL, vr::ColorSpace_Auto };
                 vr::VRCompositor()->Submit(vr::Eye_Left, &texture, &leftBounds);
                 vr::VRCompositor()->Submit(vr::Eye_Right, &texture, &rightBounds);
                 _plugin._presentRate.increment();
@@ -354,6 +357,32 @@ bool OpenVrDisplayPlugin::isSupported() const {
     return openVrSupported();
 }
 
+glm::mat4 OpenVrDisplayPlugin::getEyeProjection(Eye eye, const glm::mat4& baseProjection) const {
+    if (_system) {
+        ViewFrustum baseFrustum;
+        baseFrustum.setProjection(baseProjection);
+        float baseNearClip = baseFrustum.getNearClip();
+        float baseFarClip = baseFrustum.getFarClip();
+        vr::EVREye openVrEye = (eye == Left) ? vr::Eye_Left : vr::Eye_Right;
+        return toGlm(_system->GetProjectionMatrix(openVrEye, baseNearClip, baseFarClip));
+    } else {
+        return baseProjection;
+    }
+}
+
+glm::mat4 OpenVrDisplayPlugin::getCullingProjection(const glm::mat4& baseProjection) const {
+    if (_system) {
+        ViewFrustum baseFrustum;
+        baseFrustum.setProjection(baseProjection);
+        float baseNearClip = baseFrustum.getNearClip();
+        float baseFarClip = baseFrustum.getFarClip();
+        // FIXME Calculate the proper combined projection by using GetProjectionRaw values from both eyes
+        return toGlm(_system->GetProjectionMatrix((vr::EVREye)0, baseNearClip, baseFarClip));
+    } else {
+        return baseProjection;
+    }
+}
+
 float OpenVrDisplayPlugin::getTargetFrameRate() const {
     if (forceInterleavedReprojection && !_asyncReprojectionActive) {
         return TARGET_RATE_OpenVr / 2.0f;
@@ -378,6 +407,15 @@ void OpenVrDisplayPlugin::init() {
     _lastGoodHMDPose.m[2][3] = 0.0f;
 
     emit deviceConnected(getName());
+}
+
+const QString OpenVrDisplayPlugin::getName() const {
+    std::string headsetName = getOpenVrDeviceName();
+    if (headsetName == "HTC") {
+        headsetName += " Vive";
+    }
+
+    return QString::fromStdString(headsetName);
 }
 
 bool OpenVrDisplayPlugin::internalActivate() {
@@ -414,7 +452,6 @@ bool OpenVrDisplayPlugin::internalActivate() {
 
     _openVrDisplayActive = true;
     _container->setIsOptionChecked(StandingHMDSensorMode, true);
-
     _system->GetRecommendedRenderTargetSize(&_renderTargetSize.x, &_renderTargetSize.y);
     // Recommended render target size is per-eye, so double the X size for 
     // left + right eyes
@@ -455,7 +492,7 @@ bool OpenVrDisplayPlugin::internalActivate() {
     if (_threadedSubmit) {
         _submitThread = std::make_shared<OpenVrSubmitThread>(*this);
         if (!_submitCanvas) {
-            withMainThreadContext([&] {
+            withOtherThreadContext([&] {
                 _submitCanvas = std::make_shared<gl::OffscreenContext>();
                 _submitCanvas->create();
                 _submitCanvas->doneCurrent();
@@ -481,14 +518,8 @@ void OpenVrDisplayPlugin::internalDeactivate() {
 }
 
 void OpenVrDisplayPlugin::customizeContext() {
-    // Display plugins in DLLs must initialize glew locally
-    static std::once_flag once;
-    std::call_once(once, [] {
-        glewExperimental = true;
-        GLenum err = glewInit();
-        glGetError(); // clear the potential error from glewExperimental
-    });
-
+    // Display plugins in DLLs must initialize GL locally
+    gl::initModuleGl();
     Parent::customizeContext();
 
     if (_threadedSubmit) {
@@ -591,9 +622,6 @@ bool OpenVrDisplayPlugin::beginFrameRender(uint32_t frameIndex) {
     }
 
     withNonPresentThreadLock([&] {
-        _uiModelTransform = DependencyManager::get<CompositorHelper>()->getModelTransform();
-        // Make controller poses available to the presentation thread
-        _handPoses = handPoses;
         _frameInfos[frameIndex] = _currentRenderFrameInfo;
     });
     return Parent::beginFrameRender(frameIndex);
@@ -640,7 +668,7 @@ void OpenVrDisplayPlugin::hmdPresent() {
         _submitThread->waitForPresent();
     } else {
         GLuint glTexId = getGLBackend()->getTextureID(_compositeFramebuffer->getRenderBuffer(0));
-        vr::Texture_t vrTexture { (void*)glTexId, vr::TextureType_OpenGL, vr::ColorSpace_Auto };
+        vr::Texture_t vrTexture { (void*)(uintptr_t)glTexId, vr::TextureType_OpenGL, vr::ColorSpace_Auto };
         vr::VRCompositor()->Submit(vr::Eye_Left, &vrTexture, &OPENVR_TEXTURE_BOUNDS_LEFT);
         vr::VRCompositor()->Submit(vr::Eye_Right, &vrTexture, &OPENVR_TEXTURE_BOUNDS_RIGHT);
         vr::VRCompositor()->PostPresentHandoff();
@@ -713,3 +741,30 @@ bool OpenVrDisplayPlugin::isKeyboardVisible() {
 int OpenVrDisplayPlugin::getRequiredThreadCount() const { 
     return Parent::getRequiredThreadCount() + (_threadedSubmit ? 1 : 0);
 }
+
+QString OpenVrDisplayPlugin::getPreferredAudioInDevice() const {
+    QString device = getVrSettingString(vr::k_pch_audio_Section, vr::k_pch_audio_OnPlaybackDevice_String);
+    if (!device.isEmpty()) {
+        static const WCHAR INIT = 0;
+        size_t size = device.size() + 1;
+        std::vector<WCHAR> deviceW;
+        deviceW.assign(size, INIT);
+        device.toWCharArray(deviceW.data());
+        device = AudioClient::getWinDeviceName(deviceW.data());
+    }
+    return device;
+}
+
+QString OpenVrDisplayPlugin::getPreferredAudioOutDevice() const {
+    QString device = getVrSettingString(vr::k_pch_audio_Section, vr::k_pch_audio_OnRecordDevice_String);
+    if (!device.isEmpty()) {
+        static const WCHAR INIT = 0;
+        size_t size = device.size() + 1;
+        std::vector<WCHAR> deviceW;
+        deviceW.assign(size, INIT);
+        device.toWCharArray(deviceW.data());
+        device = AudioClient::getWinDeviceName(deviceW.data());
+    }
+    return device;
+}
+

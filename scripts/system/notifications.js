@@ -1,6 +1,6 @@
 "use strict";
 /*jslint vars:true, plusplus:true, forin:true*/
-/*global Script, Settings, Window, Controller, Overlays, SoundArray, LODManager, MyAvatar, Tablet, Camera, HMD, Menu, Quat, Vec3*/
+/*global Script, Settings, Window, Controller, Overlays, SoundArray, MyAvatar, Tablet, Camera, HMD, Menu, Quat, Vec3*/
 //
 //  notifications.js
 //  Version 0.801
@@ -26,7 +26,7 @@
 //
 //  1. Set the Event Connector at the bottom of the script.
 //  example:
-//  AudioDevice.muteToggled.connect(onMuteStateChanged);
+//  Audio.mutedChanged.connect(onMuteStateChanged);
 //
 //  2. Create a new function to produce a text string, do not include new line returns.
 //  example:
@@ -34,7 +34,7 @@
 //     var muteState,
 //         muteString;
 //
-//     muteState = AudioDevice.getMuted() ? "muted" : "unmuted";
+//     muteState = Audio.muted ? "muted" : "unmuted";
 //     muteString = "Microphone is now " + muteState;
 //     createNotification(muteString, NotificationType.MUTE_TOGGLE);
 //  }
@@ -84,23 +84,23 @@
     var NOTIFICATION_MENU_ITEM_POST = " Notifications";
     var PLAY_NOTIFICATION_SOUNDS_SETTING = "play_notification_sounds";
     var PLAY_NOTIFICATION_SOUNDS_TYPE_SETTING_PRE = "play_notification_sounds_type_";
-    var lodTextID = false;
+    var NOTIFICATIONS_MESSAGE_CHANNEL = "Hifi-Notifications";
 
     var NotificationType = {
         UNKNOWN: 0,
         SNAPSHOT: 1,
-        LOD_WARNING: 2,
-        CONNECTION_REFUSED: 3,
-        EDIT_ERROR: 4,
-        TABLET: 5,
-        CONNECTION: 6,
+        CONNECTION_REFUSED: 2,
+        EDIT_ERROR: 3,
+        TABLET: 4,
+        CONNECTION: 5,
+        WALLET: 6,
         properties: [
             { text: "Snapshot" },
-            { text: "Level of Detail" },
             { text: "Connection Refused" },
             { text: "Edit error" },
             { text: "Tablet" },
-            { text: "Connection" }
+            { text: "Connection" },
+            { text: "Wallet" }
         ],
         getTypeFromMenuItem: function (menuItemName) {
             var type;
@@ -150,10 +150,6 @@
 
     //  This handles the final dismissal of a notification after fading
     function dismiss(firstNoteOut, firstButOut, firstOut) {
-        if (firstNoteOut === lodTextID) {
-            lodTextID = false;
-        }
-
         Overlays.deleteOverlay(firstNoteOut);
         Overlays.deleteOverlay(firstButOut);
         notifications.splice(firstOut, 1);
@@ -207,11 +203,11 @@
             notificationOrientation,
             notificationPosition,
             buttonPosition;
-
+        var sensorScaleFactor = isOnHMD ? MyAvatar.sensorToWorldScale : 1.0;
         // Notification plane positions
-        noticeY = -y * NOTIFICATION_3D_SCALE - noticeHeight / 2;
+        noticeY = -sensorScaleFactor * (y * NOTIFICATION_3D_SCALE + 0.5 * noticeHeight);
         notificationPosition = { x: 0, y: noticeY, z: 0 };
-        buttonPosition = { x: (noticeWidth - NOTIFICATION_3D_BUTTON_WIDTH) / 2, y: noticeY, z: 0.001 };
+        buttonPosition = { x: 0.5 * sensorScaleFactor * (noticeWidth - NOTIFICATION_3D_BUTTON_WIDTH), y: noticeY, z: 0.001 };
 
         // Rotate plane
         notificationOrientation = Quat.fromPitchYawRollDegrees(NOTIFICATIONS_3D_PITCH,
@@ -221,8 +217,8 @@
 
         // Translate plane
         originOffset = Vec3.multiplyQbyV(Quat.fromPitchYawRollDegrees(0, NOTIFICATIONS_3D_DIRECTION, 0),
-                                         { x: 0, y: 0, z: -NOTIFICATIONS_3D_DISTANCE });
-        originOffset.y += NOTIFICATIONS_3D_ELEVATION;
+                                         { x: 0, y: 0, z: -NOTIFICATIONS_3D_DISTANCE * sensorScaleFactor});
+        originOffset.y += NOTIFICATIONS_3D_ELEVATION * sensorScaleFactor;
         notificationPosition = Vec3.sum(originOffset, notificationPosition);
         buttonPosition = Vec3.sum(originOffset, buttonPosition);
 
@@ -242,7 +238,7 @@
             noticeHeight,
             positions,
             last;
-
+        var sensorScaleFactor = isOnHMD ? MyAvatar.sensorToWorldScale : 1.0;
         if (isOnHMD) {
             // Calculate 3D values from 2D overlay properties.
 
@@ -261,7 +257,7 @@
                 notice.leftMargin = 2 * notice.leftMargin * NOTIFICATION_3D_SCALE;
                 notice.bottomMargin = 0;
                 notice.rightMargin = 0;
-                notice.lineHeight = 10.0 * (fontSize / 12.0) * NOTIFICATION_3D_SCALE;
+                notice.lineHeight = 10.0 * (fontSize * sensorScaleFactor / 12.0) * NOTIFICATION_3D_SCALE;
                 notice.isFacingAvatar = false;
 
                 notificationText = Overlays.addOverlay("text3d", notice);
@@ -366,6 +362,7 @@
             buttonProperties,
             i;
 
+        var sensorScaleFactor = isOnHMD ? MyAvatar.sensorToWorldScale : 1.0;
         if (text.length >= breakPoint) {
             breaks = count;
         }
@@ -387,7 +384,7 @@
             alpha: backgroundAlpha,
             topMargin: topMargin,
             leftMargin: leftMargin,
-            font: {size: fontSize},
+            font: {size: fontSize * sensorScaleFactor},
             text: text
         };
 
@@ -414,9 +411,6 @@
 
     function deleteNotification(index) {
         var notificationTextID = notifications[index];
-        if (notificationTextID === lodTextID) {
-            lodTextID = false;
-        }
         Overlays.deleteOverlay(notificationTextID);
         Overlays.deleteOverlay(buttons[index]);
         notifications.splice(index, 1);
@@ -448,7 +442,23 @@
         return finishedLines.join('\n');
     }
 
+    function updateNotificationsTexts() {
+        var sensorScaleFactor = isOnHMD ? MyAvatar.sensorToWorldScale : 1.0;
+        for (var i = 0; i < notifications.length; i++) {
+            var overlayType = Overlays.getOverlayType(notifications[i]);
+
+            if (overlayType === "text3d") {
+                var props = {
+                    font: {size: fontSize * sensorScaleFactor},
+                    lineHeight: 10.0 * (fontSize * sensorScaleFactor / 12.0) * NOTIFICATION_3D_SCALE
+                };
+                Overlays.editOverlay(notifications[i], props);
+            }
+        }
+    }
+
     function update() {
+        updateNotificationsTexts();
         var noticeOut,
             buttonOut,
             arraysOut,
@@ -519,8 +529,14 @@
         return startingUp;
     }
 
-    function onDomainConnectionRefused(reason) {
-        createNotification("Connection refused: " + reason, NotificationType.CONNECTION_REFUSED);
+    function onDomainConnectionRefused(reason, reasonCode) {
+        // the "login error" reason means that the DS couldn't decrypt the username signature
+        // since this eventually resolves itself for good actors we don't need to show a notification for it
+        var LOGIN_ERROR_REASON_CODE = 2;
+
+        if (reasonCode != LOGIN_ERROR_REASON_CODE) {
+            createNotification("Connection refused: " + reason, NotificationType.CONNECTION_REFUSED);
+        }
     }
 
     function onEditError(msg) {
@@ -529,6 +545,13 @@
 
     function onNotify(msg) {
         createNotification(wordWrap(msg), NotificationType.UNKNOWN); // Needs a generic notification system for user feedback, thus using this
+    }
+
+    function onMessageReceived(channel, message) {
+        if (channel === NOTIFICATIONS_MESSAGE_CHANNEL) {
+            message = JSON.parse(message);
+            createNotification(wordWrap(message.message), message.notificationType);
+        }
     }
 
     function onSnapshotTaken(pathStillSnapshot, notify) {
@@ -547,6 +570,10 @@
 
     function processingGif() {
         createNotification("Processing GIF snapshot...", NotificationType.SNAPSHOT);
+    }
+
+    function walletNotSetup() {
+        createNotification("Your wallet isn't set up. Open the WALLET app.", NotificationType.WALLET);
     }
 
     function connectionAdded(connectionName) {
@@ -623,6 +650,7 @@
             Overlays.deleteOverlay(buttons[notificationIndex]);
         }
         Menu.removeMenu(MENU_NAME);
+        Messages.unsubscribe(NOTIFICATIONS_MESSAGE_CHANNEL);
     }
 
     function menuItemEvent(menuItem) {
@@ -635,20 +663,6 @@
             Settings.setValue(PLAY_NOTIFICATION_SOUNDS_TYPE_SETTING_PRE + notificationType, Menu.isOptionChecked(menuItem));
         }
     }
-
-    LODManager.LODDecreased.connect(function () {
-        var warningText = "\n" +
-            "Due to the complexity of the content, the \n" +
-            "level of detail has been decreased. " +
-            "You can now see: \n" +
-            LODManager.getLODFeedbackText();
-
-        if (lodTextID === false) {
-            lodTextID = createNotification(warningText, NotificationType.LOD_WARNING);
-        } else {
-            Overlays.editOverlay(lodTextID, { text: warningText });
-        }
-    });
 
     Controller.keyPressEvent.connect(keyPressEvent);
     Controller.mousePressEvent.connect(mousePressEvent);
@@ -665,6 +679,11 @@
     Window.notifyEditError = onEditError;
     Window.notify = onNotify;
     Tablet.tabletNotification.connect(tabletNotification);
+    Wallet.walletNotSetup.connect(walletNotSetup);
+
+    Messages.subscribe(NOTIFICATIONS_MESSAGE_CHANNEL);
+    Messages.messageReceived.connect(onMessageReceived);
+
     setup();
 
 }()); // END LOCAL_SCOPE

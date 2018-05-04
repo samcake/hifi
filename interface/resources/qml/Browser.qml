@@ -1,8 +1,6 @@
 import QtQuick 2.5
-import QtQuick.Controls 1.2
 import QtWebChannel 1.0
-import QtWebEngine 1.2
-import FileTypeProfile 1.0
+import QtWebEngine 1.5
 
 import "controls-uit"
 import "styles" as HifiStyles
@@ -21,8 +19,6 @@ ScrollingWindow {
     property variant permissionsBar: {'securityOrigin':'none','feature':'none'}
     property alias url: webview.url
     property alias webView: webview
-
-    property alias eventBridge: eventBridgeWrapper.eventBridge
 
     signal loadingChanged(int status)
 
@@ -209,27 +205,13 @@ ScrollingWindow {
         WebView {
             id: webview
             url: "https://highfidelity.com/"
-
-            property alias eventBridgeWrapper: eventBridgeWrapper
-
-            QtObject {
-                id: eventBridgeWrapper
-                WebChannel.id: "eventBridgeWrapper"
-                property var eventBridge;
-            }
-            
-            profile: FileTypeProfile {
-                id: webviewProfile
-                storageName: "qmlWebEngine"
-            }
-
-            webChannel.registeredObjects: [eventBridgeWrapper]
+            profile: FileTypeProfile;
 
             // Create a global EventBridge object for raiseAndLowerKeyboard.
             WebEngineScript {
                 id: createGlobalEventBridge
                 sourceCode: eventBridgeJavaScriptToInject
-                injectionPoint: WebEngineScript.DocumentCreation
+                injectionPoint: WebEngineScript.Deferred
                 worldId: WebEngineScript.MainWorld
             }
 
@@ -250,9 +232,13 @@ ScrollingWindow {
             anchors.right: parent.right
 
             onFeaturePermissionRequested: {
-                permissionsBar.securityOrigin = securityOrigin;
-                permissionsBar.feature = feature;
-                root.showPermissionsBar();
+                if (feature == 2) { // QWebEnginePage::MediaAudioCapture
+                    grantFeaturePermission(securityOrigin, feature, true);
+                } else {
+                    permissionsBar.securityOrigin = securityOrigin;
+                    permissionsBar.feature = feature;
+                    root.showPermissionsBar();
+                }
             }
 
             onLoadingChanged: {
@@ -271,6 +257,8 @@ ScrollingWindow {
             }
 
             Component.onCompleted: {
+                webChannel.registerObject("eventBridge", eventBridge);
+                webChannel.registerObject("eventBridgeWrapper", eventBridgeWrapper);
                 desktop.initWebviewProfileHandlers(webview.profile);
             }
         }

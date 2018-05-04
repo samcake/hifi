@@ -16,36 +16,34 @@
 #include "Application.h"
 
 
-const float DEFAULT_LINE_WIDTH = 1.0f;
 const bool DEFAULT_IS_SOLID = false;
 const bool DEFAULT_IS_DASHED_LINE = false;
 
 Base3DOverlay::Base3DOverlay() :
     SpatiallyNestable(NestableType::Overlay, QUuid::createUuid()),
-    _lineWidth(DEFAULT_LINE_WIDTH),
     _isSolid(DEFAULT_IS_SOLID),
     _isDashedLine(DEFAULT_IS_DASHED_LINE),
     _ignoreRayIntersection(false),
     _drawInFront(false),
-    _isAA(true)
+    _drawHUDLayer(false)
 {
 }
 
 Base3DOverlay::Base3DOverlay(const Base3DOverlay* base3DOverlay) :
     Overlay(base3DOverlay),
     SpatiallyNestable(NestableType::Overlay, QUuid::createUuid()),
-    _lineWidth(base3DOverlay->_lineWidth),
     _isSolid(base3DOverlay->_isSolid),
     _isDashedLine(base3DOverlay->_isDashedLine),
     _ignoreRayIntersection(base3DOverlay->_ignoreRayIntersection),
     _drawInFront(base3DOverlay->_drawInFront),
-    _isAA(base3DOverlay->_isAA),
-    _isGrabbable(base3DOverlay->_isGrabbable)
+    _drawHUDLayer(base3DOverlay->_drawHUDLayer),
+    _isGrabbable(base3DOverlay->_isGrabbable),
+    _isVisibleInSecondaryCamera(base3DOverlay->_isVisibleInSecondaryCamera)
 {
     setTransform(base3DOverlay->getTransform());
 }
 
-QVariantMap convertOverlayLocationFromScriptSemantics(const QVariantMap& properties) {
+QVariantMap convertOverlayLocationFromScriptSemantics(const QVariantMap& properties, bool scalesWithParent) {
     // the position and rotation in _transform are relative to the parent (aka local).  The versions coming from
     // scripts are in world-frame, unless localPosition or localRotation are used.  Patch up the properties
     // so that "position" and "rotation" are relative-to-parent values.
@@ -59,7 +57,7 @@ QVariantMap convertOverlayLocationFromScriptSemantics(const QVariantMap& propert
         result["position"] = result["localPosition"];
     } else if (result["position"].isValid()) {
         glm::vec3 localPosition = SpatiallyNestable::worldToLocal(vec3FromVariant(result["position"]),
-                                                                  parentID, parentJointIndex, success);
+                                                                  parentID, parentJointIndex, scalesWithParent, success);
         if (success) {
             result["position"] = vec3toVariant(localPosition);
         }
@@ -69,7 +67,7 @@ QVariantMap convertOverlayLocationFromScriptSemantics(const QVariantMap& propert
         result["orientation"] = result["localOrientation"];
     } else if (result["orientation"].isValid()) {
         glm::quat localOrientation = SpatiallyNestable::worldToLocal(quatFromVariant(result["orientation"]),
-                                                                     parentID, parentJointIndex, success);
+                                                                     parentID, parentJointIndex, scalesWithParent, success);
         if (success) {
             result["orientation"] = quatToVariant(localOrientation);
         }
@@ -114,29 +112,42 @@ void Base3DOverlay::setProperties(const QVariantMap& originalProperties) {
             properties["parentJointIndex"] = getParentJointIndex();
         }
         if (!properties["position"].isValid() && !properties["localPosition"].isValid()) {
-            properties["position"] = vec3toVariant(getPosition());
+            properties["position"] = vec3toVariant(getWorldPosition());
         }
         if (!properties["orientation"].isValid() && !properties["localOrientation"].isValid()) {
-            properties["orientation"] = quatToVariant(getOrientation());
+            properties["orientation"] = quatToVariant(getWorldOrientation());
         }
     }
 
-    properties = convertOverlayLocationFromScriptSemantics(properties);
+    properties = convertOverlayLocationFromScriptSemantics(properties, getScalesWithParent());
     Overlay::setProperties(properties);
 
     bool needRenderItemUpdate = false;
 
     auto drawInFront = properties["drawInFront"];
-
     if (drawInFront.isValid()) {
         bool value = drawInFront.toBool();
         setDrawInFront(value);
         needRenderItemUpdate = true;
     }
 
+    auto drawHUDLayer = properties["drawHUDLayer"];
+    if (drawHUDLayer.isValid()) {
+        bool value = drawHUDLayer.toBool();
+        setDrawHUDLayer(value);
+        needRenderItemUpdate = true;
+    }
+
     auto isGrabbable = properties["grabbable"];
     if (isGrabbable.isValid()) {
         setIsGrabbable(isGrabbable.toBool());
+    }
+
+    auto isVisibleInSecondaryCamera = properties["isVisibleInSecondaryCamera"];
+    if (isVisibleInSecondaryCamera.isValid()) {
+        bool value = isVisibleInSecondaryCamera.toBool();
+        setIsVisibleInSecondaryCamera(value);
+        needRenderItemUpdate = true;
     }
 
     if (properties["position"].isValid()) {
@@ -147,12 +158,6 @@ void Base3DOverlay::setProperties(const QVariantMap& originalProperties) {
         setLocalOrientation(quatFromVariant(properties["orientation"]));
         needRenderItemUpdate = true;
     }
-
-    if (properties["lineWidth"].isValid()) {
-        setLineWidth(properties["lineWidth"].toFloat());
-        needRenderItemUpdate = true;
-    }
-
     if (properties["isSolid"].isValid()) {
         setIsSolid(properties["isSolid"].toBool());
     }
@@ -184,17 +189,12 @@ void Base3DOverlay::setProperties(const QVariantMap& originalProperties) {
 
     if (properties["parentID"].isValid()) {
         setParentID(QUuid(properties["parentID"].toString()));
+        bool success;
+        getParentPointer(success); // call this to hook-up the parent's back-pointers to its child overlays
         needRenderItemUpdate = true;
     }
     if (properties["parentJointIndex"].isValid()) {
         setParentJointIndex(properties["parentJointIndex"].toInt());
-        needRenderItemUpdate = true;
-    }
-
-    auto isAA = properties["isAA"];
-    if (isAA.isValid()) {
-        bool value = isAA.toBool();
-        setIsAA(value);
         needRenderItemUpdate = true;
     }
 
@@ -210,26 +210,48 @@ void Base3DOverlay::setProperties(const QVariantMap& originalProperties) {
     }
 }
 
+// JSDoc for copying to @typedefs of overlay types that inherit Base3DOverlay.
+/**jsdoc
+ * @property {string} name="" - A friendly name for the overlay.
+ * @property {Vec3} position - The position of the overlay center. Synonyms: <code>p1</code>, <code>point</code>, and 
+ *     <code>start</code>.
+ * @property {Vec3} localPosition - The local position of the overlay relative to its parent if the overlay has a
+ *     <code>parentID</code> set, otherwise the same value as <code>position</code>.
+ * @property {Quat} rotation - The orientation of the overlay. Synonym: <code>orientation</code>.
+ * @property {Quat} localRotation - The orientation of the overlay relative to its parent if the overlay has a
+ *     <code>parentID</code> set, otherwise the same value as <code>rotation</code>.
+ * @property {boolean} isSolid=false - Synonyms: <ode>solid</code>, <code>isFilled</code>, and <code>filled</code>.
+ *     Antonyms: <code>isWire</code> and <code>wire</code>.
+ * @property {boolean} isDashedLine=false - If <code>true</code>, a dashed line is drawn on the overlay's edges. Synonym:
+ *     <code>dashed</code>.
+ * @property {boolean} ignoreRayIntersection=false - If <code>true</code>, 
+ *     {@link Overlays.findRayIntersection|findRayIntersection} ignores the overlay.
+ * @property {boolean} drawInFront=false - If <code>true</code>, the overlay is rendered in front of other overlays that don't
+ *     have <code>drawInFront</code> set to <code>true</code>, and in front of entities.
+ * @property {boolean} grabbable=false - Signal to grabbing scripts whether or not this overlay can be grabbed.
+ * @property {boolean} isVisibleInSecondaryCamera=false - If <code>true</code>, the overlay is rendered in secondary
+ *     camera views.
+ * @property {Uuid} parentID=null - The avatar, entity, or overlay that the overlay is parented to.
+ * @property {number} parentJointIndex=65535 - Integer value specifying the skeleton joint that the overlay is attached to if
+ *     <code>parentID</code> is an avatar skeleton. A value of <code>65535</code> means "no joint".
+ */
 QVariant Base3DOverlay::getProperty(const QString& property) {
     if (property == "name") {
         return _name;
     }
     if (property == "position" || property == "start" || property == "p1" || property == "point") {
-        return vec3toVariant(getPosition());
+        return vec3toVariant(getWorldPosition());
     }
     if (property == "localPosition") {
         return vec3toVariant(getLocalPosition());
     }
     if (property == "rotation" || property == "orientation") {
-        return quatToVariant(getOrientation());
+        return quatToVariant(getWorldOrientation());
     }
     if (property == "localRotation" || property == "localOrientation") {
         return quatToVariant(getLocalOrientation());
     }
-    if (property == "lineWidth") {
-        return _lineWidth;
-    }
-    if (property == "isSolid" || property == "isFilled" || property == "solid" || property == "filed") {
+    if (property == "isSolid" || property == "isFilled" || property == "solid" || property == "filled") {
         return _isSolid;
     }
     if (property == "isWire" || property == "wire") {
@@ -247,14 +269,14 @@ QVariant Base3DOverlay::getProperty(const QString& property) {
     if (property == "grabbable") {
         return _isGrabbable;
     }
+    if (property == "isVisibleInSecondaryCamera") {
+        return _isVisibleInSecondaryCamera;
+    }
     if (property == "parentID") {
         return getParentID();
     }
     if (property == "parentJointIndex") {
         return getParentJointIndex();
-    }
-    if (property == "isAA") {
-        return _isAA;
     }
 
     return Overlay::getProperty(property);
@@ -268,15 +290,62 @@ bool Base3DOverlay::findRayIntersection(const glm::vec3& origin, const glm::vec3
 void Base3DOverlay::locationChanged(bool tellPhysics) {
     SpatiallyNestable::locationChanged(tellPhysics);
 
-    auto itemID = getRenderItemID();
-    if (render::Item::isValidID(itemID)) {
-        render::ScenePointer scene = qApp->getMain3DScene();
-        render::Transaction transaction;
-        transaction.updateItem(itemID);
-        scene->enqueueTransaction(transaction);
-    }
+    // Force the actual update of the render transform through the notify call
+    notifyRenderVariableChange();
 }
 
 void Base3DOverlay::parentDeleted() {
     qApp->getOverlays().deleteOverlay(getOverlayID());
+}
+
+void Base3DOverlay::update(float duration) {
+    // In Base3DOverlay, if its location or bound changed, the renderTrasnformDirty flag is true.
+    // then the correct transform used for rendering is computed in the update transaction and assigned.
+    if (_renderVariableDirty) {
+        auto itemID = getRenderItemID();
+        if (render::Item::isValidID(itemID)) {
+            // Capture the render transform value in game loop before
+            auto latestTransform = evalRenderTransform();
+            bool latestVisible = getVisible();
+            _renderVariableDirty = false;
+            render::ScenePointer scene = qApp->getMain3DScene();
+            render::Transaction transaction;
+            transaction.updateItem<Overlay>(itemID, [latestTransform, latestVisible](Overlay& data) {
+                auto overlay3D = dynamic_cast<Base3DOverlay*>(&data);
+                if (overlay3D) {
+                    // TODO: overlays need to communicate all relavent render properties through transactions
+                    overlay3D->setRenderTransform(latestTransform);
+                    overlay3D->setRenderVisible(latestVisible);
+                }
+            });
+            scene->enqueueTransaction(transaction);
+        }
+    }
+}
+
+void Base3DOverlay::notifyRenderVariableChange() const {
+    _renderVariableDirty = true;
+}
+
+Transform Base3DOverlay::evalRenderTransform() {
+    return getTransform();
+}
+
+void Base3DOverlay::setRenderTransform(const Transform& transform) {
+    _renderTransform = transform;
+}
+
+void Base3DOverlay::setRenderVisible(bool visible) {
+    _renderVisible = visible;
+}
+
+SpatialParentTree* Base3DOverlay::getParentTree() const {
+    auto entityTreeRenderer = qApp->getEntities();
+    EntityTreePointer entityTree = entityTreeRenderer ? entityTreeRenderer->getTree() : nullptr;
+    return entityTree.get();
+}
+
+void Base3DOverlay::setVisible(bool visible) {
+    Parent::setVisible(visible);
+    notifyRenderVariableChange();
 }

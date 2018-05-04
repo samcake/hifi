@@ -35,11 +35,15 @@ void SoftAttachmentModel::updateClusterMatrices() {
     if (!_needsUpdateClusterMatrices) {
         return;
     }
+    if (!isLoaded()) {
+        return;
+    }
+
     _needsUpdateClusterMatrices = false;
 
     const FBXGeometry& geometry = getFBXGeometry();
 
-    for (int i = 0; i < _meshStates.size(); i++) {
+    for (int i = 0; i < (int) _meshStates.size(); i++) {
         MeshState& state = _meshStates[i];
         const FBXMesh& mesh = geometry.meshes.at(i);
 
@@ -48,23 +52,26 @@ void SoftAttachmentModel::updateClusterMatrices() {
 
             // TODO: cache these look-ups as an optimization
             int jointIndexOverride = getJointIndexOverride(cluster.jointIndex);
-            glm::mat4 jointMatrix;
-            if (jointIndexOverride >= 0 && jointIndexOverride < _rigOverride.getJointStateCount()) {
-                jointMatrix = _rigOverride.getJointTransform(jointIndexOverride);
-            } else {
-                jointMatrix = _rig.getJointTransform(cluster.jointIndex);
-            }
-            glm_mat4u_mul(jointMatrix, cluster.inverseBindMatrix, state.clusterMatrices[j]);
-        }
+            if (_useDualQuaternionSkinning) {
+                glm::mat4 jointMatrix;
+                if (jointIndexOverride >= 0 && jointIndexOverride < _rigOverride.getJointStateCount()) {
+                    jointMatrix = _rigOverride.getJointTransform(jointIndexOverride);
+                } else {
+                    jointMatrix = _rig.getJointTransform(cluster.jointIndex);
+                }
 
-        // Once computed the cluster matrices, update the buffer(s)
-        if (mesh.clusters.size() > 1) {
-            if (!state.clusterBuffer) {
-                state.clusterBuffer = std::make_shared<gpu::Buffer>(state.clusterMatrices.size() * sizeof(glm::mat4),
-                                                                    (const gpu::Byte*) state.clusterMatrices.constData());
+                glm::mat4 m;
+                glm_mat4u_mul(jointMatrix, cluster.inverseBindMatrix, m);
+                state.clusterDualQuaternions[j] = Model::TransformDualQuaternion(m);
             } else {
-                state.clusterBuffer->setSubData(0, state.clusterMatrices.size() * sizeof(glm::mat4),
-                                                (const gpu::Byte*) state.clusterMatrices.constData());
+                glm::mat4 jointMatrix;
+                if (jointIndexOverride >= 0 && jointIndexOverride < _rigOverride.getJointStateCount()) {
+                    jointMatrix = _rigOverride.getJointTransform(jointIndexOverride);
+                } else {
+                    jointMatrix = _rig.getJointTransform(cluster.jointIndex);
+                }
+
+                glm_mat4u_mul(jointMatrix, cluster.inverseBindMatrix, state.clusterMatrices[j]);
             }
         }
     }

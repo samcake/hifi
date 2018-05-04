@@ -21,7 +21,7 @@
 
 #include <DependencyManager.h>
 #include <ResourceCache.h>
-#include <model/TextureMap.h>
+#include <graphics/TextureMap.h>
 #include <image/Image.h>
 #include <ktx/KTX.h>
 
@@ -43,6 +43,7 @@ class NetworkTexture : public Resource, public Texture {
     Q_OBJECT
 
 public:
+    NetworkTexture(const QUrl& url);
     NetworkTexture(const QUrl& url, image::TextureUsage::Type type, const QByteArray& content, int maxNumPixels);
     ~NetworkTexture() override;
 
@@ -58,30 +59,33 @@ public:
 
     void refresh() override;
 
+    Q_INVOKABLE void setOriginalDescriptor(ktx::KTXDescriptor* descriptor) { _originalKtxDescriptor.reset(descriptor); }
+
 signals:
     void networkTextureCreated(const QWeakPointer<NetworkTexture>& self);
 
 public slots:
-    void ktxHeaderRequestProgress(uint64_t bytesReceived, uint64_t bytesTotal) { }
-    void ktxHeaderRequestFinished();
-
-    void ktxMipRequestProgress(uint64_t bytesReceived, uint64_t bytesTotal) { }
+    void ktxInitialDataRequestFinished();
     void ktxMipRequestFinished();
 
 protected:
     void makeRequest() override;
+    void makeLocalRequest();
+    Q_INVOKABLE void handleLocalRequestCompleted();
 
     virtual bool isCacheable() const override { return _loaded; }
 
     virtual void downloadFinished(const QByteArray& data) override;
 
+    bool handleFailedRequest(ResourceRequest::Result result) override;
+
     Q_INVOKABLE void loadContent(const QByteArray& content);
     Q_INVOKABLE void setImage(gpu::TexturePointer texture, int originalWidth, int originalHeight);
 
-    void startRequestForNextMipLevel();
+    Q_INVOKABLE void startRequestForNextMipLevel();
 
     void startMipRangeRequest(uint16_t low, uint16_t high);
-    void maybeHandleFinishedInitialLoad();
+    void handleFinishedInitialLoad();
 
 private:
     friend class KTXReader;
@@ -102,16 +106,13 @@ private:
     bool _sourceIsKTX { false };
     KTXResourceState _ktxResourceState { PENDING_INITIAL_LOAD };
 
-    // TODO Can this be removed?
-    KTXFilePointer _file;
-
     // The current mips that are currently being requested w/ _ktxMipRequest
     std::pair<uint16_t, uint16_t> _ktxMipLevelRangeInFlight{ NULL_MIP_LEVEL, NULL_MIP_LEVEL };
 
     ResourceRequest* _ktxHeaderRequest { nullptr };
     ResourceRequest* _ktxMipRequest { nullptr };
-    bool _ktxHeaderRequestFinished{ false };
-    bool _ktxHighMipRequestFinished{ false };
+    QByteArray _ktxHeaderData;
+    QByteArray _ktxHighMipData;
 
     uint16_t _lowestRequestedMipLevel { NULL_MIP_LEVEL };
     uint16_t _lowestKnownPopulatedMip { NULL_MIP_LEVEL };
@@ -128,9 +129,14 @@ private:
     int _width { 0 };
     int _height { 0 };
     int _maxNumPixels { ABSOLUTE_MAX_TEXTURE_NUM_PIXELS };
+
+    friend class TextureCache;
 };
 
 using NetworkTexturePointer = QSharedPointer<NetworkTexture>;
+
+Q_DECLARE_METATYPE(QWeakPointer<NetworkTexture>)
+
 
 /// Stores cached textures, including render-to-texture targets.
 class TextureCache : public ResourceCache, public Dependency {
@@ -138,6 +144,59 @@ class TextureCache : public ResourceCache, public Dependency {
     SINGLETON_DEPENDENCY
 
 public:
+
+    // Properties are copied over from ResourceCache (see ResourceCache.h for reason).
+
+    /**jsdoc
+    * API to manage texture cache resources.
+    * @namespace TextureCache
+    *
+    * @hifi-interface
+    * @hifi-client-entity
+    *
+    * @property {number} numTotal - Total number of total resources. <em>Read-only.</em>
+    * @property {number} numCached - Total number of cached resource. <em>Read-only.</em>
+    * @property {number} sizeTotal - Size in bytes of all resources. <em>Read-only.</em>
+    * @property {number} sizeCached - Size in bytes of all cached resources. <em>Read-only.</em>
+    */
+
+
+    // Functions are copied over from ResourceCache (see ResourceCache.h for reason).
+
+    /**jsdoc
+     * Get the list of all resource URLs.
+     * @function TextureCache.getResourceList
+     * @returns {string[]}
+     */
+
+    /**jsdoc
+     * @function TextureCache.dirty
+     * @returns {Signal}
+     */
+
+    /**jsdoc
+     * @function TextureCache.updateTotalSize
+     * @param {number} deltaSize
+     */
+
+    /**jsdoc
+     * Prefetches a resource.
+     * @function TextureCache.prefetch
+     * @param {string} url - URL of the resource to prefetch.
+     * @param {object} [extra=null]
+     * @returns {Resource}
+     */
+
+    /**jsdoc
+     * Asynchronously loads a resource from the specified URL and returns it.
+     * @function TextureCache.getResource
+     * @param {string} url - URL of the resource to load.
+     * @param {string} [fallback=""] - Fallback URL if load of the desired URL fails.
+     * @param {} [extra=null]
+     * @returns {Resource}
+     */
+
+
     /// Returns the ID of the permutation/normal texture used for Perlin noise shader programs.  This texture
     /// has two lines: the first, a set of random numbers in [0, 255] to be used as permutation offsets, and
     /// the second, a set of random unit vectors to be used as noise gradients.
@@ -162,11 +221,34 @@ public:
     NetworkTexturePointer getTexture(const QUrl& url, image::TextureUsage::Type type = image::TextureUsage::DEFAULT_TEXTURE,
         const QByteArray& content = QByteArray(), int maxNumPixels = ABSOLUTE_MAX_TEXTURE_NUM_PIXELS);
 
-
     gpu::TexturePointer getTextureByHash(const std::string& hash);
     gpu::TexturePointer cacheTextureByHash(const std::string& hash, const gpu::TexturePointer& texture);
 
+    NetworkTexturePointer getResourceTexture(QUrl resourceTextureUrl);
+    const gpu::FramebufferPointer& getHmdPreviewFramebuffer(int width, int height);
+    const gpu::FramebufferPointer& getSpectatorCameraFramebuffer();
+    const gpu::FramebufferPointer& getSpectatorCameraFramebuffer(int width, int height);
+    void updateSpectatorCameraNetworkTexture();
+
+    static const int DEFAULT_SPECTATOR_CAM_WIDTH { 2048 };
+    static const int DEFAULT_SPECTATOR_CAM_HEIGHT { 1024 };
+
+signals:
+    /**jsdoc 
+     * @function TextureCache.spectatorCameraFramebufferReset
+     * @returns {Signal}
+     */
+    void spectatorCameraFramebufferReset();
+
 protected:
+    
+    /**jsdoc
+     * @function TextureCache.prefetch
+     * @param {string} url
+     * @param {number} type
+     * @param {number} [maxNumPixels=67108864]
+     * @returns {Resource}
+     */
     // Overload ResourceCache::prefetch to allow specifying texture type for loads
     Q_INVOKABLE ScriptableResource* prefetch(const QUrl& url, int type, int maxNumPixels = ABSOLUTE_MAX_TEXTURE_NUM_PIXELS);
 
@@ -183,7 +265,9 @@ private:
 
     static const std::string KTX_DIRNAME;
     static const std::string KTX_EXT;
-    KTXCache _ktxCache;
+
+    std::shared_ptr<cache::FileCache> _ktxCache { std::make_shared<KTXCache>(KTX_DIRNAME, KTX_EXT) };
+
     // Map from image hashes to texture weak pointers
     std::unordered_map<std::string, std::weak_ptr<gpu::Texture>> _texturesByHashes;
     std::mutex _texturesByHashesMutex;
@@ -193,6 +277,12 @@ private:
     gpu::TexturePointer _grayTexture;
     gpu::TexturePointer _blueTexture;
     gpu::TexturePointer _blackTexture;
+
+    NetworkTexturePointer _spectatorCameraNetworkTexture;
+    gpu::FramebufferPointer _spectatorCameraFramebuffer;
+
+    NetworkTexturePointer _hmdPreviewNetworkTexture;
+    gpu::FramebufferPointer _hmdPreviewFramebuffer;
 };
 
 #endif // hifi_TextureCache_h

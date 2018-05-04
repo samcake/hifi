@@ -50,21 +50,34 @@ public:
     virtual quint16 getParentJointIndex() const { return _parentJointIndex; }
     virtual void setParentJointIndex(quint16 parentJointIndex);
 
-    static glm::vec3 worldToLocal(const glm::vec3& position, const QUuid& parentID, int parentJointIndex, bool& success);
-    static glm::quat worldToLocal(const glm::quat& orientation, const QUuid& parentID, int parentJointIndex, bool& success);
+    static glm::vec3 worldToLocal(const glm::vec3& position, const QUuid& parentID, int parentJointIndex,
+                                  bool scalesWithParent, bool& success);
+    static glm::quat worldToLocal(const glm::quat& orientation, const QUuid& parentID, int parentJointIndex,
+                                  bool scalesWithParent, bool& success);
     static glm::vec3 worldToLocalVelocity(const glm::vec3& velocity, const QUuid& parentID,
-                                          int parentJointIndex, bool& success);
+                                          int parentJointIndex, bool scalesWithParent, bool& success);
     static glm::vec3 worldToLocalAngularVelocity(const glm::vec3& angularVelocity, const QUuid& parentID,
-                                                 int parentJointIndex, bool& success);
+                                                 int parentJointIndex, bool scalesWithParent, bool& success);
+    static glm::vec3 worldToLocalDimensions(const glm::vec3& dimensions, const QUuid& parentID,
+                                            int parentJointIndex, bool scalesWithParent, bool& success);
 
-    static glm::vec3 localToWorld(const glm::vec3& position, const QUuid& parentID, int parentJointIndex, bool& success);
-    static glm::quat localToWorld(const glm::quat& orientation, const QUuid& parentID, int parentJointIndex, bool& success);
+    static glm::vec3 localToWorld(const glm::vec3& position, const QUuid& parentID, int parentJointIndex,
+                                  bool scalesWithParent, bool& success);
+    static glm::quat localToWorld(const glm::quat& orientation, const QUuid& parentID, int parentJointIndex,
+                                  bool scalesWithParent, bool& success);
     static glm::vec3 localToWorldVelocity(const glm::vec3& velocity,
-                                          const QUuid& parentID, int parentJointIndex, bool& success);
+                                          const QUuid& parentID, int parentJointIndex, bool scalesWithParent, bool& success);
     static glm::vec3 localToWorldAngularVelocity(const glm::vec3& angularVelocity,
-                                                 const QUuid& parentID, int parentJointIndex, bool& success);
+                                                 const QUuid& parentID, int parentJointIndex,
+                                                 bool scalesWithParent, bool& success);
+    static glm::vec3 localToWorldDimensions(const glm::vec3& dimensions, const QUuid& parentID,
+                                            int parentJointIndex, bool scalesWithParent, bool& success);
 
     static QString nestableTypeToString(NestableType nestableType);
+
+
+    virtual bool isParentPathComplete() const;
+
 
     // world frame
     virtual const Transform getTransform(bool& success, int depth = 0) const;
@@ -74,54 +87,52 @@ public:
 
     virtual Transform getParentTransform(bool& success, int depth = 0) const;
 
-    virtual glm::vec3 getPosition(bool& success) const;
-    virtual glm::vec3 getPosition() const;
-    virtual void setPosition(const glm::vec3& position, bool& success, bool tellPhysics = true);
-    virtual void setPosition(const glm::vec3& position);
+    void setWorldTransform(const glm::vec3& position, const glm::quat& orientation);
+    virtual glm::vec3 getWorldPosition(bool& success) const;
+    virtual glm::vec3 getWorldPosition() const;
+    virtual void setWorldPosition(const glm::vec3& position, bool& success, bool tellPhysics = true);
+    virtual void setWorldPosition(const glm::vec3& position);
 
-    virtual glm::quat getOrientation(bool& success) const;
-    virtual glm::quat getOrientation() const;
-    virtual glm::quat getOrientation(int jointIndex, bool& success) const;
-    virtual void setOrientation(const glm::quat& orientation, bool& success, bool tellPhysics = true);
-    virtual void setOrientation(const glm::quat& orientation);
+    virtual glm::quat getWorldOrientation(bool& success) const;
+    virtual glm::quat getWorldOrientation() const;
+    virtual glm::quat getWorldOrientation(int jointIndex, bool& success) const;
+    virtual void setWorldOrientation(const glm::quat& orientation, bool& success, bool tellPhysics = true);
+    virtual void setWorldOrientation(const glm::quat& orientation);
 
-    // these are here because some older code uses rotation rather than orientation
-    virtual const glm::quat getRotation() const { return getOrientation(); }
-    virtual void setRotation(glm::quat orientation) { setOrientation(orientation); }
-
-    virtual glm::vec3 getVelocity(bool& success) const;
-    virtual glm::vec3 getVelocity() const;
-    virtual void setVelocity(const glm::vec3& velocity, bool& success);
-    virtual void setVelocity(const glm::vec3& velocity);
+    virtual glm::vec3 getWorldVelocity(bool& success) const;
+    virtual glm::vec3 getWorldVelocity() const;
+    virtual void setWorldVelocity(const glm::vec3& velocity, bool& success);
+    virtual void setWorldVelocity(const glm::vec3& velocity);
     virtual glm::vec3 getParentVelocity(bool& success) const;
 
-    virtual glm::vec3 getAngularVelocity(bool& success) const;
-    virtual glm::vec3 getAngularVelocity() const;
-    virtual void setAngularVelocity(const glm::vec3& angularVelocity, bool& success);
-    virtual void setAngularVelocity(const glm::vec3& angularVelocity);
+    virtual glm::vec3 getWorldAngularVelocity(bool& success) const;
+    virtual glm::vec3 getWorldAngularVelocity() const;
+    virtual void setWorldAngularVelocity(const glm::vec3& angularVelocity, bool& success);
+    virtual void setWorldAngularVelocity(const glm::vec3& angularVelocity);
     virtual glm::vec3 getParentAngularVelocity(bool& success) const;
 
     virtual AACube getMaximumAACube(bool& success) const;
-    virtual bool checkAndAdjustQueryAACube();
-    virtual bool computePuffedQueryAACube();
 
     virtual void setQueryAACube(const AACube& queryAACube);
-    virtual bool queryAABoxNeedsUpdate() const;
+    virtual bool queryAACubeNeedsUpdate() const;
+    virtual bool shouldPuffQueryAACube() const { return false; }
+    bool updateQueryAACube();
     void forceQueryAACubeUpdate() { _queryAACubeSet = false; }
     virtual AACube getQueryAACube(bool& success) const;
     virtual AACube getQueryAACube() const;
 
-    virtual glm::vec3 getScale() const;
-    virtual void setScale(const glm::vec3& scale);
-    virtual void setScale(float value);
+    virtual glm::vec3 getSNScale() const;
+    virtual glm::vec3 getSNScale(bool& success) const;
+    virtual void setSNScale(const glm::vec3& scale);
+    virtual void setSNScale(const glm::vec3& scale, bool& success);
 
     // get world-frame values for a specific joint
     virtual const Transform getTransform(int jointIndex, bool& success, int depth = 0) const;
-    virtual glm::vec3 getPosition(int jointIndex, bool& success) const;
-    virtual glm::vec3 getScale(int jointIndex) const;
+    virtual glm::vec3 getWorldPosition(int jointIndex, bool& success) const;
+    virtual glm::vec3 getSNScale(int jointIndex, bool& success) const;
 
     // object's parent's frame
-    virtual const Transform getLocalTransform() const;
+    virtual Transform getLocalTransform() const;
     virtual void setLocalTransform(const Transform& transform);
 
     virtual glm::vec3 getLocalPosition() const;
@@ -136,8 +147,11 @@ public:
     virtual glm::vec3 getLocalAngularVelocity() const;
     virtual void setLocalAngularVelocity(const glm::vec3& angularVelocity);
 
-    virtual glm::vec3 getLocalScale() const;
-    virtual void setLocalScale(const glm::vec3& scale);
+    virtual glm::vec3 getLocalSNScale() const;
+    virtual void setLocalSNScale(const glm::vec3& scale);
+
+    virtual bool getScalesWithParent() const { return false; }
+    virtual glm::vec3 scaleForChildren() const { return glm::vec3(1.0f); }
 
     QList<SpatiallyNestablePointer> getChildren() const;
     bool hasChildren() const;
@@ -146,6 +160,7 @@ public:
 
     // this object's frame
     virtual const Transform getAbsoluteJointTransformInObjectFrame(int jointIndex) const;
+    virtual glm::vec3 getAbsoluteJointScaleInObjectFrame(int index) const { return glm::vec3(1.0f); }
     virtual glm::quat getAbsoluteJointRotationInObjectFrame(int index) const { return glm::quat(); }
     virtual glm::vec3 getAbsoluteJointTranslationInObjectFrame(int index) const { return glm::vec3(); }
     virtual bool setAbsoluteJointRotationInObjectFrame(int index, const glm::quat& rotation) { return false; }
@@ -158,8 +173,13 @@ public:
 
     SpatiallyNestablePointer getThisPointer() const;
 
-    void forEachChild(std::function<void(SpatiallyNestablePointer)> actor);
-    void forEachDescendant(std::function<void(SpatiallyNestablePointer)> actor);
+    using ChildLambda = std::function<void(const SpatiallyNestablePointer&)>;
+    using ChildLambdaTest = std::function<bool(const SpatiallyNestablePointer&)>;
+
+    void forEachChild(const ChildLambda& actor) const;
+    void forEachDescendant(const ChildLambda& actor) const;
+    void forEachChildTest(const ChildLambdaTest&  actor) const;
+    void forEachDescendantTest(const ChildLambdaTest& actor) const;
 
     void die() { _isDead = true; }
     bool isDead() const { return _isDead; }
@@ -185,6 +205,12 @@ public:
     bool tranlationChangedSince(quint64 time) const { return _translationChanged > time; }
     bool rotationChangedSince(quint64 time) const { return _rotationChanged > time; }
 
+    void dump(const QString& prefix = "") const;
+
+    virtual void locationChanged(bool tellPhysics = true); // called when a this object's location has changed
+    virtual void dimensionsChanged() { _queryAACubeSet = false; } // called when a this object's dimensions have changed
+    virtual void parentDeleted() { } // called on children of a deleted parent
+
 protected:
     const NestableType _nestableType; // EntityItem or an AvatarData
     QUuid _id;
@@ -195,10 +221,6 @@ protected:
 
     mutable ReadWriteLockable _childrenLock;
     mutable QHash<QUuid, SpatiallyNestableWeakPointer> _children;
-
-    virtual void locationChanged(bool tellPhysics = true); // called when a this object's location has changed
-    virtual void dimensionsChanged() { } // called when a this object's dimensions have changed
-    virtual void parentDeleted() { } // called on children of a deleted parent
 
     // _queryAACube is used to decide where something lives in the octree
     mutable AACube _queryAACube;
@@ -221,6 +243,7 @@ private:
     glm::vec3 _angularVelocity;
     mutable bool _parentKnowsMe { false };
     bool _isDead { false };
+    bool _queryAACubeIsPuffed { false };
 };
 
 

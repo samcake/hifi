@@ -1,7 +1,8 @@
 set(TARGET_NAME entities)
 setup_hifi_library(Network Script)
-link_hifi_libraries(avatars shared audio octree model model-networking fbx networking animation)
-
-target_bullet()
-
-include_hifi_library_headers(render)
+include_directories(SYSTEM "${OPENSSL_INCLUDE_DIR}")
+include_hifi_library_headers(fbx)
+include_hifi_library_headers(gpu)
+include_hifi_library_headers(image)
+include_hifi_library_headers(ktx)
+link_hifi_libraries(shared networking octree avatars graphics model-networking)

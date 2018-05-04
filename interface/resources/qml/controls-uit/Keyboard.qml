@@ -8,21 +8,43 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 
-import QtQuick 2.0
+import QtQuick 2.7
+import QtGraphicalEffects 1.0
+import "."
 
-Item {
+Rectangle {
     id: keyboardBase
+    objectName: "keyboard"
+
+    anchors.left: parent.left
+    anchors.right: parent.right
+
+    color: "#252525"
 
     property bool raised: false
     property bool numeric: false
 
-    readonly property int raisedHeight: 200
+    readonly property int keyboardRowHeight: 50
+    readonly property int keyboardWidth: 480
+    readonly property int keyboardHeight: 200
+
+    readonly property int mirrorTextHeight: keyboardRowHeight
+
+    property bool password: false
+    property alias mirroredText: mirrorText.text
+    property bool showMirrorText: true
+
+    readonly property int raisedHeight: keyboardHeight + (showMirrorText ? keyboardRowHeight : 0)
 
     height: enabled && raised ? raisedHeight : 0
     visible: enabled && raised
 
     property bool shiftMode: false
     property bool numericShiftMode: false
+
+    onRaisedChanged: {
+        mirroredText = "";
+    }
 
     function resetShiftMode(mode) {
         shiftMode = mode;
@@ -36,6 +58,8 @@ Item {
             return ">";
         } else if (str === "/") {
             return "?";
+        } else if (str === "-") {
+            return "_";
         } else {
             return str.toUpperCase(str);
         }
@@ -48,6 +72,8 @@ Item {
             return ".";
         } else if (str === "?") {
             return "/";
+        } else if (str === "_") {
+            return "-";
         } else {
             return str.toLowerCase(str);
         }
@@ -66,7 +92,7 @@ Item {
 
     onShiftModeChanged: {
         forEachKey(function (key) {
-            if (/[a-z]/i.test(key.glyph)) {
+            if (/[a-z-_]/i.test(key.glyph)) {
                 if (shiftMode) {
                     key.glyph = keyboardBase.toUpper(key.glyph);
                 } else {
@@ -93,24 +119,48 @@ Item {
     }
 
     Rectangle {
-        id: leftRect
-        y: 0
-        height: 200
+        height: showMirrorText ? mirrorTextHeight : 0
+        width: keyboardWidth
         color: "#252525"
-        anchors.right: keyboardRect.left
-        anchors.rightMargin: 0
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: 0
-        anchors.left: parent.left
-        anchors.leftMargin: 0
+        anchors.horizontalCenter: parent.horizontalCenter
+
+        TextInput {
+            id: mirrorText
+            visible: showMirrorText
+            font.family: "Fira Sans"
+            font.pixelSize: 20
+            verticalAlignment: Text.AlignVCenter
+            horizontalAlignment: Text.AlignHCenter
+            color: "#00B4EF";
+            anchors.left: parent.left
+            anchors.leftMargin: 10
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+
+            wrapMode: Text.WordWrap
+            readOnly: false // we need this to allow control to accept QKeyEvent
+            selectByMouse: false
+            echoMode: password ? TextInput.Password : TextInput.Normal
+
+            Keys.onPressed: {
+                if (event.key == Qt.Key_Return || event.key == Qt.Key_Space) {
+                    mirrorText.text = "";
+                    event.accepted = true;
+                }
+            }
+
+            MouseArea { // ... and we need this mouse area to prevent mirrorText from getting mouse events to ensure it will never get focus
+                anchors.fill: parent
+            }
+        }
     }
 
     Rectangle {
         id: keyboardRect
-        x: 206
-        y: 0
-        width: 480
-        height: 200
+        y: showMirrorText ? mirrorTextHeight : 0
+        width: keyboardWidth
+        height: keyboardHeight
         color: "#252525"
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
@@ -118,13 +168,13 @@ Item {
 
         Column {
             id: columnAlpha
-            width: 480
-            height: 200
+            width: keyboardWidth
+            height: keyboardHeight
             visible: !numeric
 
             Row {
-                width: 480
-                height: 50
+                width: keyboardWidth
+                height: keyboardRowHeight
                 anchors.left: parent.left
                 anchors.leftMargin: 4
 
@@ -142,8 +192,8 @@ Item {
             }
 
             Row {
-                width: 480
-                height: 50
+                width: keyboardWidth
+                height: keyboardRowHeight
                 anchors.left: parent.left
                 anchors.leftMargin: 20
 
@@ -160,8 +210,8 @@ Item {
             }
 
             Row {
-                width: 480
-                height: 50
+                width: keyboardWidth
+                height: keyboardRowHeight
                 anchors.left: parent.left
                 anchors.leftMargin: 4
 
@@ -179,14 +229,14 @@ Item {
                 Key { width: 43; glyph: "b"; }
                 Key { width: 43; glyph: "n"; }
                 Key { width: 43; glyph: "m"; }
-                Key { width: 43; glyph: "_"; }
+                Key { width: 43; glyph: "-"; }
                 Key { width: 43; glyph: "/"; }
                 Key { width: 43; glyph: "?"; }
             }
 
             Row {
-                width: 480
-                height: 50
+                width: keyboardWidth
+                height: keyboardRowHeight
                 anchors.left: parent.left
                 anchors.leftMargin: 4
 
@@ -198,20 +248,25 @@ Item {
                 Key { width: 231; glyph: " "; }
                 Key { width: 43; glyph: ","; }
                 Key { width: 43; glyph: "."; }
-                Key { width: 43; glyph: "\u276C"; }
-                Key { width: 43; glyph: "\u276D"; }
+                Key {
+                    fontFamily: "hifi-glyphs";
+                    fontPixelSize: 48;
+                    letterAnchors.topMargin: -4;
+                    verticalAlignment: Text.AlignVCenter;
+                    width: 86; glyph: "\ue02b";
+                }
             }
         }
 
         Column {
             id: columnNumeric
-            width: 480
-            height: 200
+            width: keyboardWidth
+            height: keyboardHeight
             visible: numeric
 
             Row {
-                width: 480
-                height: 50
+                width: keyboardWidth
+                height: keyboardRowHeight
                 anchors.left: parent.left
                 anchors.leftMargin: 4
 
@@ -229,8 +284,8 @@ Item {
             }
 
             Row {
-                width: 480
-                height: 50
+                width: keyboardWidth
+                height: keyboardRowHeight
                 anchors.left: parent.left
                 anchors.leftMargin: 4
 
@@ -248,8 +303,8 @@ Item {
             }
 
             Row {
-                width: 480
-                height: 50
+                width: keyboardWidth
+                height: keyboardRowHeight
                 anchors.left: parent.left
                 anchors.leftMargin: 4
 
@@ -273,8 +328,8 @@ Item {
             }
 
             Row {
-                width: 480
-                height: 50
+                width: keyboardWidth
+                height: keyboardRowHeight
                 anchors.left: parent.left
                 anchors.leftMargin: 4
 
@@ -286,36 +341,14 @@ Item {
                 Key { width: 231; glyph: " "; }
                 Key { width: 43; glyph: ","; }
                 Key { width: 43; glyph: "."; }
-                Key { width: 43; glyph: "\u276C"; }
-                Key { width: 43; glyph: "\u276D"; }
+                Key {
+                    fontFamily: "hifi-glyphs";
+                    fontPixelSize: 48;
+                    letterAnchors.topMargin: -4;
+                    verticalAlignment: Text.AlignVCenter;
+                    width: 86; glyph: "\ue02b";
+                }
             }
         }
-    }
-
-    Rectangle {
-        id: rightRect
-        y: 280
-        height: 200
-        color: "#252525"
-        border.width: 0
-        anchors.left: keyboardRect.right
-        anchors.leftMargin: 0
-        anchors.right: parent.right
-        anchors.rightMargin: 0
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: 0
-    }
-
-    Rectangle {
-        id: rectangle1
-        color: "#ffffff"
-        anchors.bottom: keyboardRect.top
-        anchors.bottomMargin: 0
-        anchors.left: parent.left
-        anchors.leftMargin: 0
-        anchors.right: parent.right
-        anchors.rightMargin: 0
-        anchors.top: parent.top
-        anchors.topMargin: 0
     }
 }

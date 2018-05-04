@@ -23,16 +23,14 @@ import "../controls" as HifiControls
 
 Rectangle {
     id: pal;
-    // Size
-    width: parent.width;
-    height: parent.height;
     // Style
     color: "#E3E3E3";
     // Properties
+    property bool debug: false;
     property int myCardWidth: width - upperRightInfoContainer.width;
-    property int myCardHeight: 80;
+    property int myCardHeight: 100;
     property int rowHeight: 60;
-    property int actionButtonWidth: 55;
+    property int actionButtonWidth: 65;
     property int locationColumnWidth: 170;
     property int nearbyNameCardWidth: nearbyTable.width - (iAmAdmin ? (actionButtonWidth * 4) : (actionButtonWidth * 2)) - 4 - hifi.dimensions.scrollbarBackgroundWidth;
     property int connectionsNameCardWidth: connectionsTable.width - locationColumnWidth - actionButtonWidth - 4 - hifi.dimensions.scrollbarBackgroundWidth;
@@ -44,14 +42,13 @@ Rectangle {
     property var activeTab: "nearbyTab";
     property bool currentlyEditingDisplayName: false
     property bool punctuationMode: false;
-    property var eventBridge;
 
     HifiConstants { id: hifi; }
 
     // The letterbox used for popup messages
     LetterboxMessage {
         id: letterboxMessage;
-        z: 999; // Force the popup on top of everything else
+        z: 998; // Force the popup on top of everything else
     }
     Connections {
         target: GlobalServices
@@ -63,7 +60,7 @@ Rectangle {
     // The ComboDialog used for setting availability
     ComboDialog {
         id: comboDialog;
-        z: 999; // Force the ComboDialog on top of everything else
+        z: 998; // Force the ComboDialog on top of everything else
         dialogWidth: parent.width - 50;
         dialogHeight: parent.height - 100;
     }
@@ -129,7 +126,7 @@ Rectangle {
         pal.sendToScript({method: 'refreshNearby', params: params});
     }
 
-    Item {
+    Rectangle {
         id: palTabContainer;
         // Anchors
         anchors {
@@ -138,6 +135,7 @@ Rectangle {
             left: parent.left;
             right: parent.right;
         }
+        color: "white";
         Rectangle {
             id: tabSelectorContainer;
             // Anchors
@@ -388,8 +386,13 @@ Rectangle {
             sortIndicatorColumn: settings.nearbySortIndicatorColumn;
             sortIndicatorOrder: settings.nearbySortIndicatorOrder;
             onSortIndicatorColumnChanged: {
-                settings.nearbySortIndicatorColumn = sortIndicatorColumn;
-                sortModel();
+                if (sortIndicatorColumn > 2) {
+                    // these are not sortable, switch back to last column
+                    sortIndicatorColumn = settings.nearbySortIndicatorColumn;
+                } else {
+                    settings.nearbySortIndicatorColumn = sortIndicatorColumn;
+                    sortModel();
+                }
             }
             onSortIndicatorOrderChanged: {
                 settings.nearbySortIndicatorOrder = sortIndicatorOrder;
@@ -412,6 +415,7 @@ Rectangle {
                 movable: false;
                 resizable: false;
             }
+
             TableViewColumn {
                 role: "ignore";
                 title: "IGNORE";
@@ -468,6 +472,7 @@ Rectangle {
                     visible: !isCheckBox && !isButton && !isAvgAudio;
                     uuid: model ? model.sessionId : "";
                     selected: styleData.selected;
+                    isReplicated: model.isReplicated;
                     isAdmin: model && model.admin;
                     isPresent: model && model.isPresent;
                     // Size
@@ -548,6 +553,7 @@ Rectangle {
                     id: actionButton;
                     color: 2; // Red
                     visible: isButton;
+                    enabled: !nameCard.isReplicated;
                     anchors.centerIn: parent;
                     width: 32;
                     height: 32;
@@ -594,13 +600,23 @@ Rectangle {
         }
         // This Rectangle refers to the [?] popup button next to "NAMES"
         Rectangle {
+            id: questionRect
             color: hifi.colors.tableBackgroundLight;
             width: 20;
             height: hifi.dimensions.tableHeaderHeight - 2;
             anchors.left: nearbyTable.left;
             anchors.top: nearbyTable.top;
             anchors.topMargin: 1;
-            anchors.leftMargin: actionButtonWidth + nearbyNameCardWidth/2 + displayNameHeaderMetrics.width/2 + 6;
+
+            Connections {
+                target: nearbyTable
+                onTitlePaintedPosSignal: {
+                    if (column === 1) { // name column
+                        questionRect.anchors.leftMargin = actionButtonWidth + nearbyTable.titlePaintedPos[column]
+                    }
+                }
+            }
+
             RalewayRegular {
                 id: helpText;
                 text: "[?]";
@@ -823,7 +839,7 @@ Rectangle {
                         hoverEnabled: enabled
                         enabled: connectionsNameCard.selected && pal.activeTab == "connectionsTab"
                         onClicked: {
-                            AddressManager.goToUser(model.userName);
+                            AddressManager.goToUser(model.userName, false);
                             UserActivityLogger.palAction("go_to_user", model.userName);
                         }
                         onEntered: connectionsLocationData.color = hifi.colors.blueHighlight;
@@ -892,7 +908,6 @@ Rectangle {
                 anchors.horizontalCenter: parent.horizontalCenter;
             }
 
-            FontLoader { id: ralewayRegular; source: "../../fonts/Raleway-Regular.ttf"; }
             Text {
                 id: connectionHelpText;
                 // Anchors
@@ -907,7 +922,7 @@ Rectangle {
                 horizontalAlignment: Text.AlignHLeft
                 // Style
                 font.pixelSize: 18;
-                font.family: ralewayRegular.name
+                font.family: "Raleway"
                 color: hifi.colors.darkGray
                 wrapMode: Text.WordWrap
                 textFormat: Text.StyledText;
@@ -1008,7 +1023,7 @@ Rectangle {
                 }
                 MouseArea {
                     anchors.fill: parent;
-                    enabled: myData.userName !== "Unknown user";
+                    enabled: myData.userName !== "Unknown user" && !userInfoViewer.visible;
                     hoverEnabled: true;
                     onClicked: {
                         popupComboDialog("Set your availability:",
@@ -1038,8 +1053,8 @@ Rectangle {
         } // Keyboard
 
         HifiControls.TabletWebView {
-            eventBridge: pal.eventBridge;
             id: userInfoViewer;
+            z: 999;
             anchors {
                 top: parent.top;
                 bottom: parent.bottom;
@@ -1095,9 +1110,9 @@ Rectangle {
         case 'nearbyUsers':
             var data = message.params;
             var index = -1;
+            iAmAdmin = Users.canKick;
             index = findNearbySessionIndex('', data);
             if (index !== -1) {
-                iAmAdmin = Users.canKick;
                 myData = data[index];
                 data.splice(index, 1);
             } else {
@@ -1117,7 +1132,9 @@ Rectangle {
             break;
         case 'connections':
             var data = message.params;
-            console.log('Got connection data: ', JSON.stringify(data));
+            if (pal.debug) {
+                console.log('Got connection data: ', JSON.stringify(data));
+            }
             connectionsUserModelData = data;
             sortConnectionsModel();
             connectionsLoading.visible = false;

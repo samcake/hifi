@@ -20,7 +20,7 @@
 #include <unistd.h> // not on windows, not needed for mac or windows
 #endif
 
-#include <tbb/concurrent_unordered_set.h>
+#include <TBBHelpers.h>
 
 #include <QtCore/QElapsedTimer>
 #include <QtCore/QMutex>
@@ -38,7 +38,8 @@
 
 const quint64 DOMAIN_SERVER_CHECK_IN_MSECS = 1 * 1000;
 
-const int MAX_SILENT_DOMAIN_SERVER_CHECK_INS = 5;
+using PacketOrPacketList = std::pair<std::unique_ptr<NLPacket>, std::unique_ptr<NLPacketList>>;
+using NodePacketOrPacketListPair = std::pair<SharedNodePointer, PacketOrPacketList>;
 
 using NodePacketPair = std::pair<SharedNodePointer, std::unique_ptr<NLPacket>>;
 using NodeSharedPacketPair = std::pair<SharedNodePointer, QSharedPointer<NLPacket>>;
@@ -52,13 +53,13 @@ class NodeList : public LimitedNodeList {
     SINGLETON_DEPENDENCY
 
 public:
+    void startThread();
     NodeType_t getOwnerType() const { return _ownerType.load(); }
     void setOwnerType(NodeType_t ownerType) { _ownerType.store(ownerType); }
 
     Q_INVOKABLE qint64 sendStats(QJsonObject statsObject, HifiSockAddr destination);
     Q_INVOKABLE qint64 sendStatsToDomainServer(QJsonObject statsObject);
 
-    int getNumNoReplyDomainCheckIns() const { return _numNoReplyDomainCheckIns; }
     DomainHandler& getDomainHandler() { return _domainHandler; }
 
     const NodeSet& getNodeInterestSet() const { return _nodeTypesOfInterest; }
@@ -76,8 +77,6 @@ public:
     void toggleIgnoreRadius() { ignoreNodesInRadius(!getIgnoreRadiusEnabled()); }
     void enableIgnoreRadius() { ignoreNodesInRadius(true); }
     void disableIgnoreRadius() { ignoreNodesInRadius(false); }
-    void radiusIgnoreNodeBySessionID(const QUuid& nodeID, bool radiusIgnoreEnabled);
-    bool isRadiusIgnoringNode(const QUuid& other) const;
     void ignoreNodeBySessionID(const QUuid& nodeID, bool ignoreEnabled);
     bool isIgnoringNode(const QUuid& nodeID) const;
     void personalMuteNodeBySessionID(const QUuid& nodeID, bool muteEnabled);
@@ -93,8 +92,15 @@ public:
 
     void removeFromIgnoreMuteSets(const QUuid& nodeID);
 
+    virtual bool isDomainServer() const override { return false; }
+    virtual QUuid getDomainUUID() const override { return _domainHandler.getUUID(); }
+    virtual Node::LocalID getDomainLocalID() const override { return _domainHandler.getLocalID(); }
+    virtual HifiSockAddr getDomainSockAddr() const override { return _domainHandler.getSockAddr(); }
+
 public slots:
-    void reset();
+    void reset(bool skipDomainHandlerReset = false);
+    void resetFromDomainHandler() { reset(true); }
+    
     void sendDomainServerCheckIn();
     void handleDSPathQuery(const QString& newPath);
 
@@ -117,7 +123,6 @@ public slots:
 #endif
 
 signals:
-    void limitOfSilentDomainCheckInsReached();
     void receivedDomainServerList();
     void ignoredNode(const QUuid& nodeID, bool enabled);
     void ignoreRadiusEnabledChanged(bool isIgnored);
@@ -159,14 +164,11 @@ private:
     std::atomic<NodeType_t> _ownerType;
     NodeSet _nodeTypesOfInterest;
     DomainHandler _domainHandler;
-    int _numNoReplyDomainCheckIns;
     HifiSockAddr _assignmentServerSocket;
     bool _isShuttingDown { false };
     QTimer _keepAlivePingTimer;
-    bool _requestsDomainListData;
+    bool _requestsDomainListData { false };
 
-    mutable QReadWriteLock _radiusIgnoredSetLock;
-    tbb::concurrent_unordered_set<QUuid, UUIDHasher> _radiusIgnoredNodeIDs;
     mutable QReadWriteLock _ignoredSetLock;
     tbb::concurrent_unordered_set<QUuid, UUIDHasher> _ignoredNodeIDs;
     mutable QReadWriteLock _personalMutedSetLock;
@@ -175,7 +177,11 @@ private:
     tbb::concurrent_unordered_map<QUuid, float, UUIDHasher> _avatarGainMap;
 
     void sendIgnoreRadiusStateToNode(const SharedNodePointer& destinationNode);
+#if defined(Q_OS_ANDROID)
+    Setting::Handle<bool> _ignoreRadiusEnabled { "IgnoreRadiusEnabled", false };
+#else
     Setting::Handle<bool> _ignoreRadiusEnabled { "IgnoreRadiusEnabled", true };
+#endif
 
 #if (PR_BUILD || DEV_BUILD)
     bool _shouldSendNewerVersion { false };

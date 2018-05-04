@@ -27,16 +27,19 @@ struct CompositeInfo {
     using Array = std::array<CompositeInfo, COMPOSITING_BUFFER_SIZE>;
     
     gpu::TexturePointer texture;
-    GLuint textureID { 0 };
+    uint32_t textureID { 0 };
     glm::mat4 pose;
-    GLsync fence{ 0 };
+    void* fence{ 0 };
 };
 
 class OpenVrDisplayPlugin : public HmdDisplayPlugin {
     using Parent = HmdDisplayPlugin;
 public:
     bool isSupported() const override;
-    const QString getName() const override { return NAME; }
+    const QString getName() const override;
+
+    glm::mat4 getEyeProjection(Eye eye, const glm::mat4& baseProjection) const override;
+    glm::mat4 getCullingProjection(const glm::mat4& baseProjection) const override;
 
     void init() override;
 
@@ -56,7 +59,10 @@ public:
     bool isKeyboardVisible() override;
 
     // Possibly needs an additional thread for VR submission
-    int getRequiredThreadCount() const override; 
+    int getRequiredThreadCount() const override;
+
+    QString getPreferredAudioInDevice() const override;
+    QString getPreferredAudioOutDevice() const override;
 
 protected:
     bool internalActivate() override;
@@ -72,7 +78,6 @@ private:
     vr::IVRSystem* _system { nullptr };
     std::atomic<vr::EDeviceActivityLevel> _hmdActivityLevel { vr::k_EDeviceActivityLevel_Unknown };
     std::atomic<uint32_t> _keyboardSupressionCount{ 0 };
-    static const char* NAME;
 
     vr::HmdMatrix34_t _lastGoodHMDPose;
     mat4 _sensorResetMat;

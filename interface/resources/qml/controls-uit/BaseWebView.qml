@@ -8,14 +8,11 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 
-import QtQuick 2.5
-import QtWebEngine 1.2
-import HFWebEngineProfile 1.0
+import QtQuick 2.7
+import QtWebEngine 1.5
 
 WebEngineView {
     id: root
-
-    // profile: desktop.browserProfile
 
     Component.onCompleted: {
         console.log("Connecting JS messaging to Hifi Logging")

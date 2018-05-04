@@ -16,7 +16,15 @@
 #include "DrawTransformUnitQuad_vert.h"
 #include "DrawTexcoordRectTransformUnitQuad_vert.h"
 #include "DrawViewportQuadTransformTexcoord_vert.h"
+#include "DrawVertexPosition_vert.h"
+#include "DrawTransformVertexPosition_vert.h"
+
+const char DrawNada_frag[] = "void main(void) {}"; // DrawNada is really simple...
+
+#include "DrawWhite_frag.h"
+#include "DrawColor_frag.h"
 #include "DrawTexture_frag.h"
+#include "DrawTextureMirroredX_frag.h"
 #include "DrawTextureOpaque_frag.h"
 #include "DrawColoredTexture_frag.h"
 
@@ -26,7 +34,13 @@ ShaderPointer StandardShaderLib::_drawUnitQuadTexcoordVS;
 ShaderPointer StandardShaderLib::_drawTransformUnitQuadVS;
 ShaderPointer StandardShaderLib::_drawTexcoordRectTransformUnitQuadVS;
 ShaderPointer StandardShaderLib::_drawViewportQuadTransformTexcoordVS;
+ShaderPointer StandardShaderLib::_drawVertexPositionVS;
+ShaderPointer StandardShaderLib::_drawTransformVertexPositionVS;
+ShaderPointer StandardShaderLib::_drawNadaPS;
+ShaderPointer StandardShaderLib::_drawWhitePS;
+ShaderPointer StandardShaderLib::_drawColorPS;
 ShaderPointer StandardShaderLib::_drawTexturePS;
+ShaderPointer StandardShaderLib::_drawTextureMirroredXPS;
 ShaderPointer StandardShaderLib::_drawTextureOpaquePS;
 ShaderPointer StandardShaderLib::_drawColoredTexturePS;
 StandardShaderLib::ProgramMap StandardShaderLib::_programs;
@@ -59,51 +73,91 @@ ShaderPointer StandardShaderLib::getProgram(GetShader getVS, GetShader getPS) {
 
 ShaderPointer StandardShaderLib::getDrawUnitQuadTexcoordVS() {
     if (!_drawUnitQuadTexcoordVS) {
-        _drawUnitQuadTexcoordVS = gpu::Shader::createVertex(std::string(DrawUnitQuadTexcoord_vert));
+        _drawUnitQuadTexcoordVS = DrawUnitQuadTexcoord_vert::getShader();
     }
     return _drawUnitQuadTexcoordVS;
 }
 
 ShaderPointer StandardShaderLib::getDrawTransformUnitQuadVS() {
     if (!_drawTransformUnitQuadVS) {
-        _drawTransformUnitQuadVS = gpu::Shader::createVertex(std::string(DrawTransformUnitQuad_vert));
+        _drawTransformUnitQuadVS = DrawTransformUnitQuad_vert::getShader();
     }
     return _drawTransformUnitQuadVS;
 }
 
 ShaderPointer StandardShaderLib::getDrawTexcoordRectTransformUnitQuadVS() {
     if (!_drawTexcoordRectTransformUnitQuadVS) {
-        _drawTexcoordRectTransformUnitQuadVS = gpu::Shader::createVertex(std::string(DrawTexcoordRectTransformUnitQuad_vert));
+        _drawTexcoordRectTransformUnitQuadVS = DrawTexcoordRectTransformUnitQuad_vert::getShader();
     }
     return _drawTexcoordRectTransformUnitQuadVS;
 }
 
 ShaderPointer StandardShaderLib::getDrawViewportQuadTransformTexcoordVS() {
     if (!_drawViewportQuadTransformTexcoordVS) {
-        _drawViewportQuadTransformTexcoordVS = gpu::Shader::createVertex(std::string(DrawViewportQuadTransformTexcoord_vert));
+        _drawViewportQuadTransformTexcoordVS = DrawViewportQuadTransformTexcoord_vert::getShader();
     }
     return _drawViewportQuadTransformTexcoordVS;
 }
 
+ShaderPointer StandardShaderLib::getDrawVertexPositionVS() {
+    if (!_drawVertexPositionVS) {
+        _drawVertexPositionVS = DrawVertexPosition_vert::getShader();
+    }
+    return _drawVertexPositionVS;
+}
+
+ShaderPointer StandardShaderLib::getDrawTransformVertexPositionVS() {
+    if (!_drawTransformVertexPositionVS) {
+        _drawTransformVertexPositionVS = DrawTransformVertexPosition_vert::getShader();
+    }
+    return _drawTransformVertexPositionVS;
+}
+
+ShaderPointer StandardShaderLib::getDrawNadaPS() {
+    if (!_drawNadaPS) {
+        _drawNadaPS = gpu::Shader::createPixel(std::string(DrawNada_frag));
+    }
+    return _drawNadaPS;
+}
+
+ShaderPointer StandardShaderLib::getDrawWhitePS() {
+    if (!_drawWhitePS) {
+        _drawWhitePS = DrawWhite_frag::getShader();
+    }
+    return _drawWhitePS;
+}
+
+ShaderPointer StandardShaderLib::getDrawColorPS() {
+    if (!_drawColorPS) {
+        _drawColorPS = DrawColor_frag::getShader();
+    }
+    return _drawColorPS;
+}
+
 ShaderPointer StandardShaderLib::getDrawTexturePS() {
     if (!_drawTexturePS) {
-        _drawTexturePS = gpu::Shader::createPixel(std::string(DrawTexture_frag));
+        _drawTexturePS = DrawTexture_frag::getShader();
     }
     return _drawTexturePS;
 }
 
+ShaderPointer StandardShaderLib::getDrawTextureMirroredXPS() {
+    if (!_drawTextureMirroredXPS) {
+        _drawTextureMirroredXPS = DrawTextureMirroredX_frag::getShader();
+    }
+    return _drawTextureMirroredXPS;
+}
+
 ShaderPointer StandardShaderLib::getDrawTextureOpaquePS() {
     if (!_drawTextureOpaquePS) {
-        _drawTextureOpaquePS = gpu::Shader::createPixel(std::string(DrawTextureOpaque_frag));
+        _drawTextureOpaquePS = DrawTextureOpaque_frag::getShader();
     }
     return _drawTextureOpaquePS;
 }
 
-
-
 ShaderPointer StandardShaderLib::getDrawColoredTexturePS() {
     if (!_drawColoredTexturePS) {
-        _drawColoredTexturePS = gpu::Shader::createPixel(std::string(DrawColoredTexture_frag));
+        _drawColoredTexturePS = DrawColoredTexture_frag::getShader();
     }
     return _drawColoredTexturePS;
 }

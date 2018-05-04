@@ -24,6 +24,8 @@ class ReceivedMessage : public QObject {
 public:
     ReceivedMessage(const NLPacketList& packetList);
     ReceivedMessage(NLPacket& packet);
+    ReceivedMessage(QByteArray byteArray, PacketType packetType, PacketVersion packetVersion,
+                    const HifiSockAddr& senderSockAddr, NLPacket::LocalID sourceID = NLPacket::NULL_LOCAL_ID);
 
     QByteArray getMessage() const { return _data; }
     const char* getRawMessage() const { return _data.constData(); }
@@ -38,7 +40,7 @@ public:
     bool failed() const { return _failed; }
     bool isComplete() const { return _isComplete; }
 
-    const QUuid& getSourceID() const { return _sourceID; }
+    NLPacket::LocalID getSourceID() const { return _sourceID; }
     const HifiSockAddr& getSenderSockAddr() { return _senderSockAddr; }
 
     qint64 getPosition() const { return _position; }
@@ -91,7 +93,7 @@ private:
     std::atomic<qint64> _position { 0 };
     std::atomic<qint64> _numPackets { 0 };
 
-    QUuid _sourceID;
+    NLPacket::LocalID _sourceID { NLPacket::NULL_LOCAL_ID };
     PacketType _packetType;
     PacketVersion _packetVersion;
     HifiSockAddr _senderSockAddr;

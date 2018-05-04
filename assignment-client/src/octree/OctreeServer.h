@@ -27,7 +27,17 @@
 #include "OctreeServerConsts.h"
 #include "OctreeInboundPacketProcessor.h"
 
+#include <QLoggingCategory>
+
+Q_DECLARE_LOGGING_CATEGORY(octree_server)
+
 const int DEFAULT_PACKETS_PER_INTERVAL = 2000; // some 120,000 packets per second total
+
+enum class OctreeServerState {
+    WaitingForDomainSettings,
+    WaitingForOctreeDataNegotation,
+    Running
+};
 
 /// Handles assignments of type OctreeServer - sending octrees to various clients.
 class OctreeServer : public ThreadedAssignment, public HTTPRequestHandler {
@@ -35,6 +45,8 @@ class OctreeServer : public ThreadedAssignment, public HTTPRequestHandler {
 public:
     OctreeServer(ReceivedMessage& message);
     ~OctreeServer();
+
+    OctreeServerState _state { OctreeServerState::WaitingForDomainSettings };
 
     /// allows setting of run arguments
     void setArguments(int argc, char** argv);
@@ -44,7 +56,6 @@ public:
     bool wantsVerboseDebug() const { return _verboseDebug; }
 
     OctreePointer getOctree() { return _tree; }
-    JurisdictionMap* getJurisdiction() { return _jurisdiction; }
 
     int getPacketsPerClientPerInterval() const { return std::min(_packetsPerClientPerInterval,
                                 std::max(1, getPacketsTotalPerInterval() / std::max(1, getCurrentClientCount()))); }
@@ -96,6 +107,9 @@ public:
     static void trackTreeWaitTime(float time);
     static float getAverageTreeWaitTime() { return _averageTreeWaitTime.getAverage(); }
 
+    static void trackTreeTraverseTime(float time) { _averageTreeTraverseTime.updateAverage(time); }
+    static float getAverageTreeTraverseTime() { return _averageTreeTraverseTime.getAverage(); }
+
     static void trackNodeWaitTime(float time) { _averageNodeWaitTime.updateAverage(time); }
     static float getAverageNodeWaitTime() { return _averageNodeWaitTime.getAverage(); }
 
@@ -135,8 +149,7 @@ private slots:
     void domainSettingsRequestComplete();
     void handleOctreeQueryPacket(QSharedPointer<ReceivedMessage> message, SharedNodePointer senderNode);
     void handleOctreeDataNackPacket(QSharedPointer<ReceivedMessage> message, SharedNodePointer senderNode);
-    void handleJurisdictionRequestPacket(QSharedPointer<ReceivedMessage> message, SharedNodePointer senderNode);
-    void handleOctreeFileReplacement(QSharedPointer<ReceivedMessage> message);
+    void handleOctreeDataFileReply(QSharedPointer<ReceivedMessage> message);
     void removeSendThread();
 
 protected:
@@ -157,9 +170,11 @@ protected:
     QString getFileLoadTime();
     QString getConfiguration();
     QString getStatusLink();
+
+    void beginRunning(QByteArray replaceData);
     
     UniqueSendThread createSendThread(const SharedNodePointer& node);
-    virtual UniqueSendThread newSendThread(const SharedNodePointer& node);
+    virtual UniqueSendThread newSendThread(const SharedNodePointer& node) = 0;
 
     int _argc;
     const char** _argv;
@@ -184,8 +199,6 @@ protected:
     bool _debugReceiving;
     bool _debugTimestampNow;
     bool _verboseDebug;
-    JurisdictionMap* _jurisdiction;
-    JurisdictionSender* _jurisdictionSender;
     OctreeInboundPacketProcessor* _octreeInboundPacketProcessor;
     OctreePersistThread* _persistThread;
 
@@ -224,6 +237,8 @@ protected:
     static int _longTreeWait;
     static int _shortTreeWait;
     static int _noTreeWait;
+
+    static SimpleMovingAverage _averageTreeTraverseTime;
 
     static SimpleMovingAverage _averageNodeWaitTime;
 

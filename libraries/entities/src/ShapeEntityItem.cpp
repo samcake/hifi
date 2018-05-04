@@ -20,6 +20,33 @@
 #include "ShapeEntityItem.h"
 
 namespace entity {
+
+    /**jsdoc
+     * <p>A <code>Shape</code>, <code>Box</code>, or <code>Sphere</code> {@link Entities.EntityType|EntityType} may display as 
+     * one of the following geometrical shapes:</p>
+     * <table>
+     *   <thead>
+     *     <tr><th>Value</th><th>Dimensions</th><th>Notes</th></tr>
+     *   </thead>
+     *   <tbody>
+     *     <tr><td><code>"Circle"</code></td><td>2D</td><td>A circle oriented in 3D.</td></tr>
+     *     <tr><td><code>"Cube"</code></td><td>3D</td><td></td></tr>
+     *     <tr><td><code>"Cone"</code></td><td>3D</td><td></td></tr>
+     *     <tr><td><code>"Cylinder"</code></td><td>3D</td><td></td></tr>
+     *     <tr><td><code>"Dodecahedron"</code></td><td>3D</td><td></td></tr>
+     *     <tr><td><code>"Hexagon"</code></td><td>3D</td><td>A hexagonal prism.</td></tr>
+     *     <tr><td><code>"Icosahedron"</code></td><td>3D</td><td></td></tr>
+     *     <tr><td><code>"Octagon"</code></td><td>3D</td><td>An octagonal prism.</td></tr>
+     *     <tr><td><code>"Octahedron"</code></td><td>3D</td><td></td></tr>
+     *     <tr><td><code>"Quad"</code></td><td>2D</td><td>A square oriented in 3D.</td></tr>
+     *     <tr><td><code>"Sphere"</code></td><td>3D</td><td></td></tr>
+     *     <tr><td><code>"Tetrahedron"</code></td><td>3D</td><td></td></tr>
+     *     <tr><td><code>"Torus"</code></td><td>3D</td><td><em>Not implemented.</em></td></tr>
+     *     <tr><td><code>"Triangle"</code></td><td>3D</td><td>A triangular prism.</td></tr>
+     *   </tbody>
+     * </table>
+     * @typedef {string} Entities.Shape
+     */
     static const std::array<QString, Shape::NUM_SHAPES> shapeStrings { {
         "Triangle", 
         "Quad", 
@@ -32,7 +59,7 @@ namespace entity {
         "Octahedron", 
         "Dodecahedron", 
         "Icosahedron", 
-        "Torus",
+        "Torus",  // Not implemented yet.
         "Cone", 
         "Cylinder" 
     } };
@@ -51,8 +78,16 @@ namespace entity {
     }
 }
 
+// hullShapeCalculator is a hook for external code that knows how to configure a ShapeInfo
+// for given entity::Shape and dimensions
+ShapeEntityItem::ShapeInfoCalculator hullShapeCalculator = nullptr;
+
+void ShapeEntityItem::setShapeInfoCalulator(ShapeEntityItem::ShapeInfoCalculator callback) {
+    hullShapeCalculator = callback;
+}
+
 ShapeEntityItem::Pointer ShapeEntityItem::baseFactory(const EntityItemID& entityID, const EntityItemProperties& properties) {
-    Pointer entity { new ShapeEntityItem(entityID) };
+    Pointer entity(new ShapeEntityItem(entityID), [](EntityItem* ptr) { ptr->deleteLater(); });
     entity->setProperties(properties);
     return entity;
 }
@@ -77,16 +112,20 @@ EntityItemPointer ShapeEntityItem::sphereFactory(const EntityItemID& entityID, c
 ShapeEntityItem::ShapeEntityItem(const EntityItemID& entityItemID) : EntityItem(entityItemID) {
     _type = EntityTypes::Shape;
     _volumeMultiplier *= PI / 6.0f;
+    _material = std::make_shared<graphics::Material>();
 }
 
 EntityItemProperties ShapeEntityItem::getProperties(EntityPropertyFlags desiredProperties) const {
     EntityItemProperties properties = EntityItem::getProperties(desiredProperties); // get the properties from our base class
-    properties.setColor(getXColor());
     properties.setShape(entity::stringFromShape(getShape()));
+    COPY_ENTITY_PROPERTY_TO_PROPERTIES(color, getXColor);
+    COPY_ENTITY_PROPERTY_TO_PROPERTIES(alpha, getAlpha);
+
     return properties;
 }
 
 void ShapeEntityItem::setShape(const entity::Shape& shape) {
+    const entity::Shape prevShape = _shape;
     _shape = shape;
     switch (_shape) {
         case entity::Shape::Cube:
@@ -95,9 +134,22 @@ void ShapeEntityItem::setShape(const entity::Shape& shape) {
         case entity::Shape::Sphere:
             _type = EntityTypes::Sphere;
             break;
+        case entity::Shape::Circle:
+            // Circle is implicitly flat so we enforce flat dimensions
+            setUnscaledDimensions(getUnscaledDimensions());
+            break;
+        case entity::Shape::Quad:
+            // Quad is implicitly flat so we enforce flat dimensions
+            setUnscaledDimensions(getUnscaledDimensions());
+            break;
         default:
             _type = EntityTypes::Shape;
             break;
+    }
+
+    if (_shape != prevShape) {
+        // Internally grabs writeLock
+        markDirtyFlags(Simulation::DIRTY_SHAPE);
     }
 }
 
@@ -136,8 +188,6 @@ int ShapeEntityItem::readEntitySubclassDataFromBuffer(const unsigned char* data,
     return bytesRead;
 }
 
-
-// TODO: eventually only include properties changed since the params.nodeData->getLastTimeBagEmpty() time
 EntityPropertyFlags ShapeEntityItem::getEntityProperties(EncodeBitstreamParams& params) const {
     EntityPropertyFlags requestedProperties = EntityItem::getEntityProperties(params);
     requestedProperties += PROP_SHAPE;
@@ -160,14 +210,9 @@ void ShapeEntityItem::appendSubclassData(OctreePacketData* packetData, EncodeBit
     APPEND_ENTITY_PROPERTY(PROP_ALPHA, getAlpha());
 }
 
-// This value specifes how the shape should be treated by physics calculations.  
-// For now, all polys will act as spheres
-ShapeType ShapeEntityItem::getShapeType() const {
-    return (_shape == entity::Shape::Cube) ? SHAPE_TYPE_BOX : SHAPE_TYPE_ELLIPSOID;
-}
-
 void ShapeEntityItem::setColor(const rgbColor& value) {
     memcpy(_color, value, sizeof(rgbColor));
+    _material->setAlbedo(glm::vec3(_color[0], _color[1], _color[2]) / 255.0f);
 }
 
 xColor ShapeEntityItem::getXColor() const {
@@ -188,14 +233,31 @@ void ShapeEntityItem::setColor(const QColor& value) {
     setAlpha(value.alpha());
 }
 
+void ShapeEntityItem::setAlpha(float alpha) {
+    _alpha = alpha;
+    _material->setOpacity(alpha);
+}
+
+void ShapeEntityItem::setUnscaledDimensions(const glm::vec3& value) {
+    const float MAX_FLAT_DIMENSION = 0.0001f;
+    if ((_shape == entity::Shape::Circle || _shape == entity::Shape::Quad) && value.y > MAX_FLAT_DIMENSION) {
+        // enforce flatness in Y
+        glm::vec3 newDimensions = value;
+        newDimensions.y = MAX_FLAT_DIMENSION;
+        EntityItem::setUnscaledDimensions(newDimensions);
+    } else {
+        EntityItem::setUnscaledDimensions(value);
+    }
+}
+
 bool ShapeEntityItem::supportsDetailedRayIntersection() const {
     return _shape == entity::Sphere;
 }
 
 bool ShapeEntityItem::findDetailedRayIntersection(const glm::vec3& origin, const glm::vec3& direction,
-                                                   bool& keepSearching, OctreeElementPointer& element,
+                                                   OctreeElementPointer& element,
                                                    float& distance, BoxFace& face, glm::vec3& surfaceNormal,
-                                                   void** intersectedObject, bool precisionPicking) const {
+                                                   QVariantMap& extraInfo, bool precisionPicking) const {
     // determine the ray in the frame of the entity transformed from a unit sphere
     glm::mat4 entityToWorldMatrix = getEntityToWorldMatrix();
     glm::mat4 worldToEntityMatrix = glm::inverse(entityToWorldMatrix);
@@ -223,10 +285,114 @@ bool ShapeEntityItem::findDetailedRayIntersection(const glm::vec3& origin, const
 void ShapeEntityItem::debugDump() const {
     quint64 now = usecTimestampNow();
     qCDebug(entities) << "SHAPE EntityItem id:" << getEntityItemID() << "---------------------------------------------";
-    qCDebug(entities) << "              shape:" << stringFromShape(_shape);
+    qCDebug(entities) << "               name:" << _name;
+    qCDebug(entities) << "              shape:" << stringFromShape(_shape) << " (EnumId: " << _shape << " )";
+    qCDebug(entities) << " collisionShapeType:" << ShapeInfo::getNameForShapeType(getShapeType());
     qCDebug(entities) << "              color:" << _color[0] << "," << _color[1] << "," << _color[2];
-    qCDebug(entities) << "           position:" << debugTreeVector(getPosition());
-    qCDebug(entities) << "         dimensions:" << debugTreeVector(getDimensions());
+    qCDebug(entities) << "           position:" << debugTreeVector(getWorldPosition());
+    qCDebug(entities) << "         dimensions:" << debugTreeVector(getScaledDimensions());
     qCDebug(entities) << "      getLastEdited:" << debugTime(getLastEdited(), now);
+    qCDebug(entities) << "SHAPE EntityItem Ptr:" << this;
+}
+
+void ShapeEntityItem::computeShapeInfo(ShapeInfo& info) {
+
+    // This will be called whenever DIRTY_SHAPE flag (set by dimension change, etc)
+    // is set.
+
+    const glm::vec3 entityDimensions = getScaledDimensions();
+
+    switch (_shape){
+        case entity::Shape::Quad:
+            // Quads collide like flat Cubes
+        case entity::Shape::Cube: {
+            _collisionShapeType = SHAPE_TYPE_BOX;
+        }
+        break;
+        case entity::Shape::Sphere: {
+            float diameter = entityDimensions.x;
+            const float MIN_DIAMETER = 0.001f;
+            const float MIN_RELATIVE_SPHERICAL_ERROR = 0.001f;
+            if (diameter > MIN_DIAMETER
+                && fabsf(diameter - entityDimensions.y) / diameter < MIN_RELATIVE_SPHERICAL_ERROR
+                && fabsf(diameter - entityDimensions.z) / diameter < MIN_RELATIVE_SPHERICAL_ERROR) {
+
+                _collisionShapeType = SHAPE_TYPE_SPHERE;
+            } else {
+                _collisionShapeType = SHAPE_TYPE_ELLIPSOID;
+            }
+        }
+        break;
+        case entity::Shape::Circle:
+            // Circles collide like flat Cylinders
+        case entity::Shape::Cylinder: {
+            float diameter = entityDimensions.x;
+            const float MIN_DIAMETER = 0.001f;
+            const float MIN_RELATIVE_SPHERICAL_ERROR = 0.001f;
+            if (diameter > MIN_DIAMETER
+                && fabsf(diameter - entityDimensions.z) / diameter < MIN_RELATIVE_SPHERICAL_ERROR) {
+                _collisionShapeType = SHAPE_TYPE_CYLINDER_Y;
+            } else if (hullShapeCalculator) {
+                hullShapeCalculator(this, info);
+                _collisionShapeType = SHAPE_TYPE_SIMPLE_HULL;
+            } else {
+                // woops, someone forgot to hook up the hullShapeCalculator()!
+                // final fallback is ellipsoid
+                _collisionShapeType = SHAPE_TYPE_ELLIPSOID;
+            }
+        }
+        break;
+        case entity::Shape::Cone: {
+            if (hullShapeCalculator) {
+                hullShapeCalculator(this, info);
+                _collisionShapeType = SHAPE_TYPE_SIMPLE_HULL;
+            } else {
+                _collisionShapeType = SHAPE_TYPE_ELLIPSOID;
+            }
+        }
+        break;
+        // gons, ones, & angles built via GeometryCache::extrudePolygon
+        case entity::Shape::Triangle:
+        case entity::Shape::Hexagon:
+        case entity::Shape::Octagon: {
+            if (hullShapeCalculator) {
+                hullShapeCalculator(this, info);
+                _collisionShapeType = SHAPE_TYPE_SIMPLE_HULL;
+            } else {
+                _collisionShapeType = SHAPE_TYPE_ELLIPSOID;
+            }
+        }
+        break;
+        // hedrons built via GeometryCache::setUpFlatShapes
+        case entity::Shape::Tetrahedron:
+        case entity::Shape::Octahedron:
+        case entity::Shape::Dodecahedron:
+        case entity::Shape::Icosahedron: {
+            if ( hullShapeCalculator ) {
+                hullShapeCalculator(this, info);
+                _collisionShapeType = SHAPE_TYPE_SIMPLE_HULL;
+            } else {
+                _collisionShapeType = SHAPE_TYPE_ELLIPSOID;
+            }
+        }
+        break;
+        case entity::Shape::Torus: {
+            // Not in GeometryCache::buildShapes, unsupported.
+            _collisionShapeType = SHAPE_TYPE_ELLIPSOID;
+            //TODO handle this shape more correctly
+        }
+        break;
+        default: {
+            _collisionShapeType = SHAPE_TYPE_ELLIPSOID;
+        }
+        break;
+    }
+
+    EntityItem::computeShapeInfo(info);
+}
+
+// This value specifies how the shape should be treated by physics calculations.
+ShapeType ShapeEntityItem::getShapeType() const {
+    return _collisionShapeType;
 }
 

@@ -29,38 +29,70 @@ int NodePtrMetaTypeId = qRegisterMetaType<Node*>("Node*");
 int sharedPtrNodeMetaTypeId = qRegisterMetaType<QSharedPointer<Node>>("QSharedPointer<Node>");
 int sharedNodePtrMetaTypeId = qRegisterMetaType<SharedNodePointer>("SharedNodePointer");
 
-namespace NodeType {
-    QHash<NodeType_t, QString> TypeNameHash;
-}
-
-void NodeType::init() {
-    TypeNameHash.insert(NodeType::DomainServer, "Domain Server");
-    TypeNameHash.insert(NodeType::EntityServer, "Entity Server");
-    TypeNameHash.insert(NodeType::Agent, "Agent");
-    TypeNameHash.insert(NodeType::AudioMixer, "Audio Mixer");
-    TypeNameHash.insert(NodeType::AvatarMixer, "Avatar Mixer");
-    TypeNameHash.insert(NodeType::MessagesMixer, "Messages Mixer");
-    TypeNameHash.insert(NodeType::AssetServer, "Asset Server");
-    TypeNameHash.insert(NodeType::EntityScriptServer, "Entity Script Server");
-    TypeNameHash.insert(NodeType::Unassigned, "Unassigned");
-}
+static const QHash<NodeType_t, QString> TYPE_NAME_HASH {
+    { NodeType::DomainServer, "Domain Server" },
+    { NodeType::EntityServer, "Entity Server" },
+    { NodeType::Agent, "Agent" },
+    { NodeType::AudioMixer, "Audio Mixer" },
+    { NodeType::AvatarMixer, "Avatar Mixer" },
+    { NodeType::MessagesMixer, "Messages Mixer" },
+    { NodeType::AssetServer, "Asset Server" },
+    { NodeType::EntityScriptServer, "Entity Script Server" },
+    { NodeType::UpstreamAudioMixer, "Upstream Audio Mixer" },
+    { NodeType::UpstreamAvatarMixer, "Upstream Avatar Mixer" },
+    { NodeType::DownstreamAudioMixer, "Downstream Audio Mixer" },
+    { NodeType::DownstreamAvatarMixer, "Downstream Avatar Mixer" },
+    { NodeType::Unassigned, "Unassigned" }
+};
 
 const QString& NodeType::getNodeTypeName(NodeType_t nodeType) {
-    QHash<NodeType_t, QString>::iterator matchedTypeName = TypeNameHash.find(nodeType);
-    return matchedTypeName != TypeNameHash.end() ? matchedTypeName.value() : UNKNOWN_NodeType_t_NAME;
+    const auto matchedTypeName = TYPE_NAME_HASH.find(nodeType);
+    return matchedTypeName != TYPE_NAME_HASH.end() ? matchedTypeName.value() : UNKNOWN_NodeType_t_NAME;
 }
 
+bool NodeType::isUpstream(NodeType_t nodeType) {
+    return nodeType == NodeType::UpstreamAudioMixer || nodeType == NodeType::UpstreamAvatarMixer;
+}
+
+bool NodeType::isDownstream(NodeType_t nodeType) {
+    return nodeType == NodeType::DownstreamAudioMixer || nodeType == NodeType::DownstreamAvatarMixer;
+}
+
+NodeType_t NodeType::upstreamType(NodeType_t primaryType) {
+    switch (primaryType) {
+        case AudioMixer:
+            return UpstreamAudioMixer;
+        case AvatarMixer:
+            return UpstreamAvatarMixer;
+        default:
+            return Unassigned;
+    }
+}
+
+NodeType_t NodeType::downstreamType(NodeType_t primaryType) {
+    switch (primaryType) {
+        case AudioMixer:
+            return DownstreamAudioMixer;
+        case AvatarMixer:
+            return DownstreamAvatarMixer;
+        default:
+            return Unassigned;
+    }
+}
+
+NodeType_t NodeType::fromString(QString type) {
+    return TYPE_NAME_HASH.key(type, NodeType::Unassigned);
+}
+
+
 Node::Node(const QUuid& uuid, NodeType_t type, const HifiSockAddr& publicSocket,
-           const HifiSockAddr& localSocket, const NodePermissions& permissions, const QUuid& connectionSecret,
-           QObject* parent) :
+           const HifiSockAddr& localSocket, QObject* parent) :
     NetworkPeer(uuid, publicSocket, localSocket, parent),
     _type(type),
-    _connectionSecret(connectionSecret),
     _pingMs(-1),  // "Uninitialized"
     _clockSkewUsec(0),
     _mutex(),
-    _clockSkewMovingPercentile(30, 0.8f),   // moving 80th percentile of 30 samples
-    _permissions(permissions)
+    _clockSkewMovingPercentile(30, 0.8f)   // moving 80th percentile of 30 samples
 {
     // Update socket's object name
     setType(_type);
@@ -135,6 +167,8 @@ QDataStream& operator<<(QDataStream& out, const Node& node) {
     out << node._publicSocket;
     out << node._localSocket;
     out << node._permissions;
+    out << node._isReplicated;
+    out << node._localID;
     return out;
 }
 
@@ -144,6 +178,8 @@ QDataStream& operator>>(QDataStream& in, Node& node) {
     in >> node._publicSocket;
     in >> node._localSocket;
     in >> node._permissions;
+    in >> node._isReplicated;
+    in >> node._localID;
     return in;
 }
 
@@ -154,7 +190,7 @@ QDebug operator<<(QDebug debug, const Node& node) {
     } else {
         debug.nospace() << " (" << node.getType() << ")";
     }
-    debug << " " << node.getUUID().toString().toLocal8Bit().constData() << " ";
+    debug << " " << node.getUUID().toString().toLocal8Bit().constData() << "(" << node.getLocalID() << ") ";
     debug.nospace() << node.getPublicSocket() << "/" << node.getLocalSocket();
     return debug.nospace();
 }

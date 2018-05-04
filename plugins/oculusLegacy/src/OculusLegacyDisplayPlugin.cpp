@@ -9,6 +9,8 @@
 
 #include <memory>
 
+#include <gl/Config.h>
+
 #include <QtCore/QThread.h>
 #include <QtWidgets/QMainWindow>
 #include <QtOpenGL/QGLWidget>
@@ -24,7 +26,7 @@
 #include <gl/QOpenGLContextWrapper.h>
 #include <PerfStat.h>
 #include <ViewFrustum.h>
-#include <gpu/gl/GLbackend.h>
+#include <gpu/gl/GLBackend.h>
 
 #include <ui-plugins/PluginContainer.h>
 
@@ -181,7 +183,7 @@ bool OculusLegacyDisplayPlugin::internalActivate() {
 }
 
 void OculusLegacyDisplayPlugin::internalDeactivate() {
-	Parent::internalDeactivate();
+    Parent::internalDeactivate();
     ovrHmd_Destroy(_hmd);
     _hmd = nullptr;
     ovr_Shutdown();
@@ -192,14 +194,9 @@ void OculusLegacyDisplayPlugin::internalDeactivate() {
     _container->makeRenderingContextCurrent();
 }
 
-// DLL based display plugins MUST initialize GLEW inside the DLL code.
+// DLL based display plugins MUST initialize GL inside the DLL code.
 void OculusLegacyDisplayPlugin::customizeContext() {
-    static std::once_flag once;
-    std::call_once(once, []{
-        glewExperimental = true;
-        glewInit();
-        glGetError();
-    });
+    gl::initModuleGl();
     _hmdWindow->requestActivate();
     QThread::msleep(1000);
     Parent::customizeContext();

@@ -17,7 +17,6 @@
 #include <PacketSender.h>
 #include <udt/PacketHeaders.h>
 
-#include "JurisdictionMap.h"
 #include "SentPacketHistory.h"
 
 /// Utility for processing, packing, queueing and sending of outbound edit messages.
@@ -49,14 +48,6 @@ public:
     /// in an application like interface when all octree features are disabled.
     void setShouldSend(bool shouldSend) { _shouldSend = shouldSend; }
 
-    /// call this to inform the OctreeEditPacketSender of the server jurisdictions. This is required for normal operation.
-    /// The internal contents of the jurisdiction map may change throughout the lifetime of the OctreeEditPacketSender. This map
-    /// can be set prior to servers being present, so long as the contents of the map accurately reflect the current
-    /// known jurisdictions.
-    void setServerJurisdictions(NodeToJurisdictionMap* serverJurisdictions) {
-        _serverJurisdictions = serverJurisdictions;
-    }
-
     /// if you're running in non-threaded mode, you must call this method regularly
     virtual bool process() override;
 
@@ -87,15 +78,18 @@ protected:
 
     bool _shouldSend;
     void queuePacketToNode(const QUuid& nodeID, std::unique_ptr<NLPacket> packet);
+    void queuePacketListToNode(const QUuid& nodeUUID, std::unique_ptr<NLPacketList> packetList);
+
     void queuePendingPacketToNodes(std::unique_ptr<NLPacket> packet);
     void queuePacketToNodes(std::unique_ptr<NLPacket> packet);
     std::unique_ptr<NLPacket> initializePacket(PacketType type, qint64 nodeClockSkew);
     void releaseQueuedPacket(const QUuid& nodeUUID, std::unique_ptr<NLPacket> packetBuffer); // releases specific queued packet
+    void releaseQueuedPacketList(const QUuid& nodeID, std::unique_ptr<NLPacketList> packetList);
 
     void processPreServerExistsPackets();
 
     // These are packets which are destined from know servers but haven't been released because they're still too small
-    std::unordered_map<QUuid, std::unique_ptr<NLPacket>> _pendingEditPackets;
+    std::unordered_map<QUuid, PacketOrPacketList> _pendingEditPackets;
 
     // These are packets that are waiting to be processed because we don't yet know if there are servers
     int _maxPendingMessages;
@@ -104,8 +98,6 @@ protected:
     QMutex _packetsQueueLock; // don't let different threads release the queue while another thread is writing to it
     std::list<EditMessagePair> _preServerEdits; // these will get packed into other larger packets
     std::list<std::unique_ptr<NLPacket>> _preServerSingleMessagePackets; // these will go out as is
-
-    NodeToJurisdictionMap* _serverJurisdictions;
 
     QMutex _releaseQueuedPacketMutex;
 

@@ -9,83 +9,61 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 
+#include "Oven.h"
+
 #include <QtCore/QDebug>
 #include <QtCore/QThread>
 
 #include <image/Image.h>
-#include <SettingInterface.h>
 
-#include "ui/OvenMainWindow.h"
+#include <DependencyManager.h>
+#include <StatTracker.h>
+#include <ResourceManager.h>
 
-#include "Oven.h"
+Oven* Oven::_staticInstance { nullptr };
 
-static const QString OUTPUT_FOLDER = "/Users/birarda/code/hifi/lod/test-oven/export";
+Oven::Oven() {
+    _staticInstance = this;
 
-Oven::Oven(int argc, char* argv[]) :
-    QApplication(argc, argv)
-{
-    QCoreApplication::setOrganizationName("High Fidelity");
-    QCoreApplication::setApplicationName("Oven");
-
-    // init the settings interface so we can save and load settings
-    Setting::init();
-
-    // enable compression in image library, except for cube maps
+    // enable compression in image library
     image::setColorTexturesCompressionEnabled(true);
     image::setGrayscaleTexturesCompressionEnabled(true);
     image::setNormalTexturesCompressionEnabled(true);
     image::setCubeTexturesCompressionEnabled(true);
 
-    // check if we were passed any command line arguments that would tell us just to run without the GUI
-
-    // setup the GUI
-    _mainWindow = new OvenMainWindow;
-    _mainWindow->show();
-
     // setup our worker threads
-    setupWorkerThreads(QThread::idealThreadCount() - 1);
+    setupWorkerThreads(QThread::idealThreadCount());
 
-    // Autodesk's SDK means that we need a single thread for all FBX importing/exporting in the same process
-    // setup the FBX Baker thread
-    setupFBXBakerThread();
+    // Initialize dependencies for OBJ Baker
+    DependencyManager::set<StatTracker>();
+    DependencyManager::set<ResourceManager>(false);
 }
 
 Oven::~Oven() {
-    // cleanup the worker threads
-    for (auto i = 0; i < _workerThreads.size(); ++i) {
-        _workerThreads[i]->quit();
-        _workerThreads[i]->wait();
+    DependencyManager::get<ResourceManager>()->cleanup();
+
+    // quit all worker threads and wait on them
+    for (auto& thread : _workerThreads) {
+        thread->quit();
     }
 
-    // cleanup the FBX Baker thread
-    _fbxBakerThread->quit();
-    _fbxBakerThread->wait();
+    for (auto& thread: _workerThreads) {
+        thread->wait();
+    }
+
+    _staticInstance = nullptr;
 }
 
 void Oven::setupWorkerThreads(int numWorkerThreads) {
+    _workerThreads.reserve(numWorkerThreads);
+
     for (auto i = 0; i < numWorkerThreads; ++i) {
         // setup a worker thread yet and add it to our concurrent vector
-        auto newThread = new QThread(this);
+        auto newThread = std::unique_ptr<QThread> { new QThread };
         newThread->setObjectName("Oven Worker Thread " + QString::number(i + 1));
 
-        _workerThreads.push_back(newThread);
+        _workerThreads.push_back(std::move(newThread));
     }
-}
-
-void Oven::setupFBXBakerThread() {
-    // we're being asked for the FBX baker thread, but we don't have one yet
-    // so set that up now
-    _fbxBakerThread = new QThread(this);
-    _fbxBakerThread->setObjectName("Oven FBX Baker Thread");
-}
-
-QThread* Oven::getFBXBakerThread() {
-    if (!_fbxBakerThread->isRunning()) {
-        // start the FBX baker thread if it isn't running yet
-        _fbxBakerThread->start();
-    }
-
-    return _fbxBakerThread;
 }
 
 QThread* Oven::getNextWorkerThread() {
@@ -95,13 +73,13 @@ QThread* Oven::getNextWorkerThread() {
     // (for the FBX Baker Thread to have room), and cycle through them to hand a usable running thread back to our callers.
 
     auto nextIndex = ++_nextWorkerThreadIndex;
-    auto nextThread = _workerThreads[nextIndex % _workerThreads.size()];
+    auto& nextThread = _workerThreads[nextIndex % _workerThreads.size()];
 
     // start the thread if it isn't running yet
     if (!nextThread->isRunning()) {
         nextThread->start();
     }
 
-    return nextThread;
+    return nextThread.get();
 }
 

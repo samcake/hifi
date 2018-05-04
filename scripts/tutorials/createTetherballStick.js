@@ -14,7 +14,6 @@
 // Distributed under the Apache License, Version 2.0.
 // See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 
-var NULL_UUID = "{00000000-0000-0000-0000-000000000000}";
 var LIFETIME = 3600;
 var BALL_SIZE = 0.175;
 var BALL_DAMPING = 0.5;
@@ -24,7 +23,7 @@ var BALL_DENSITY = 1000;
 var ACTION_DISTANCE = 0.35;
 var ACTION_TIMESCALE = 0.035;
 var MAX_DISTANCE_MULTIPLIER = 4;
-var STICK_SCRIPT_URL = Script.resolvePath("./entity_scripts/tetherballStick.js?v=" + Date.now());
+var STICK_SCRIPT_URL = Script.resolvePath("./entity_scripts/tetherballStick.js");
 var STICK_MODEL_URL = "http://hifi-content.s3.amazonaws.com/caitlyn/production/raveStick/newRaveStick2.fbx";
 var COLLISION_SOUND_URL = "http://public.highfidelity.io/sounds/Footsteps/FootstepW3Left-12db.wav";
 

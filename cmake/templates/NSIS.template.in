@@ -29,7 +29,68 @@
   !include "WinVer.nsh"
 
 ;--------------------------------
+; Utilities and Functions
+    ;--------------------------------
+    ; START String Contains Macro
+    ; Taken from http://nsis.sourceforge.net/StrContains
+    ;--------------------------------
+    ; StrContains
+    ; This function does a case sensitive searches for an occurrence of a substring in a string.
+    ; It returns the substring if it is found.
+    ; Otherwise it returns null("").
+    ; Written by kenglish_hi
+    ; Adapted from StrReplace written by dandaman32
+
+
+    Var STR_HAYSTACK
+    Var STR_NEEDLE
+    Var STR_CONTAINS_VAR_1
+    Var STR_CONTAINS_VAR_2
+    Var STR_CONTAINS_VAR_3
+    Var STR_CONTAINS_VAR_4
+    Var STR_RETURN_VAR
+
+    Function StrContains
+      Exch $STR_NEEDLE
+      Exch 1
+      Exch $STR_HAYSTACK
+      ; Uncomment to debug
+      ;MessageBox MB_OK 'STR_NEEDLE = $STR_NEEDLE STR_HAYSTACK = $STR_HAYSTACK '
+        StrCpy $STR_RETURN_VAR ""
+        StrCpy $STR_CONTAINS_VAR_1 -1
+        StrLen $STR_CONTAINS_VAR_2 $STR_NEEDLE
+        StrLen $STR_CONTAINS_VAR_4 $STR_HAYSTACK
+        loop:
+          IntOp $STR_CONTAINS_VAR_1 $STR_CONTAINS_VAR_1 + 1
+          StrCpy $STR_CONTAINS_VAR_3 $STR_HAYSTACK $STR_CONTAINS_VAR_2 $STR_CONTAINS_VAR_1
+          StrCmp $STR_CONTAINS_VAR_3 $STR_NEEDLE found
+          StrCmp $STR_CONTAINS_VAR_1 $STR_CONTAINS_VAR_4 done
+          Goto loop
+        found:
+          StrCpy $STR_RETURN_VAR $STR_NEEDLE
+          Goto done
+        done:
+       Pop $STR_NEEDLE ;Prevent "invalid opcode" errors and keep the
+       Exch $STR_RETURN_VAR
+    FunctionEnd
+
+    !macro _StrContainsConstructor OUT NEEDLE HAYSTACK
+      Push `${HAYSTACK}`
+      Push `${NEEDLE}`
+      Call StrContains
+      Pop `${OUT}`
+    !macroend
+
+    !define StrContains '!insertmacro "_StrContainsConstructor"'
+    ;--------------------------------
+    ; END String Contains Macro
+    ;--------------------------------
+;--------------------------------
 ;General
+
+  ; hide install details since we show an image slideshow in their place
+  ShowInstDetails nevershow
+
   ; leverage the UAC NSIS plugin to promote uninstaller to elevated privileges
   !include UAC.nsh
 
@@ -92,6 +153,7 @@
 ; inter-component dependencies.
 Var AR_SecFlags
 Var AR_RegFlags
+Var substringResult
 @CPACK_NSIS_SECTION_SELECTED_VARS@
 
 ; Loads the "selected" flag for the section named SecName into the
@@ -119,9 +181,11 @@ Var AR_RegFlags
   ClearErrors
   ;Reading component status from registry
   ReadRegDWORD $AR_RegFlags HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\@CPACK_PACKAGE_INSTALL_REGISTRY_KEY@\Components\${SecName}" "Installed"
-  IfErrors "default_${SecName}"
+  IfErrors "checkBeforeDefault_${SecName}"
     ;Status will stay default if registry value not found
     ;(component was never installed)
+
+  "set_initSection_${SecName}:"
   IntOp $AR_RegFlags $AR_RegFlags & ${SF_SELECTED} ;Turn off all other bits
   SectionGetFlags ${${SecName}} $AR_SecFlags  ;Reading default section flags
   IntOp $AR_SecFlags $AR_SecFlags & 0xFFFE  ;Turn lowest (enabled) bit off
@@ -137,6 +201,18 @@ Var AR_RegFlags
  "default_${SecName}:"
 
  !insertmacro LoadSectionSelectedIntoVar ${SecName} ${SecName}_selected
+ Goto "end_initSection_${SecName}"
+
+ "checkBeforeDefault_${SecName}:"
+ ${StrContains} $substringResult "/nSandboxIfNew" $CMDLINE
+ ${If} "${SecName}" == "server"
+ ${AndIfNot} $substringResult == ""
+   StrCpy $AR_RegFlags 0
+   Goto "set_initSection_${SecName}"
+ ${Else}
+   Goto "default_${SecName}"
+ ${EndIf}
+ "end_initSection_${SecName}:"
 !macroend
 
 !macro FinishSection SecName
@@ -247,6 +323,78 @@ Function DownloadFile
 FunctionEnd
 !endif
 
+
+!include NSISpcre.nsh
+!insertmacro REMatches
+
+Var CampaignName
+
+!macro GetCampaignName RetVar
+  Call GetCampaignName
+  Pop ${RetVar}
+!macroend
+
+Function GetCampaignName
+  Push $0 ; Stash $0
+
+  ; Parse filename out of the path
+  ${RECaptureMatches} $0 "([^\\]*\\)*(.*)\.exe" $EXEPATH 0
+  ${If} $0 == 2
+    Pop $0 ; Discard Path
+    Pop $0 ; Recover filename
+    ; Parse campaign out of the filename
+    ${RECaptureMatches} $0 "HighFidelity-([^-]*-)Beta-.*" $0 0
+    ${If} $0 == 1
+      Pop $0 ; Recover campaign name
+      StrCpy $0 $0 -1 0 ; Remove trailing - and copy to _RetVar
+    ${Else}
+      StrCpy $0 ""
+    ${EndIf}
+  ${Else}
+    StrCpy $0 ""
+  ${EndIf}
+
+  Exch $0 ; Restore $0 and push result
+FunctionEnd
+
+!macro CreateGUID RetVar
+  System::Call 'ole32::CoCreateGuid(g .s)'
+  Pop ${RetVar}
+  ; Strip opening and closing braces
+  StrCpy ${RetVar} ${RetVar} -1 1
+!macroend
+
+Var GAClientID
+
+!macro InitGAClientID
+  ; Generate a new GUID on every run for now
+  !insertmacro CreateGUID $GAClientID
+!macroend
+
+!macro GoogleAnalytics Category Action Label Value
+  ${If} "@GA_TRACKING_ID@" != ""
+    Push $0
+    Push $1
+
+    StrCpy $0 "https://google-analytics.com/collect?v=1&tid=@GA_TRACKING_ID@"
+    StrCpy $0 "$0&cid=$GAClientID&t=event&ec=${Category}&ea=${Action}"
+
+    ${If} "${Label}" != ""
+      StrCpy $0 "$0&el=${Label}"
+    ${EndIf}
+    ${If} "${Value}" != ""
+      StrCpy $0 "$0&ev=${Value}"
+    ${EndIf}
+
+    GetTempFileName $1
+    inetc::get /SILENT $0 $1 /END
+    Delete $1
+
+    Pop $1
+    Pop $0
+  ${EndIf}
+!macroend
+
 ;--------------------------------
 ; Installation types
 
@@ -270,21 +418,39 @@ SectionEnd
 
 ;--------------------------------
 ;Pages
+  !define MUI_CUSTOMFUNCTION_ABORT OnUserAbort
+
+  !define MUI_PAGE_CUSTOMFUNCTION_PRE PageWelcomePre
   !insertmacro MUI_PAGE_WELCOME
 
+  !define MUI_PAGE_CUSTOMFUNCTION_PRE PageLicensePre
   !insertmacro MUI_PAGE_LICENSE "@CPACK_RESOURCE_FILE_LICENSE@"
+
+  Page custom InstallTypesPage ReadInstallTypes
+
+  !define MUI_PAGE_CUSTOMFUNCTION_PRE PageDirectoryPre
   !insertmacro MUI_PAGE_DIRECTORY
 
   ;Start Menu Folder Page Configuration
   !define MUI_STARTMENUPAGE_REGISTRY_ROOT "HKLM"
   !define MUI_STARTMENUPAGE_REGISTRY_KEY "Software\@CPACK_PACKAGE_VENDOR@\@CPACK_PACKAGE_INSTALL_REGISTRY_KEY@"
   !define MUI_STARTMENUPAGE_REGISTRY_VALUENAME "Start Menu Folder"
+  !define MUI_PAGE_CUSTOMFUNCTION_PRE PageStartMenuPre
   !insertmacro MUI_PAGE_STARTMENU Application $STARTMENU_FOLDER
 
+  !define MUI_PAGE_CUSTOMFUNCTION_PRE PageComponentsPre
   @CPACK_NSIS_PAGE_COMPONENTS@
+
+  ; the MUI_PAGE_CUSTOMFUNCTION_PRE shouldn't be defined here
+  ; which can happen for a component-less (like client only) install
+  !ifdef MUI_PAGE_CUSTOMFUNCTION_PRE
+  !undef MUI_PAGE_CUSTOMFUNCTION_PRE
+  !endif
 
   Page custom PostInstallOptionsPage ReadPostInstallOptions
 
+  !define MUI_PAGE_CUSTOMFUNCTION_PRE PageInstallFilesPre
+  !define MUI_PAGE_CUSTOMFUNCTION_SHOW StartInstallSlideshow
   !insertmacro MUI_PAGE_INSTFILES
 
   !insertmacro MUI_UNPAGE_CONFIRM
@@ -366,12 +532,72 @@ Var DesktopServerCheckbox
 Var ServerStartupCheckbox
 Var LaunchServerNowCheckbox
 Var LaunchClientNowCheckbox
+Var CleanInstallCheckbox
 Var CurrentOffset
 Var OffsetUnits
 Var CopyFromProductionCheckbox
+Var ExpressInstallRadioButton
+Var CustomInstallRadioButton
+Var InstallTypeDialog
+Var CustomInstallTemporaryState
+Var Express
 
-!macro SetPostInstallOption Checkbox OptionName Default
-  ; reads the value for the given post install option to the registry
+!macro MaybeSkipPage
+  ; Check if Express is set, if so, abort the post install options page
+  ${If} $Express == "1"
+    Abort
+  ${EndIf}
+!macroend
+
+!macro DownloadSlideshowImages
+  InitPluginsDir
+
+  Push $0
+
+  ; figure out where to download installer slideshow images from
+  StrCpy $0 "http://cdn.highfidelity.com/installer/slideshow"
+
+  ${If} $CampaignName == ""
+    StrCpy $0 "$0/default"
+  ${Else}
+    StrCpy $0 "$0/$CampaignName"
+  ${EndIf}
+
+  NSISdl::download_quiet $0/1.jpg "$PLUGINSDIR\1.jpg"
+  NSISdl::download_quiet $0/2.jpg "$PLUGINSDIR\2.jpg"
+  NSISdl::download_quiet $0/3.jpg "$PLUGINSDIR\3.jpg"
+
+  Pop $0
+!macroend
+
+Function OnUserAbort
+  !insertmacro GoogleAnalytics "Installer" "Abort" "User Abort" ""
+FunctionEnd
+Function PageWelcomePre
+  !insertmacro GoogleAnalytics "Installer" "Welcome" "" ""
+  !insertmacro DownloadSlideshowImages
+FunctionEnd
+Function PageLicensePre
+  !insertmacro GoogleAnalytics "Installer" "License" "" ""
+FunctionEnd
+Function PageDirectoryPre
+  !insertmacro MaybeSkipPage
+  !insertmacro GoogleAnalytics "Installer" "Directory" "" ""
+FunctionEnd
+Function PageStartMenuPre
+  !insertmacro MaybeSkipPage
+  !insertmacro GoogleAnalytics "Installer" "StartMenu" "" ""
+FunctionEnd
+Function PageComponentsPre
+  !insertmacro MaybeSkipPage
+  !insertmacro GoogleAnalytics "Installer" "Components" "" ""
+FunctionEnd
+Function PageInstallFilesPre
+  !insertmacro GoogleAnalytics "Installer" "Install" "" ""
+FunctionEnd
+
+!macro SetInstallOption Checkbox OptionName Default
+  ; reads the value for the given install option to the registry
   ReadRegStr $0 HKLM "@REGISTRY_HKLM_INSTALL_ROOT@\@CPACK_PACKAGE_INSTALL_REGISTRY_KEY@\@POST_INSTALL_OPTIONS_REG_GROUP@" "${OptionName}"
 
   ${If} $0 == "NO"
@@ -386,7 +612,115 @@ Var CopyFromProductionCheckbox
   ${EndIf}
 !macroend
 
+Function InstallTypesPage
+  !insertmacro GoogleAnalytics "Installer" "Install Types" "" ""
+
+  !insertmacro MUI_HEADER_TEXT "Choose Installation Type" "Express or Custom Install"
+
+  nsDialogs::Create 1018
+  Pop $InstallTypeDialog
+
+  ${If} $InstallTypeDialog == error
+    Abort
+  ${EndIf}
+
+  StrCpy $CurrentOffset 0
+  StrCpy $OffsetUnits u
+  StrCpy $Express "0"
+
+  ${NSD_CreateRadioButton} 30% $CurrentOffset$OffsetUnits 100% 10u "Express Install (Recommended)"; $\nInstalls High Fidelity Interface and High Fidelity Sandbox"
+  pop $ExpressInstallRadioButton
+  ${NSD_OnClick} $ExpressInstallRadioButton ChangeExpressLabel
+  IntOp $CurrentOffset $CurrentOffset + 15
+
+  ${NSD_CreateRadiobutton} 30% $CurrentOffset$OffsetUnits 100% 10u "Custom Install (Advanced)"
+  pop $CustomInstallRadioButton
+  ${NSD_OnClick} $CustomInstallRadioButton ChangeCustomLabel
+
+  ; check install type from the registry, express install by default
+  !insertmacro SetInstallOption $CustomInstallRadioButton @CUSTOM_INSTALL_REG_KEY@ ${BST_UNCHECKED}
+
+  ; set the express install value based on the custom install value from registry
+  ${NSD_GetState} $CustomInstallRadioButton $CustomInstallTemporaryState
+
+  ${If} $CustomInstallTemporaryState == ${BST_UNCHECKED}
+    ${NSD_Check} $ExpressInstallRadioButton
+    Call ChangeExpressLabel
+  ${Else}
+    Call ChangeCustomLabel
+  ${EndIf}
+
+  nsDialogs::Show
+FunctionEnd
+
+Function ChangeExpressLabel
+  Push $R1
+  GetDlgItem $R1 $HWNDPARENT 1
+  SendMessage $R1 ${WM_SETTEXT} 0 "STR:Install"
+  Pop $R1
+FunctionEnd
+
+Function ChangeCustomLabel
+  Push $R1
+  GetDlgItem $R1 $HWNDPARENT 1
+  SendMessage $R1 ${WM_SETTEXT} 0 "STR:Next >"
+  Pop $R1
+FunctionEnd
+
+!macro AddImageToSlideshowFile ImageFilename
+  ${If} ${FileExists} "$PLUGINSDIR\${ImageFilename}.jpg"
+    FileWrite $0 "= ${ImageFilename}.jpg,500,5000,$\"$\"$\r$\n"
+    StrCpy $1 "1"
+  ${EndIf}
+!macroend
+
+Function StartInstallSlideshow
+  ; create a slideshow file based on what files we have available
+
+  ; stash $0 and $1
+  Push $0
+  Push $1
+
+  ; start $1 as 0, indicating we have no images present
+  StrCpy $1 "0"
+
+  FileOpen $0 "$PLUGINSDIR\slideshow.dat" w
+
+  ; write the language value to the slideshow file for english
+  FileWrite $0 "[1033]$\r$\n"
+
+  ; for each of 1.jpg, 2.jpg, 3.jpg
+  ; if the image is present add it to the dat file and set our flag
+  ; to show we found at least one image
+  !insertmacro AddImageToSlideshowFile "1"
+  !insertmacro AddImageToSlideshowFile "2"
+  !insertmacro AddImageToSlideshowFile "3"
+
+  FileClose $0
+
+  ; NOTE: something inside of nsisSlideshow::show isn't keeping the stack clean
+  ; so we need to push things back BEFORE we call it
+
+  ${If} $1 == "1"
+    Pop $1
+    Pop $0
+
+    ; show the slideshow using the created data file
+    nsisSlideshow::show /NOUNLOAD "/auto=$PLUGINSDIR\slideshow.dat"
+  ${Else}
+    Pop $1
+    Pop $0
+
+    ; show the install details because we didn't end up with slideshow images to show
+    SetDetailsView show
+  ${EndIf}
+
+FunctionEnd
+
 Function PostInstallOptionsPage
+  !insertmacro MaybeSkipPage
+  !insertmacro GoogleAnalytics "Installer" "Post Install Options" "" ""
+
   !insertmacro MUI_HEADER_TEXT "Setup Options" ""
 
   nsDialogs::Create 1018
@@ -399,58 +733,71 @@ Function PostInstallOptionsPage
   StrCpy $CurrentOffset 0
   StrCpy $OffsetUnits u
 
-  ${If} ${SectionIsSelected} ${@CLIENT_COMPONENT_NAME@}
+  ${If} @CLIENT_COMPONENT_CONDITIONAL@
     ${NSD_CreateCheckbox} 0 $CurrentOffset$OffsetUnits 100% 10u "&Create a desktop shortcut for @INTERFACE_HF_SHORTCUT_NAME@"
     Pop $DesktopClientCheckbox
     IntOp $CurrentOffset $CurrentOffset + 15
 
     ; set the checkbox state depending on what is present in the registry
-    !insertmacro SetPostInstallOption $DesktopClientCheckbox @CLIENT_DESKTOP_SHORTCUT_REG_KEY@ ${BST_CHECKED}
+    !insertmacro SetInstallOption $DesktopClientCheckbox @CLIENT_DESKTOP_SHORTCUT_REG_KEY@ ${BST_CHECKED}
   ${EndIf}
 
-  ${If} ${SectionIsSelected} ${@SERVER_COMPONENT_NAME@}
+  ${If} @SERVER_COMPONENT_CONDITIONAL@
     ${NSD_CreateCheckbox} 0 $CurrentOffset$OffsetUnits 100% 10u "&Create a desktop shortcut for @CONSOLE_HF_SHORTCUT_NAME@"
     Pop $DesktopServerCheckbox
-
-    ; set the checkbox state depending on what is present in the registry
-    !insertmacro SetPostInstallOption $DesktopServerCheckbox @CONSOLE_DESKTOP_SHORTCUT_REG_KEY@ ${BST_UNCHECKED}
-
     IntOp $CurrentOffset $CurrentOffset + 15
 
-    ${NSD_CreateCheckbox} 0 $CurrentOffset$OffsetUnits 100% 10u "&Launch @CONSOLE_HF_SHORTCUT_NAME@ on startup"
-    Pop $ServerStartupCheckbox
-
     ; set the checkbox state depending on what is present in the registry
-    !insertmacro SetPostInstallOption $ServerStartupCheckbox @CONSOLE_STARTUP_REG_KEY@ ${BST_CHECKED}
-
-    IntOp $CurrentOffset $CurrentOffset + 15
+    !insertmacro SetInstallOption $DesktopServerCheckbox @CONSOLE_DESKTOP_SHORTCUT_REG_KEY@ ${BST_UNCHECKED}
   ${EndIf}
 
-  ${If} ${SectionIsSelected} ${@SERVER_COMPONENT_NAME@}
+  ${If} @SERVER_COMPONENT_CONDITIONAL@
     ${NSD_CreateCheckbox} 0 $CurrentOffset$OffsetUnits 100% 10u "&Launch @CONSOLE_HF_SHORTCUT_NAME@ after install"
     Pop $LaunchServerNowCheckbox
 
     ; set the checkbox state depending on what is present in the registry
-    !insertmacro SetPostInstallOption $LaunchServerNowCheckbox @SERVER_LAUNCH_NOW_REG_KEY@ ${BST_CHECKED}
+    !insertmacro SetInstallOption $LaunchServerNowCheckbox @SERVER_LAUNCH_NOW_REG_KEY@ ${BST_CHECKED}
+    ${StrContains} $substringResult "/forceNoLaunchServer" $CMDLINE
+    ${IfNot} $substringResult == ""
+        ${NSD_SetState} $LaunchServerNowCheckbox ${BST_UNCHECKED}
+    ${EndIf}
 
     IntOp $CurrentOffset $CurrentOffset + 15
   ${EndIf}
 
-  ${If} ${SectionIsSelected} ${@CLIENT_COMPONENT_NAME@}
-	  ${NSD_CreateCheckbox} 0 $CurrentOffset$OffsetUnits 100% 10u "&Launch @INTERFACE_HF_SHORTCUT_NAME@ after install"
-	  Pop $LaunchClientNowCheckbox
+  ${If} @CLIENT_COMPONENT_CONDITIONAL@
+    ${NSD_CreateCheckbox} 0 $CurrentOffset$OffsetUnits 100% 10u "&Launch @INTERFACE_HF_SHORTCUT_NAME@ after install"
+    Pop $LaunchClientNowCheckbox
+    IntOp $CurrentOffset $CurrentOffset + 30
 
-	  ; set the checkbox state depending on what is present in the registry
-	  !insertmacro SetPostInstallOption $LaunchClientNowCheckbox @CLIENT_LAUNCH_NOW_REG_KEY@ ${BST_CHECKED}
+    ; set the checkbox state depending on what is present in the registry
+    !insertmacro SetInstallOption $LaunchClientNowCheckbox @CLIENT_LAUNCH_NOW_REG_KEY@ ${BST_CHECKED}
+    ${StrContains} $substringResult "/forceNoLaunchClient" $CMDLINE
+    ${IfNot} $substringResult == ""
+    ${NSD_SetState} $LaunchClientNowCheckbox ${BST_UNCHECKED}
+    ${EndIf}
   ${EndIf}
+
+  ${If} @SERVER_COMPONENT_CONDITIONAL@
+    ${NSD_CreateCheckbox} 0 $CurrentOffset$OffsetUnits 100% 10u "&Launch @CONSOLE_HF_SHORTCUT_NAME@ on startup"
+    Pop $ServerStartupCheckbox
+    IntOp $CurrentOffset $CurrentOffset + 15
+
+    ; set the checkbox state depending on what is present in the registry
+    !insertmacro SetInstallOption $ServerStartupCheckbox @CONSOLE_STARTUP_REG_KEY@ ${BST_CHECKED}
+  ${EndIf}
+
+  ${NSD_CreateCheckbox} 0 $CurrentOffset$OffsetUnits 100% 10u "&Perform a clean install (Delete older settings and content)"
+  Pop $CleanInstallCheckbox
+  IntOp $CurrentOffset $CurrentOffset + 15
 
   ${If} @PR_BUILD@ == 1
     ; a PR build defaults all install options expect LaunchServerNowCheckbox, LaunchClientNowCheckbox and the settings copy to unchecked
-    ${If} ${SectionIsSelected} ${@CLIENT_COMPONENT_NAME@}
+    ${If} @CLIENT_COMPONENT_CONDITIONAL@
       ${NSD_SetState} $DesktopClientCheckbox ${BST_UNCHECKED}
     ${EndIf}
 
-    ${If} ${SectionIsSelected} ${@SERVER_COMPONENT_NAME@}
+    ${If} @SERVER_COMPONENT_CONDITIONAL@
       ${NSD_SetState} $DesktopServerCheckbox ${BST_UNCHECKED}
       ${NSD_SetState} $ServerStartupCheckbox ${BST_UNCHECKED}
     ${EndIf}
@@ -461,14 +808,14 @@ Function PostInstallOptionsPage
     ${NSD_CreateCheckbox} 0 $CurrentOffset$OffsetUnits 100% 10u "&Copy settings and content from production install"
     Pop $CopyFromProductionCheckbox
 
-    ${NSD_SetState} $CopyFromProductionCheckbox ${BST_CHECKED}
+    ${NSD_SetState} $CopyFromProductionCheckbox ${BST_UNCHECKED}
   ${EndIf}
 
   nsDialogs::Show
 FunctionEnd
 
-!macro WritePostInstallOption OptionName Option
-  ; writes the value for the given post install option to the registry
+!macro WriteInstallOption OptionName Option
+  ; writes the value for the given install option to the registry
   WriteRegStr HKLM "@REGISTRY_HKLM_INSTALL_ROOT@\@CPACK_PACKAGE_INSTALL_REGISTRY_KEY@\@POST_INSTALL_OPTIONS_REG_GROUP@" "${OptionName}" ${Option}
 !macroend
 
@@ -478,14 +825,43 @@ Var ServerStartupState
 Var LaunchServerNowState
 Var LaunchClientNowState
 Var CopyFromProductionState
+Var CleanInstallState
+Var ExpressInstallState
+Var CustomInstallState
+
+Function ReadInstallTypes
+  ; check if the user asked for express/custom install
+  ${NSD_GetState} $ExpressInstallRadioButton $ExpressInstallState
+  ${NSD_GetState} $CustomInstallRadioButton $CustomInstallState
+
+  ${If} $ExpressInstallState == ${BST_CHECKED}
+    StrCpy $Express "1"
+
+    StrCpy $DesktopClientState ${BST_CHECKED}
+    StrCpy $ServerStartupState ${BST_CHECKED}
+    StrCpy $LaunchServerNowState ${BST_CHECKED}
+    StrCpy $LaunchClientNowState ${BST_CHECKED}
+    StrCpy $CleanInstallState ${BST_UNCHECKED}
+    StrCpy $DesktopServerState ${BST_UNCHECKED}
+
+    ${If} @PR_BUILD@ == 1
+      StrCpy $CopyFromProductionState ${BST_UNCHECKED}
+    ${EndIf}
+
+    !insertmacro WriteInstallOption "@CUSTOM_INSTALL_REG_KEY@" NO
+  ${Else}
+    !insertmacro WriteInstallOption "@CUSTOM_INSTALL_REG_KEY@" YES
+  ${EndIf}
+
+FunctionEnd
 
 Function ReadPostInstallOptions
-  ${If} ${SectionIsSelected} ${@CLIENT_COMPONENT_NAME@}
+  ${If} @CLIENT_COMPONENT_CONDITIONAL@
     ; check if the user asked for a desktop shortcut to High Fidelity
     ${NSD_GetState} $DesktopClientCheckbox $DesktopClientState
   ${EndIf}
 
-  ${If} ${SectionIsSelected} ${@SERVER_COMPONENT_NAME@}
+  ${If} @SERVER_COMPONENT_CONDITIONAL@
     ; check if the user asked for a desktop shortcut to Sandbox
     ${NSD_GetState} $DesktopServerCheckbox $DesktopServerState
 
@@ -498,37 +874,41 @@ Function ReadPostInstallOptions
     ${NSD_GetState} $CopyFromProductionCheckbox $CopyFromProductionState
   ${EndIf}
 
-  ${If} ${SectionIsSelected} ${@SERVER_COMPONENT_NAME@}
-	  ; check if we need to launch the server post-install
-	  ${NSD_GetState} $LaunchServerNowCheckbox $LaunchServerNowState
+  ${If} @SERVER_COMPONENT_CONDITIONAL@
+    ; check if we need to launch the server post-install
+    ${NSD_GetState} $LaunchServerNowCheckbox $LaunchServerNowState
   ${EndIf}
 
-  ${If} ${SectionIsSelected} ${@CLIENT_COMPONENT_NAME@}
-	  ; check if we need to launch the client post-install
-	  ${NSD_GetState} $LaunchClientNowCheckbox $LaunchClientNowState
+  ${If} @CLIENT_COMPONENT_CONDITIONAL@
+    ; check if we need to launch the client post-install
+    ${NSD_GetState} $LaunchClientNowCheckbox $LaunchClientNowState
   ${EndIf}
+
+  ; check if the user asked for a clean install
+  ${NSD_GetState} $CleanInstallCheckbox $CleanInstallState
 FunctionEnd
 
 Function HandlePostInstallOptions
-  ${If} ${SectionIsSelected} ${@CLIENT_COMPONENT_NAME@}
+  ${If} @CLIENT_COMPONENT_CONDITIONAL@
     ; check if the user asked for a desktop shortcut to High Fidelity
     ${If} $DesktopClientState == ${BST_CHECKED}
       CreateShortCut "$DESKTOP\@INTERFACE_HF_SHORTCUT_NAME@.lnk" "$INSTDIR\@INTERFACE_WIN_EXEC_NAME@"
-      !insertmacro WritePostInstallOption "@CLIENT_DESKTOP_SHORTCUT_REG_KEY@" YES
+      !insertmacro WriteInstallOption "@CLIENT_DESKTOP_SHORTCUT_REG_KEY@" YES
     ${Else}
-      !insertmacro WritePostInstallOption @CLIENT_DESKTOP_SHORTCUT_REG_KEY@ NO
+      !insertmacro WriteInstallOption @CLIENT_DESKTOP_SHORTCUT_REG_KEY@ NO
     ${EndIf}
 
   ${EndIf}
 
-  ${If} ${SectionIsSelected} ${@SERVER_COMPONENT_NAME@}
+  ${If} @SERVER_COMPONENT_CONDITIONAL@
     ; check if the user asked for a desktop shortcut to Sandbox
     ${If} $DesktopServerState == ${BST_CHECKED}
       CreateShortCut "$DESKTOP\@CONSOLE_HF_SHORTCUT_NAME@.lnk" "$INSTDIR\@CONSOLE_INSTALL_SUBDIR@\@CONSOLE_WIN_EXEC_NAME@"
-      !insertmacro WritePostInstallOption @CONSOLE_DESKTOP_SHORTCUT_REG_KEY@ YES
+      !insertmacro WriteInstallOption @CONSOLE_DESKTOP_SHORTCUT_REG_KEY@ YES
     ${Else}
-      !insertmacro WritePostInstallOption @CONSOLE_DESKTOP_SHORTCUT_REG_KEY@ NO
+      !insertmacro WriteInstallOption @CONSOLE_DESKTOP_SHORTCUT_REG_KEY@ NO
     ${EndIf}
+
 
     ; check if the user asked to have Sandbox launched every startup
     ${If} $ServerStartupState == ${BST_CHECKED}
@@ -543,10 +923,29 @@ Function HandlePostInstallOptions
       ; reset the shell var context back
       SetShellVarContext all
 
-      !insertmacro WritePostInstallOption @CONSOLE_STARTUP_REG_KEY@ YES
+      !insertmacro WriteInstallOption @CONSOLE_STARTUP_REG_KEY@ YES
     ${Else}
-      !insertmacro WritePostInstallOption @CONSOLE_STARTUP_REG_KEY@ NO
+      !insertmacro WriteInstallOption @CONSOLE_STARTUP_REG_KEY@ NO
     ${EndIf}
+  ${EndIf}
+
+  ; check if the user asked for a clean install
+  ${If} $CleanInstallState == ${BST_CHECKED}
+    SetShellVarContext current
+
+    ${If} @SERVER_COMPONENT_CONDITIONAL@
+      RMDir /r "$APPDATA\@BUILD_ORGANIZATION@\Server Console"
+      RMDir /r "$APPDATA\@BUILD_ORGANIZATION@\assignment-client"
+      RMDir /r "$APPDATA\@BUILD_ORGANIZATION@\domain-server"
+      Delete "$APPDATA\@BUILD_ORGANIZATION@\domain-server.json"
+    ${EndIf}
+
+    ${If} @CLIENT_COMPONENT_CONDITIONAL@
+      Delete "$APPDATA\@BUILD_ORGANIZATION@\Interface\AccountInfo.bin"
+      Delete "$APPDATA\@BUILD_ORGANIZATION@\Interface.json"
+    ${EndIf}
+
+    RMDir /r "$LOCALAPPDATA\@BUILD_ORGANIZATION@"
   ${EndIf}
 
   ${If} @PR_BUILD@ == 1
@@ -577,44 +976,64 @@ Function HandlePostInstallOptions
     ${EndIf}
   ${EndIf}
 
-  ${If} $LaunchServerNowState == ${BST_CHECKED}
-    !insertmacro WritePostInstallOption @SERVER_LAUNCH_NOW_REG_KEY@ YES
+  ${If} @SERVER_COMPONENT_CONDITIONAL@
+  ${AndIf} $LaunchServerNowState == ${BST_CHECKED}
+    !insertmacro WriteInstallOption @SERVER_LAUNCH_NOW_REG_KEY@ YES
 
     ; both launches use the explorer trick in case the user has elevated permissions for the installer
     ${If} $LaunchClientNowState == ${BST_CHECKED}
-      !insertmacro WritePostInstallOption @CLIENT_LAUNCH_NOW_REG_KEY@ YES
+      !insertmacro WriteInstallOption @CLIENT_LAUNCH_NOW_REG_KEY@ YES
       ; create shortcut with ARGUMENTS
       CreateShortCut "$TEMP\SandboxShortcut.lnk" "$INSTDIR\@CONSOLE_INSTALL_SUBDIR@\@CONSOLE_WIN_EXEC_NAME@" "-- --launchInterface"
       Exec '"$WINDIR\explorer.exe" "$TEMP\SandboxShortcut.lnk"'
     ${Else}
-      !insertmacro WritePostInstallOption @CLIENT_LAUNCH_NOW_REG_KEY@ NO
+      !insertmacro WriteInstallOption @CLIENT_LAUNCH_NOW_REG_KEY@ NO
       Exec '"$WINDIR\explorer.exe" "$INSTDIR\@CONSOLE_INSTALL_SUBDIR@\@CONSOLE_WIN_EXEC_NAME@"'
     ${EndIf}
 
-  ${Else}
-    !insertmacro WritePostInstallOption @SERVER_LAUNCH_NOW_REG_KEY@ NO
+  ${ElseIf} @CLIENT_COMPONENT_CONDITIONAL@
+    !insertmacro WriteInstallOption @SERVER_LAUNCH_NOW_REG_KEY@ NO
 
     ; launch uses the explorer trick in case the user has elevated permissions for the installer
     ${If} $LaunchClientNowState == ${BST_CHECKED}
-      !insertmacro WritePostInstallOption @CLIENT_LAUNCH_NOW_REG_KEY@ YES
+      !insertmacro WriteInstallOption @CLIENT_LAUNCH_NOW_REG_KEY@ YES
       Exec '"$WINDIR\explorer.exe" "$INSTDIR\@INTERFACE_WIN_EXEC_NAME@"'
     ${Else}
-      !insertmacro WritePostInstallOption @CLIENT_LAUNCH_NOW_REG_KEY@ NO
+      !insertmacro WriteInstallOption @CLIENT_LAUNCH_NOW_REG_KEY@ NO
     ${EndIf}
 
   ${EndIf}
+FunctionEnd
+
+Function OptionallyDownloadCampaignServerless
+  ${If} $CampaignName != ""
+    InitPluginsDir
+
+    NSISdl::download_quiet http://cdn.highfidelity.com/installer/serverless/$CampaignName.zip $PLUGINSDIR\$CampaignName.zip
+
+    ${If} ${FileExists} $PLUGINSDIR\$CampaignName.zip
+      ; replace the installed serverless content with the campaign content
+
+      RMDir /r "$INSTDIR\resources\serverless"
+      CreateDirectory "$INSTDIR\resources\serverless"
+      nsisunz::Unzip "$PLUGINSDIR\$CampaignName.zip" "$INSTDIR\resources\serverless"
+    ${EndIf}
+
+  ${Endif}
 FunctionEnd
 
 ;--------------------------------
 ;Installer Sections
 
 Section "-Core installation"
+
   ;The following delete blocks are temporary and can be removed once users who had the initial installer have updated
 
   ;Delete any server-console files installed before it was placed in sub-folder
   Delete "$INSTDIR\server-console.exe"
   RMDir /r "$INSTDIR\locales"
   RMDir /r "$INSTDIR\resources\app"
+  RMDir /r "$INSTDIR\client"
   Delete "$INSTDIR\resources\atom.asar"
   Delete "$INSTDIR\build-info.json"
   Delete "$INSTDIR\content_resources_200_percent.pak"
@@ -648,7 +1067,6 @@ Section "-Core installation"
 
   ; Remove the Old Interface directory and vcredist_x64.exe (from installs prior to Server Console)
   RMDir /r "$INSTDIR\Interface"
-  Delete "$INSTDIR\vcredist_x64.exe"
 
   ;Use the entire tree produced by the INSTALL target.  Keep the
   ;list of directories here in sync with the RMDir commands below.
@@ -658,6 +1076,15 @@ Section "-Core installation"
 
   ;Store installation folder
   WriteRegStr HKLM "Software\@CPACK_PACKAGE_VENDOR@\@CPACK_PACKAGE_INSTALL_REGISTRY_KEY@" "" $INSTDIR
+
+  ;Write some information about this install to the installation folder
+  Push $0
+  FileOpen $0 "$INSTDIR\installer.ini" w
+  FileWrite $0 "type=@INSTALLER_TYPE@$\r$\n"
+  FileWrite $0 "campaign=$CampaignName$\r$\n"
+  FileWrite $0 "exepath=$EXEPATH$\r$\n"
+  FileClose $0
+  Pop $0
 
   ;Package the signed uninstaller produced by the inner loop
   !ifndef INNER
@@ -717,7 +1144,7 @@ Section "-Core installation"
 @CPACK_NSIS_CREATE_ICONS_EXTRA@
 
   ; Conditional handling for Interface specific options
-  ${If} ${SectionIsSelected} ${@CLIENT_COMPONENT_NAME@}
+  ${If} @CLIENT_COMPONENT_CONDITIONAL@
     CreateShortCut "$SMPROGRAMS\$STARTMENU_FOLDER\@INTERFACE_SHORTCUT_NAME@.lnk" \
       "$INSTDIR\@INTERFACE_WIN_EXEC_NAME@"
 
@@ -732,7 +1159,7 @@ Section "-Core installation"
   ${EndIf}
 
   ; Conditional handling for server console shortcut
-  ${If} ${SectionIsSelected} ${@SERVER_COMPONENT_NAME@}
+  ${If} @SERVER_COMPONENT_CONDITIONAL@
     CreateShortCut "$SMPROGRAMS\$STARTMENU_FOLDER\@CONSOLE_SHORTCUT_NAME@.lnk" \
       "$INSTDIR\@CONSOLE_INSTALL_SUBDIR@\@CONSOLE_WIN_EXEC_NAME@"
   ${EndIf}
@@ -746,11 +1173,15 @@ Section "-Core installation"
 
   !insertmacro MUI_STARTMENU_WRITE_END
 
-@CPACK_NSIS_EXTRA_INSTALL_COMMANDS@
+  @CPACK_NSIS_EXTRA_INSTALL_COMMANDS@
+
+  ; see if we have a campaign that we might need to grab special content for
+  Call OptionallyDownloadCampaignServerless
 
   ; Handle whichever post install options were set
   Call HandlePostInstallOptions
 
+  !insertmacro GoogleAnalytics "Installer" "Done" "" ""
 SectionEnd
 
 !include nsProcess.nsh
@@ -765,9 +1196,20 @@ SectionEnd
     ${If} $R0 == 0
 
       ; the process is running, ask the user to close it
+
+      ${If} "${displayName}" == "@CONSOLE_DISPLAY_NAME@"
       MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION \
-        "${displayName} cannot be ${action} while ${displayName} is running.$\r$\nPlease close it and click Retry to continue." \
+        "${displayName} cannot be ${action} while ${displayName} is running.$\r$\nPlease close it in the system tray and click Retry to continue." \
         /SD IDCANCEL IDRETRY Prompt_${UniqueID} IDCANCEL 0
+      ${EndIf}
+
+      ${If} "${displayName}" == "@INTERFACE_DISPLAY_NAME@"
+      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION \
+        "${displayName} cannot be ${action} while ${displayName} is running.$\r$\nPlease close it in the task bar and click Retry to continue." \
+        /SD IDCANCEL IDRETRY Prompt_${UniqueID} IDCANCEL 0
+      ${EndIf}
+
+      !insertmacro GoogleAnalytics "Installer" "Abort" "${displayName} Running" ""
 
       ; If the user decided to cancel, stop the current installer/uninstaller
       Abort
@@ -864,8 +1306,8 @@ Function .onSelChange
   !insertmacro SectionList MaybeSelectionChanged
 
   ; if neither component is selected, disable the install button
-  ${IfNot} ${SectionIsSelected} ${@CLIENT_COMPONENT_NAME@}
-  ${AndIfNot} ${SectionIsSelected} ${@SERVER_COMPONENT_NAME@}
+  ${IfNot} @CLIENT_COMPONENT_CONDITIONAL@
+  ${AndIfNot} @SERVER_COMPONENT_CONDITIONAL@
     GetDlgItem $0 $HWNDPARENT 1
     EnableWindow $0 0
   ${Else}
@@ -891,6 +1333,9 @@ Section "Uninstall"
   ;MessageBox MB_OK "Start menu is in: $START_MENU"
 
 @CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS@
+
+  ;Remove the installer information file
+  Delete "$INSTDIR\installer.ini"
 
   ;Remove files we installed.
   ;Keep the list of directories here in sync with the File commands above.
@@ -995,6 +1440,11 @@ Function .onInit
     ; just bail out quickly when running the "inner" installer
     Quit
   !endif
+
+  !insertmacro InitGAClientID
+  !insertmacro GetCampaignName $CampaignName
+
+  !insertmacro GoogleAnalytics "Installer" "Start" "$CampaignName" ""
 
   ; make sure none of the installed applications are still running
   !insertmacro CheckForRunningApplications "installed" "Installer"

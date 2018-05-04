@@ -100,6 +100,7 @@ QVariant ScriptsModel::data(const QModelIndex& index, int role) const {
         return QVariant();
     }
     if (node->getType() == TREE_NODE_TYPE_SCRIPT) {
+
         TreeNodeScript* script = static_cast<TreeNodeScript*>(node);
         if (role == Qt::DisplayRole) {
             return QVariant(script->getName() + (script->getOrigin() == SCRIPT_ORIGIN_LOCAL ? " (local)" : ""));
@@ -125,15 +126,14 @@ int ScriptsModel::columnCount(const QModelIndex& parent) const {
 
 void ScriptsModel::updateScriptsLocation(const QString& newPath) {
     _fsWatcher.removePath(_localDirectory.absolutePath());
-    
+
     if (!newPath.isEmpty()) {
         _localDirectory.setPath(newPath);
-        
+
         if (!_localDirectory.absolutePath().isEmpty()) {
             _fsWatcher.addPath(_localDirectory.absolutePath());
         }
     }
-    
     reloadLocalFiles();
 }
 
@@ -154,7 +154,7 @@ void ScriptsModel::reloadDefaultFiles() {
 }
 
 void ScriptsModel::requestDefaultFiles(QString marker) {
-    QUrl url(defaultScriptsLocation());
+    QUrl url(PathUtils::defaultScriptsLocation());
 
     // targets that don't have a scripts folder in the appropriate location will have an empty URL here
     if (!url.isEmpty()) {
@@ -244,7 +244,7 @@ bool ScriptsModel::parseXML(QByteArray xmlFile) {
                     lastKey = xml.text().toString();
                     if (jsRegex.exactMatch(xml.text().toString())) {
                         QString localPath = lastKey.split("/").mid(1).join("/");
-                        QUrl fullPath = defaultScriptsLocation();
+                        QUrl fullPath = PathUtils::defaultScriptsLocation();
                         fullPath.setPath(fullPath.path() + lastKey);
                         const QString fullPathStr = normalizeScriptURL(fullPath).toString();
                         _treeNodes.append(new TreeNodeScript(localPath, fullPathStr, SCRIPT_ORIGIN_DEFAULT));
@@ -305,6 +305,7 @@ void ScriptsModel::rebuildTree() {
             _treeNodes.removeAt(i);
         }
     }
+
     QHash<QString, TreeNodeFolder*> folders;
     for (int i = 0; i < _treeNodes.size(); i++) {
         TreeNodeBase* node = _treeNodes.at(i);

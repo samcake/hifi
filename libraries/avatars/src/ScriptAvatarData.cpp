@@ -15,6 +15,9 @@ ScriptAvatarData::ScriptAvatarData(AvatarSharedPointer avatarData) :
     _avatarData(avatarData)
 {
     QObject::connect(avatarData.get(), &AvatarData::displayNameChanged, this, &ScriptAvatarData::displayNameChanged);
+    QObject::connect(avatarData.get(), &AvatarData::sessionDisplayNameChanged, this, &ScriptAvatarData::sessionDisplayNameChanged);
+    QObject::connect(avatarData.get(), &AvatarData::skeletonModelURLChanged, this, &ScriptAvatarData::skeletonModelURLChanged);
+    QObject::connect(avatarData.get(), &AvatarData::lookAtSnappingChanged, this, &ScriptAvatarData::lookAtSnappingChanged);
 }
 
 //
@@ -23,7 +26,7 @@ ScriptAvatarData::ScriptAvatarData(AvatarSharedPointer avatarData) :
 //
 glm::vec3 ScriptAvatarData::getPosition() const {
     if (AvatarSharedPointer sharedAvatarData = _avatarData.lock()) {
-        return sharedAvatarData->getPosition();
+        return sharedAvatarData->getWorldPosition();
     } else {
         return glm::vec3();
     }
@@ -65,7 +68,7 @@ float ScriptAvatarData::getBodyRoll() const {
 }
 glm::quat ScriptAvatarData::getOrientation() const {
     if (AvatarSharedPointer sharedAvatarData = _avatarData.lock()) {
-        return sharedAvatarData->getOrientation();
+        return sharedAvatarData->getWorldOrientation();
     } else {
         return glm::quat();
     }
@@ -109,14 +112,14 @@ float ScriptAvatarData::getHeadRoll() const {
 //
 glm::vec3 ScriptAvatarData::getVelocity() const {
     if (AvatarSharedPointer sharedAvatarData = _avatarData.lock()) {
-        return sharedAvatarData->getVelocity();
+        return sharedAvatarData->getWorldVelocity();
     } else {
         return glm::vec3();
     }
 }
 glm::vec3 ScriptAvatarData::getAngularVelocity() const {
     if (AvatarSharedPointer sharedAvatarData = _avatarData.lock()) {
-        return sharedAvatarData->getAngularVelocity();
+        return sharedAvatarData->getWorldAngularVelocity();
     } else {
         return glm::vec3();
     }
@@ -150,6 +153,22 @@ QString ScriptAvatarData::getSessionDisplayName() const {
         return sharedAvatarData->getSessionDisplayName();
     } else {
         return QString();
+    }
+}
+
+bool ScriptAvatarData::getIsReplicated() const {
+    if (AvatarSharedPointer sharedAvatarData = _avatarData.lock()) {
+        return sharedAvatarData->getIsReplicated();
+    } else {
+        return false;
+    }
+}
+
+bool ScriptAvatarData::getLookAtSnappingEnabled() const {
+    if (AvatarSharedPointer sharedAvatarData = _avatarData.lock()) {
+        return sharedAvatarData->getLookAtSnappingEnabled();
+    } else {
+        return false;
     }
 }
 //

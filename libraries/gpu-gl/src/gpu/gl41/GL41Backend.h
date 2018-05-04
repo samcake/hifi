@@ -13,8 +13,8 @@
 
 #include <gl/Config.h>
 
-#include "../gl/GLBackend.h"
-#include "../gl/GLTexture.h"
+#include <gpu/gl/GLBackend.h>
+#include <gpu/gl/GLTexture.h>
 
 #define GPU_CORE_41 410
 #define GPU_CORE_43 430
@@ -43,6 +43,11 @@ public:
 
     explicit GL41Backend(bool syncCache) : Parent(syncCache) {}
     GL41Backend() : Parent() {}
+    virtual ~GL41Backend() {
+        // call resetStages here rather than in ~GLBackend dtor because it will call releaseResourceBuffer
+        // which is pure virtual from GLBackend's dtor.
+        resetStages();
+    }
 
     static const std::string GL41_VERSION;
     const std::string& getVersion() const override { return GL41_VERSION; }
@@ -167,6 +172,8 @@ protected:
     std::string getBackendShaderHeader() const override;
     void makeProgramBindings(ShaderObject& shaderObject) override;
     int makeResourceBufferSlots(GLuint glprogram, const Shader::BindingSet& slotBindings,Shader::SlotSet& resourceBuffers) override;
+
+    static bool supportedTextureFormat(const gpu::Element& format);
 
 };
 

@@ -10,8 +10,8 @@ if (WIN32)
     find_package(KINECT)
     if (KINECT_FOUND) 
         set(TARGET_NAME hifiKinect)
-        setup_hifi_plugin(Script Qml Widgets)
-        link_hifi_libraries(shared controllers ui plugins input-plugins)
+        setup_hifi_plugin(Qml)
+        link_hifi_libraries(shared controllers ui plugins input-plugins display-plugins)
     
         # need to setup appropriate externals...
         target_kinect()

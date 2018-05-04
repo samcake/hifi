@@ -14,16 +14,18 @@
 #include "EntityItemProperties.h"
 
 RecurseOctreeToMapOperator::RecurseOctreeToMapOperator(QVariantMap& map,
-                                                       OctreeElementPointer top,
+                                                       const OctreeElementPointer& top,
                                                        QScriptEngine* engine,
                                                        bool skipDefaultValues,
-                                                       bool skipThoseWithBadParents) :
+                                                       bool skipThoseWithBadParents,
+                                                       std::shared_ptr<AvatarData> myAvatar) :
         RecurseOctreeOperator(),
         _map(map),
         _top(top),
         _engine(engine),
         _skipDefaultValues(skipDefaultValues),
-        _skipThoseWithBadParents(skipThoseWithBadParents)
+        _skipThoseWithBadParents(skipThoseWithBadParents),
+        _myAvatar(myAvatar)
 {
     // if some element "top" was given, only save information for that element and its children.
     if (_top) {
@@ -34,14 +36,14 @@ RecurseOctreeToMapOperator::RecurseOctreeToMapOperator(QVariantMap& map,
     }
 };
 
-bool RecurseOctreeToMapOperator::preRecursion(OctreeElementPointer element) {
+bool RecurseOctreeToMapOperator::preRecursion(const OctreeElementPointer& element) {
     if (element == _top) {
         _withinTop = true;
     }
     return true;
 }
 
-bool RecurseOctreeToMapOperator::postRecursion(OctreeElementPointer element) {
+bool RecurseOctreeToMapOperator::postRecursion(const OctreeElementPointer& element) {
 
     EntityItemProperties defaultProperties;
 
@@ -60,6 +62,18 @@ bool RecurseOctreeToMapOperator::postRecursion(OctreeElementPointer element) {
         } else {
             qScriptValues = EntityItemPropertiesToScriptValue(_engine, properties);
         }
+
+        // handle parentJointName for wearables
+        if (_myAvatar && entityItem->getParentID() == AVATAR_SELF_ID &&
+            entityItem->getParentJointIndex() != INVALID_JOINT_INDEX) {
+
+            auto jointNames = _myAvatar->getJointNames();
+            auto parentJointIndex = entityItem->getParentJointIndex();
+        	if (parentJointIndex < jointNames.count()) {
+                qScriptValues.setProperty("parentJointName", jointNames.at(parentJointIndex));
+        	}
+        }
+
         entitiesQList << qScriptValues.toVariant();
     });
 

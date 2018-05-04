@@ -13,6 +13,7 @@
 #define hifi_PhysicsEngine_h
 
 #include <stdint.h>
+#include <set>
 #include <vector>
 
 #include <QUuid>
@@ -29,6 +30,7 @@
 const float HALF_SIMULATION_EXTENT = 512.0f; // meters
 
 class CharacterController;
+class PhysicsDebugDraw;
 
 // simple class for keeping track of contacts
 class ContactKey {
@@ -53,7 +55,7 @@ public:
     uint32_t getNumSubsteps();
 
     void removeObjects(const VectorOfMotionStates& objects);
-    void removeObjects(const SetOfMotionStates& objects); // only called during teardown
+    void removeSetOfObjects(const SetOfMotionStates& objects); // only called during teardown
 
     void addObjects(const VectorOfMotionStates& objects);
     VectorOfMotionStates changeObjects(const VectorOfMotionStates& objects);
@@ -61,7 +63,9 @@ public:
 
     void stepSimulation();
     void harvestPerformanceStats();
+    void printPerformanceStatsToFile(const QString& filename);
     void updateContactMap();
+    void doOwnershipInfectionForConstraints();
 
     bool hasOutgoingChanges() const { return _hasOutgoingChanges; }
 
@@ -74,6 +78,9 @@ public:
 
     /// \brief prints timings for last frame if stats have been requested.
     void dumpStatsIfNecessary();
+
+    /// \brief saves timings for last frame in filename
+    void saveNextPhysicsStats(QString filename);
 
     /// \param offset position of simulation origin in domain-frame
     void setOriginOffset(const glm::vec3& offset) { _originOffset = offset; }
@@ -90,10 +97,15 @@ public:
     void removeDynamic(const QUuid dynamicID);
     void forEachDynamic(std::function<void(EntityDynamicPointer)> actor);
 
+    void setShowBulletWireframe(bool value);
+    void setShowBulletAABBs(bool value);
+    void setShowBulletContactPoints(bool value);
+    void setShowBulletConstraints(bool value);
+    void setShowBulletConstraintLimits(bool value);
+
 private:
     QList<EntityDynamicPointer> removeDynamicsForBody(btRigidBody* body);
     void addObjectToDynamicsWorld(ObjectMotionState* motionState);
-    void recursivelyHarvestPerformanceStats(CProfileIterator* profileIterator, QString contextName);
 
     /// \brief bump any objects that touch this one, then remove contact info
     void bumpAndPruneContacts(ObjectMotionState* motionState);
@@ -109,12 +121,14 @@ private:
     btSequentialImpulseConstraintSolver* _constraintSolver = NULL;
     ThreadSafeDynamicsWorld* _dynamicsWorld = NULL;
     btGhostPairCallback* _ghostPairCallback = NULL;
+    std::unique_ptr<PhysicsDebugDraw> _physicsDebugDraw;
 
     ContactMap _contactMap;
     CollisionEvents _collisionEvents;
     QHash<QUuid, EntityDynamicPointer> _objectDynamics;
     QHash<btRigidBody*, QSet<QUuid>> _objectDynamicsByBody;
-    std::vector<btRigidBody*> _activeStaticBodies;
+    std::set<btRigidBody*> _activeStaticBodies;
+    QString _statsFilename;
 
     glm::vec3 _originOffset;
 
@@ -123,8 +137,9 @@ private:
     uint32_t _numContactFrames = 0;
     uint32_t _numSubsteps;
 
-    bool _dumpNextStats = false;
-    bool _hasOutgoingChanges = false;
+    bool _dumpNextStats { false };
+    bool _saveNextStats { false };
+    bool _hasOutgoingChanges { false };
 
 };
 

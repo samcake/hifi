@@ -31,6 +31,9 @@ AvatarActionHold::AvatarActionHold(const QUuid& id, EntityItemPointer ownerEntit
         myAvatar->addHoldAction(this);
     }
 
+    _positionalTargetSet = true;
+    _rotationalTargetSet = true;
+
 #if WANT_DEBUG
     qDebug() << "AvatarActionHold::AvatarActionHold" << (void*)this;
 #endif
@@ -134,9 +137,9 @@ bool AvatarActionHold::getTarget(float deltaTimeStep, glm::quat& rotation, glm::
             // fetch the hand controller pose
             controller::Pose pose;
             if (isRightHand) {
-                pose = myAvatar->getRightHandControllerPoseInWorldFrame();
+                pose = myAvatar->getControllerPoseInWorldFrame(controller::Action::RIGHT_HAND);
             } else {
-                pose = myAvatar->getLeftHandControllerPoseInWorldFrame();
+                pose = myAvatar->getControllerPoseInWorldFrame(controller::Action::LEFT_HAND);
             }
 
             if (pose.isValid()) {
@@ -165,7 +168,7 @@ bool AvatarActionHold::getTarget(float deltaTimeStep, glm::quat& rotation, glm::
 
                 Transform avatarTransform;
                 avatarTransform = myAvatar->getTransform();
-                palmPosition = avatarTransform.transform(camRelPos / myAvatar->getDomainLimitedScale());
+                palmPosition = avatarTransform.transform(camRelPos);
                 palmRotation = avatarTransform.getRotation() * camRelRot;
             } else {
                 glm::vec3 avatarRigidBodyPosition;
@@ -413,6 +416,26 @@ bool AvatarActionHold::updateArguments(QVariantMap arguments) {
     return true;
 }
 
+/**jsdoc
+ * The <code>"hold"</code> {@link Entities.ActionType|ActionType} positions and rotates an entity relative to an avatar's hand. 
+ * Collisions between the entity and the user's avatar are disabled during the hold.
+ * It has arguments in addition to the common {@link Entities.ActionArguments|ActionArguments}.
+ *
+ * @typedef {object} Entities.ActionArguments-Hold
+ * @property {Uuid} holderID=MyAvatar.sessionUUID - The ID of the avatar holding the entity.
+ * @property {Vec3} relativePosition=0,0,0 - The target position relative to the avatar's hand.
+ * @property {Vec3} relativeRotation=0,0,0,1 - The target rotation relative to the avatar's hand.
+ * @property {number} timeScale=3.4e+38 - Controls how long it takes for the entity's position and rotation to catch up with 
+ *     the target. The value is the time for the action to catch up to 1/e = 0.368 of the target value, where the action is 
+ *     applied using an exponential decay.
+ * @property {string} hand=right - The hand holding the entity: <code>"left"</code> or <code>"right"</code>.
+ * @property {boolean} kinematic=false - If <code>true</code>, the entity is made kinematic during the action; the entity won't 
+ *    lag behind the hand but constraint actions such as <code>"hinge"</code> won't act properly.
+ * @property {boolean} kinematicSetVelocity=false - If <code>true</code> and <code>kinematic</code> is <code>true</code>, the 
+ *    entity's <code>velocity</code> property will be set during the action, e.g., so that other scripts may use the value.
+ * @property {boolean} ignoreIK=false - If <code>true</code>, the entity follows the HMD controller rather than the avatar's 
+ *    hand.
+ */
 QVariantMap AvatarActionHold::getArguments() {
     QVariantMap arguments = ObjectDynamic::getArguments();
     withReadLock([&]{
@@ -529,7 +552,7 @@ void AvatarActionHold::lateAvatarUpdate(const AnimPose& prePhysicsRoomPose, cons
     rigidBody->setWorldTransform(worldTrans);
 
     bool positionSuccess;
-    ownerEntity->setPosition(bulletToGLM(worldTrans.getOrigin()) + ObjectMotionState::getWorldOffset(), positionSuccess, false);
+    ownerEntity->setWorldPosition(bulletToGLM(worldTrans.getOrigin()) + ObjectMotionState::getWorldOffset(), positionSuccess, false);
     bool orientationSuccess;
-    ownerEntity->setOrientation(bulletToGLM(worldTrans.getRotation()), orientationSuccess, false);
+    ownerEntity->setWorldOrientation(bulletToGLM(worldTrans.getRotation()), orientationSuccess, false);
 }

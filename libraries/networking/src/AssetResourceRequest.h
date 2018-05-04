@@ -34,13 +34,15 @@ private slots:
 private:
     static bool urlIsAssetHash(const QUrl& url);
 
-    void requestMappingForPath(const AssetPath& path);
-    void requestHash(const AssetHash& hash);
+    void requestMappingForPath(const AssetUtils::AssetPath& path);
+    void requestHash(const AssetUtils::AssetHash& hash);
 
     GetMappingRequest* _assetMappingRequest { nullptr };
     AssetRequest* _assetRequest { nullptr };
 
     p_high_resolution_clock::time_point _lastProgressDebug;
+
+    int64_t _lastRecordedBytesDownloaded { 0 };
 };
 
 #endif

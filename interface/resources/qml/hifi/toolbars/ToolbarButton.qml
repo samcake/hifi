@@ -1,8 +1,10 @@
 import QtQuick 2.5
-import QtQuick.Controls 1.4
 
 StateImage {
     id: button
+
+    property color defaultCaptionColor: "#ffffff"
+    property color captionColor: defaultCaptionColor
 
     property bool buttonEnabled: true
     property bool isActive: false
@@ -24,7 +26,8 @@ StateImage {
     property string activeHoverIcon: button.activeIcon
 
     property int sortOrder: 100
-    property int stableSortOrder: 0
+    property int stableOrder: 0
+    property var uuid;
 
     signal clicked()
 
@@ -33,7 +36,7 @@ StateImage {
     }
 
     function urlHelper(src) {
-        if (src.match(/\bhttp/)) {
+        if (src.match(/\bhttp/) || src.match(/\bfile:/)) {
             return src;
         } else {
             return "../../../" + src;
@@ -97,7 +100,7 @@ StateImage {
 
     Text {
         id: caption
-        color: button.isActive ? "#000000" : "#ffffff"
+        color: button.isActive ? "#000000" : captionColor
         text: button.isActive ? (button.isEntered ? button.activeHoverText : button.activeText) : (button.isEntered ? button.hoverText : button.text)
         font.bold: false
         font.pixelSize: 9

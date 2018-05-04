@@ -11,23 +11,27 @@
 #ifndef hifi_render_utils_BackgroundStage_h
 #define hifi_render_utils_BackgroundStage_h
 
-#include <model/Stage.h>
+#include <graphics/Stage.h>
 #include <set>
 #include <unordered_map>
 #include <render/IndexedContainer.h>
+#include <render/Stage.h>
 
 #include "LightingModel.h"
 
 
 // Background stage to set up background-related rendering tasks
-class BackgroundStage {
+class BackgroundStage : public render::Stage {
 public:
+    static std::string _stageName;
+    static const std::string& getName() { return _stageName; }
+
     using Index = render::indexed_container::Index;
-    static const Index INVALID_INDEX { render::indexed_container::INVALID_INDEX };
+    static const Index INVALID_INDEX;
     static bool isIndexInvalid(Index index) { return index == INVALID_INDEX; }
     
-    using BackgroundPointer = model::SunSkyStagePointer;
-    using Backgrounds = render::indexed_container::IndexedPointerVector<model::SunSkyStage>;
+    using BackgroundPointer = graphics::SunSkyStagePointer;
+    using Backgrounds = render::indexed_container::IndexedPointerVector<graphics::SunSkyStage>;
     using BackgroundMap = std::unordered_map<BackgroundPointer, Index>;
 
     using BackgroundIndices = std::vector<Index>;
@@ -66,6 +70,15 @@ public:
 };
 using BackgroundStagePointer = std::shared_ptr<BackgroundStage>;
 
+class BackgroundStageSetup {
+public:
+    using JobModel = render::Job::Model<BackgroundStageSetup>;
+
+    BackgroundStageSetup();
+    void run(const render::RenderContextPointer& renderContext);
+
+protected:
+};
 
 class DrawBackgroundStage {
 public:

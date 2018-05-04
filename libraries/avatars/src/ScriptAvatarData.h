@@ -44,12 +44,14 @@ class ScriptAvatarData : public QObject {
     //
     Q_PROPERTY(QUuid sessionUUID READ getSessionUUID)
     Q_PROPERTY(QString displayName READ getDisplayName NOTIFY displayNameChanged)
-    Q_PROPERTY(QString sessionDisplayName READ getSessionDisplayName)
+    Q_PROPERTY(QString sessionDisplayName READ getSessionDisplayName NOTIFY sessionDisplayNameChanged)
+    Q_PROPERTY(bool isReplicated READ getIsReplicated)
+    Q_PROPERTY(bool lookAtSnappingEnabled READ getLookAtSnappingEnabled NOTIFY lookAtSnappingChanged)
 
     //
     // ATTACHMENT AND JOINT PROPERTIES
     //
-    Q_PROPERTY(QString skeletonModelURL READ getSkeletonModelURLFromScript)
+    Q_PROPERTY(QString skeletonModelURL READ getSkeletonModelURLFromScript NOTIFY skeletonModelURLChanged)
     Q_PROPERTY(QVector<AttachmentData> attachmentData READ getAttachmentData)
     Q_PROPERTY(QStringList jointNames READ getJointNames)
 
@@ -95,6 +97,8 @@ public:
     QUuid getSessionUUID() const;
     QString getDisplayName() const;
     QString getSessionDisplayName() const;
+    bool getIsReplicated() const;
+    bool getLookAtSnappingEnabled() const;
 
     //
     // ATTACHMENT AND JOINT PROPERTIES
@@ -127,6 +131,9 @@ public:
     
 signals:
     void displayNameChanged();
+    void sessionDisplayNameChanged();
+    void skeletonModelURLChanged();
+    void lookAtSnappingChanged(bool enabled);
 
 public slots:
     glm::quat getAbsoluteJointRotationInObjectFrame(int index) const;

@@ -49,7 +49,7 @@ void Transform::evalRotationScale(Quat& rotation, Vec3& scale, const Mat3& rotat
     // extract scale of the matrix as the length of each axis
     Mat3 scaleMat = glm::inverse(rotationMat) * rotationScaleMatrix;
 
-    scale = glm::max(Vec3(ACCURACY_THREASHOLD), Vec3(scaleMat[0][0], scaleMat[1][1], scaleMat[2][2]));
+    scale = Vec3(scaleMat[0][0], scaleMat[1][1], scaleMat[2][2]);
 
     // Let's work on a local matrix containing rotation only
     Mat3 matRot(
@@ -149,4 +149,11 @@ QJsonObject Transform::toJson(const Transform& transform) {
         }
     }
     return result;
+}
+
+QDebug& operator<<(QDebug& debug, const Transform& transform) {
+    debug << "Transform, trans = (" << transform._translation.x << transform._translation.y << transform._translation.z << "), rot = ("
+          << transform._rotation.x << transform._rotation.y << transform._rotation.z << transform._rotation.w << "), scale = ("
+          << transform._scale.x << transform._scale.y << transform._scale.z << ")";
+    return debug;
 }

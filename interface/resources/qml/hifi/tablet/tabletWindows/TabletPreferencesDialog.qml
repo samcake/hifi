@@ -9,10 +9,6 @@
 //
 
 import QtQuick 2.5
-import QtQuick.Controls 1.4
-import QtQuick.Controls.Styles 1.4
-import QtGraphicalEffects 1.0
-
 
 import "."
 import "./preferences"
@@ -136,7 +132,7 @@ Item {
                 for (var i = 0; i < sections.length; i++) {
                     totalHeight += sections[i].height + sections[i].getPreferencesHeight();
                 }
-                var bottomPadding = 100;
+                var bottomPadding = 170;
                 return (totalHeight + bottomPadding);
             }
         }

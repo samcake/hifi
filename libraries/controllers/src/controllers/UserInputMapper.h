@@ -80,6 +80,7 @@ namespace controller {
 
         QVector<Action> getAllActions() const;
         QString getActionName(Action action) const;
+        QString getStandardPoseName(uint16_t pose);
         float getActionState(Action action) const { return _actionStates[toInt(action)]; }
         Pose getPoseState(Action action) const;
         int findAction(const QString& actionName) const;
@@ -128,6 +129,8 @@ namespace controller {
         template <typename F>
         void withLock(F&& f) { Locker locker(_lock); f(); }
 
+        EndpointPointer endpointFor(const Input& endpoint) const;
+
     signals:
         void actionEvent(int action, float state);
         void inputEvent(int input, float state);
@@ -160,7 +163,6 @@ namespace controller {
         void disableMapping(const MappingPointer& mapping);
         EndpointPointer endpointFor(const QJSValue& endpoint);
         EndpointPointer endpointFor(const QScriptValue& endpoint);
-        EndpointPointer endpointFor(const Input& endpoint) const;
         EndpointPointer compositeEndpointFor(EndpointPointer first, EndpointPointer second);
         ConditionalPointer conditionalFor(const QJSValue& endpoint);
         ConditionalPointer conditionalFor(const QScriptValue& endpoint);

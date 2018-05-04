@@ -1,6 +1,5 @@
 import Hifi 1.0 as Hifi
 import QtQuick 2.3
-import QtQuick.Controls 1.2
 import '.'
 
 Item {
@@ -8,6 +7,9 @@ Item {
 
     anchors.leftMargin: 300
     objectName: "StatsItem"
+    property int modality: Qt.NonModal
+    implicitHeight: row.height
+    implicitWidth: row.width
 
     Component.onCompleted: {
         stats.parentChanged.connect(fill);
@@ -18,8 +20,9 @@ Item {
     }
 
     function fill() {
-        // Explicitly fill in order to avoid warnings at shutdown
-        anchors.fill = parent;
+        // This will cause a  warning at shutdown, need to find another way to remove
+        // the warning other than filling the anchors to the parent
+        anchors.horizontalCenter = parent.horizontalCenter
     }
 
     Hifi.Stats {
@@ -55,7 +58,11 @@ Item {
                         text: "Avatars: " + root.avatarCount
                     }
                     StatText {
-                        text: "Frame Rate: " + root.framerate.toFixed(2);
+                        text: "Game Rate: " + root.gameLoopRate
+                    }
+                    StatText {
+                        visible: root.expanded
+                        text: root.gameUpdateStats
                     }
                     StatText {
                         text: "Render Rate: " + root.renderrate.toFixed(2);
@@ -64,20 +71,16 @@ Item {
                         text: "Present Rate: " + root.presentrate.toFixed(2);
                     }
                     StatText {
-                        text: "Present New Rate: " + root.presentnewrate.toFixed(2);
+                        visible: root.expanded
+                        text: "    Present New Rate: " + root.presentnewrate.toFixed(2);
                     }
                     StatText {
-                        text: "Present Drop Rate: " + root.presentdroprate.toFixed(2);
+                        visible: root.expanded
+                        text: "    Present Drop Rate: " + root.presentdroprate.toFixed(2);
                     }
                     StatText {
                         text: "Stutter Rate: " + root.stutterrate.toFixed(3);
                         visible: root.stutterrate != -1;
-                    }
-                    StatText {
-                        text: "Simrate: " + root.simrate
-                    }
-                    StatText {
-                        text: "Avatar Simrate: " + root.avatarSimrate
                     }
                     StatText {
                         text: "Missed Frame Count: " + root.appdropped;
@@ -208,6 +211,10 @@ Item {
                     }
                     StatText {
                         visible: root.expanded;
+                        text: "Entity Servers In: " + root.entityPacketsInKbps + " kbps";
+                    }
+                    StatText {
+                        visible: root.expanded;
                         text: "Downloads: " + root.downloads + "/" + root.downloadLimit +
                               ", Pending: " + root.downloadsPending;
                     }
@@ -256,9 +263,6 @@ Item {
                     }
                     StatText {
                         text: "GPU: " + root.gpuFrameTime.toFixed(1) + " ms"
-                    }
-                    StatText {
-                        text: "Avatar: " + root.avatarSimulationTime.toFixed(1) + " ms"
                     }
                     StatText {
                         text: "Triangles: " + root.triangles +

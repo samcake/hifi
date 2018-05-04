@@ -1,8 +1,13 @@
 import QtQuick 2.0
 import QtGraphicalEffects 1.0
+import TabletScriptingInterface 1.0
 
 Item {
     id: tabletButton
+
+    property color defaultCaptionColor: "#ffffff"
+    property color captionColor: defaultCaptionColor
+
     property var uuid;
     property string icon: "icons/tablet-icons/edit-i.svg"
     property string hoverIcon: tabletButton.icon
@@ -18,10 +23,25 @@ Item {
     property double sortOrder: 100
     property int stableOrder: 0
     property var tabletRoot;
+    property var flickable: null
+    property var gridView: null
+
+    property int buttonIndex: -1
+
     width: 129
     height: 129
 
     signal clicked()
+
+    Connections {
+        target: flickable
+        onMovingChanged: {
+            //when flick/move started, and hover is on, clean hove state
+            if (flickable.moving && tabletButton.state.indexOf("hover") !== -1) {
+                tabletButton.state = (tabletButton.isActive) ? "active state" : "base state";
+            }
+        }
+    }
 
     function changeProperty(key, value) {
         tabletButton[key] = value;
@@ -82,7 +102,7 @@ Item {
     }
 
     function urlHelper(src) {
-        if (src.match(/\bhttp/)) {
+        if (src.match(/\bhttp/) || src.match(/\bfile:/)) {
             return src;
         } else {
             return "../../../" + src;
@@ -102,7 +122,7 @@ Item {
 
     Text {
         id: text
-        color: "#ffffff"
+        color: captionColor
         text: tabletButton.text
         font.bold: true
         font.pixelSize: 18
@@ -116,8 +136,10 @@ Item {
         anchors.fill: parent
         hoverEnabled: true
         enabled: true
+        preventStealing: false
         onClicked: {
-            console.log("Tablet Button Clicked!");
+            gridView.currentIndex = buttonIndex
+
             if (tabletButton.inDebugMode) {
                 if (tabletButton.isActive) {
                     tabletButton.isActive = false;
@@ -125,13 +147,18 @@ Item {
                     tabletButton.isActive = true;
                 }
             }
+
             tabletButton.clicked();
             if (tabletRoot) {
-                tabletRoot.playButtonClickSound();
+                Tablet.playSound(TabletEnums.ButtonClick);
             }
         }
+
         onEntered: {
+            gridView.currentIndex = buttonIndex
             tabletButton.isEntered = true;
+            Tablet.playSound(TabletEnums.ButtonHover);
+
             if (tabletButton.isActive) {
                 tabletButton.state = "hover active state";
             } else {
@@ -165,7 +192,7 @@ Item {
 
             PropertyChanges {
                 target: text
-                color: "#ffffff"
+                color: captionColor
                 text: tabletButton.hoverText
             }
 
@@ -191,7 +218,7 @@ Item {
 
             PropertyChanges {
                 target: text
-                color: "#333333"
+                color: captionColor !== defaultCaptionColor ? captionColor : "#333333"
                 text: tabletButton.activeText
             }
 
@@ -222,7 +249,7 @@ Item {
 
             PropertyChanges {
                 target: text
-                color: "#333333"
+                color: captionColor !== defaultCaptionColor ? captionColor : "#333333"
                 text: tabletButton.activeHoverText
             }
 

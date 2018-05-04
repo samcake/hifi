@@ -9,7 +9,7 @@
 //
 
 import QtQuick 2.5
-import QtQuick.Controls 1.4
+import QtQuick.Controls 2.2
 import "tabletWindows"
 import "../../dialogs"
 
@@ -19,7 +19,6 @@ StackView {
     objectName: "stack"
     property string title: "Avatar Settings"
 
-    property var eventBridge;
     signal sendToScript(var message);
 
     function pushSource(path) {

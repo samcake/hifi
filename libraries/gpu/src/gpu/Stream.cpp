@@ -19,7 +19,7 @@ using namespace gpu;
 
 using ElementArray = std::array<Element, Stream::NUM_INPUT_SLOTS>;
 
-const ElementArray& getDefaultElements() {
+const ElementArray& Stream::getDefaultElements() {
     static ElementArray defaultElements{{
         //POSITION = 0,
         Element::VEC3F_XYZ,
@@ -36,8 +36,14 @@ const ElementArray& getDefaultElements() {
         //SKIN_CLUSTER_WEIGHT = 6,
         Element::VEC4F_XYZW,
         //TEXCOORD1 = 7,
-        Element::VEC2F_UV
-    }};
+        Element::VEC2F_UV,
+        //TEXCOORD2 = 7,
+        Element::VEC4F_XYZW,
+        //TEXCOORD3 = 7,
+        Element::VEC4F_XYZW,
+        //TEXCOORD4 = 7,
+        Element::VEC4F_XYZW
+        }};
     return defaultElements;
 }
 
@@ -84,6 +90,15 @@ bool Stream::Format::setAttribute(Slot slot, Slot channel, Frequency frequency) 
     _attributes[slot] = Attribute((InputSlot)slot, channel, getDefaultElements()[slot], 0, frequency);
     evaluateCache();
     return true;
+}
+
+Stream::Attribute Stream::Format::getAttribute(Slot slot) const {
+    auto attribIt = _attributes.find(slot);
+    if (attribIt != _attributes.end()) {
+        return attribIt->second;
+    } else {
+        return Attribute();
+    }
 }
 
 void BufferStream::addBuffer(const BufferPointer& buffer, Offset offset, Offset stride) {

@@ -20,6 +20,7 @@
 #include <mutex>
 #include <thread>
 #include <set>
+#include <unordered_map>
 
 #include <glm/glm.hpp>
 
@@ -44,23 +45,89 @@ extern "C" FILE * __cdecl __iob_func(void) {
 #include <CoreFoundation/CoreFoundation.h>
 #endif
 
+
+#if defined(Q_OS_LINUX) || defined(Q_OS_MAC)
+#include <signal.h>
+#include <cerrno>
+#endif
+
 #include <QtCore/QDebug>
 #include <QDateTime>
 #include <QElapsedTimer>
+#include <QTimer>
 #include <QProcess>
 #include <QSysInfo>
 #include <QThread>
 
+#include <BuildInfo.h>
+
+#include "LogHandler.h"
 #include "NumericalConstants.h"
 #include "OctalCode.h"
 #include "SharedLogging.h"
+
+//     Global instances are stored inside the QApplication properties
+// to provide a single instance across DLL boundaries.
+// This is something we cannot do here since several DLLs
+// and our main binaries statically link this "shared" library
+// resulting in multiple static memory blocks in different constexts
+//     But we need to be able to use global instances before the QApplication
+// is setup, so to accomplish that we stage the global instances in a local
+// map and setup a pre routine (commitGlobalInstances) that will run in the
+// QApplication constructor and commit all the staged instances to the
+// QApplication properties.
+//     Note: One of the side effects of this, is that no DLL loaded before
+// the QApplication is constructed, can expect to access the existing staged
+// global instanced. For this reason, we advise all DLLs be loaded after
+// the QApplication is instanced.
+static std::mutex stagedGlobalInstancesMutex;
+static std::unordered_map<std::string, QVariant> stagedGlobalInstances;
+
+std::mutex& globalInstancesMutex() {
+    return stagedGlobalInstancesMutex;
+}
+
+static void commitGlobalInstances() {
+    std::unique_lock<std::mutex> lock(globalInstancesMutex());
+    for (const auto& it : stagedGlobalInstances) {
+        qApp->setProperty(it.first.c_str(), it.second);
+    }
+    stagedGlobalInstances.clear();
+}
+
+// This call is necessary for global instances to work across DLL boundaries
+// Ideally, this founction would be called at the top of the main function.
+// See description at the top of the file.
+void setupGlobalInstances() {
+    qAddPreRoutine(commitGlobalInstances);
+}
+
+QVariant getGlobalInstance(const char* propertyName) {
+    if (qApp) {
+        return qApp->property(propertyName);
+    } else {
+        auto it = stagedGlobalInstances.find(propertyName);
+        if (it != stagedGlobalInstances.end()) {
+            return it->second;
+        }
+    }
+    return QVariant();
+}
+
+void setGlobalInstance(const char* propertyName, const QVariant& variant) {
+    if (qApp) {
+        qApp->setProperty(propertyName, variant);
+    } else {
+        stagedGlobalInstances[propertyName] = variant;
+    }
+}
 
 static qint64 usecTimestampNowAdjust = 0; // in usec
 void usecTimestampNowForceClockSkew(qint64 clockSkew) {
     ::usecTimestampNowAdjust = clockSkew;
 }
 
-static qint64 TIME_REFERENCE = 0; // in usec
+static std::atomic<qint64> TIME_REFERENCE { 0 }; // in usec
 static std::once_flag usecTimestampNowIsInitialized;
 static QElapsedTimer timestampTimer;
 
@@ -726,6 +793,10 @@ QString formatUsecTime(double usecs) {
     return formatUsecTime<double>(usecs);
 }
 
+QString formatSecTime(qint64 secs) {
+    return formatUsecTime(secs * 1000000);
+}
+
 
 QString formatSecondsElapsed(float seconds) {
     QString result;
@@ -768,8 +839,8 @@ bool similarStrings(const QString& stringA, const QString& stringB) {
 }
 
 void disableQtBearerPoll() {
-    // to disable the Qt constant wireless scanning, set the env for polling interval
-    qDebug() << "Disabling Qt wireless polling by using a negative value for QTimer::setInterval";
+    // To disable the Qt constant wireless scanning, set the env for polling interval to -1
+    // The constant polling causes ping spikes on windows every 10 seconds or so that affect the audio
     const QByteArray DISABLE_BEARER_POLL_TIMEOUT = QString::number(-1).toLocal8Bit();
     qputenv("QT_BEARER_POLL_TIMEOUT", DISABLE_BEARER_POLL_TIMEOUT);
 }
@@ -1076,3 +1147,137 @@ void setMaxCores(uint8_t maxCores) {
     SetProcessAffinityMask(process, newProcessAffinity);
 #endif
 }
+
+bool processIsRunning(int64_t pid) {
+#ifdef Q_OS_WIN
+    HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    if (process) {
+        DWORD exitCode;
+        if (GetExitCodeProcess(process, &exitCode) != 0) {
+            return exitCode == STILL_ACTIVE;
+        }
+    }
+    return false;
+#else
+    if (kill(pid, 0) == -1) {
+        return errno != ESRCH;
+    }
+    return true;
+#endif
+}
+
+void quitWithParentProcess() {
+    if (qApp) {
+        qDebug() << "Parent process died, quitting";
+        exit(0);
+    }
+}
+
+#ifdef Q_OS_WIN
+VOID CALLBACK parentDiedCallback(PVOID lpParameter, BOOLEAN timerOrWaitFired) {
+    if (!timerOrWaitFired) {
+        quitWithParentProcess();
+    }
+}
+
+void watchParentProcess(int parentPID) {
+    DWORD processID = parentPID;
+    HANDLE procHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, processID);
+
+    HANDLE newHandle;
+    RegisterWaitForSingleObject(&newHandle, procHandle, parentDiedCallback, NULL, INFINITE, WT_EXECUTEONLYONCE);
+}
+#elif defined(Q_OS_MAC) || defined(Q_OS_LINUX)
+void watchParentProcess(int parentPID) {
+    auto timer = new QTimer(qApp);
+    timer->setInterval(MSECS_PER_SECOND);
+    QObject::connect(timer, &QTimer::timeout, qApp, [parentPID]() {
+        auto ppid = getppid();
+        if (parentPID != ppid) {
+            // If the PPID changed, then that means our parent process died.
+            quitWithParentProcess();
+        }
+    });
+    timer->start();
+}
+#endif
+
+void setupHifiApplication(QString applicationName) {
+    disableQtBearerPoll(); // Fixes wifi ping spikes
+
+    // Those calls are necessary to format the log correctly
+    // and to direct the application to the correct location
+    // for read/writes into AppData and other platform equivalents.
+    QCoreApplication::setApplicationName(applicationName);
+    QCoreApplication::setOrganizationName(BuildInfo::MODIFIED_ORGANIZATION);
+    QCoreApplication::setOrganizationDomain(BuildInfo::ORGANIZATION_DOMAIN);
+    QCoreApplication::setApplicationVersion(BuildInfo::VERSION);
+
+    // This ensures the global instances mechanism is correctly setup.
+    // You can find more details as to why this is important in the SharedUtil.h/cpp files
+    setupGlobalInstances();
+
+#ifndef WIN32
+    // Windows tends to hold onto log lines until it has a sizeable buffer
+    // This makes the log feel unresponsive and trap useful log data in the log buffer
+    // when a crash occurs.
+    //Force windows to flush the buffer on each new line character to avoid this.
+    setvbuf(stdout, NULL, _IOLBF, 0);
+#endif
+
+    // Install the standard hifi message handler so we get consistant log formatting
+    qInstallMessageHandler(LogHandler::verboseMessageHandler);
+}
+
+#ifdef Q_OS_WIN
+QString getLastErrorAsString() {
+    DWORD errorMessageID = ::GetLastError();
+    if (errorMessageID == 0) {
+        return QString();
+    }
+
+    LPSTR messageBuffer = nullptr;
+    size_t size = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+        nullptr, errorMessageID, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&messageBuffer, 0, nullptr);
+
+    auto message = QString::fromLocal8Bit(messageBuffer, (int)size);
+
+    //Free the buffer.
+    LocalFree(messageBuffer);
+
+    return message;
+}
+
+// All processes in the group will shut down with the process creating the group
+void* createProcessGroup() {
+    HANDLE jobObject = CreateJobObject(nullptr, nullptr);
+    if (jobObject == nullptr) {
+        qWarning() << "Could NOT create job object:" << getLastErrorAsString();
+        return nullptr;
+    }
+
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION JELI;
+    if (!QueryInformationJobObject(jobObject, JobObjectExtendedLimitInformation, &JELI, sizeof(JELI), nullptr)) {
+        qWarning() << "Could NOT query job object information" << getLastErrorAsString();
+        return nullptr;
+    }
+    JELI.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    if (!SetInformationJobObject(jobObject, JobObjectExtendedLimitInformation, &JELI, sizeof(JELI))) {
+        qWarning() << "Could NOT set job object information" << getLastErrorAsString();
+        return nullptr;
+    }
+
+    return jobObject;
+}
+
+void addProcessToGroup(void* processGroup, qint64 processId) {
+    HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, processId);
+    if (hProcess == nullptr) {
+        qCritical() << "Could NOT open process" << getLastErrorAsString();
+    }
+    if (!AssignProcessToJobObject(processGroup, hProcess)) {
+        qCritical() << "Could NOT assign process to job object" << getLastErrorAsString();
+    }
+}
+
+#endif

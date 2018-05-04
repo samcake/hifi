@@ -12,63 +12,38 @@
 #ifndef hifi_OctreeQuery_h
 #define hifi_OctreeQuery_h
 
-/* VS2010 defines stdint.h, but not inttypes.h */
-#if defined(_MSC_VER)
-typedef signed char  int8_t;
-typedef signed short int16_t;
-typedef signed int   int32_t;
-typedef unsigned char  uint8_t;
-typedef unsigned short uint16_t;
-typedef unsigned int   uint32_t;
-typedef signed long long   int64_t;
-typedef unsigned long long quint64;
-#define PRId64 "I64d"
-#else
-#include <inttypes.h>
-#endif
-
-
-#include <glm/glm.hpp>
-#include <glm/gtc/quaternion.hpp>
-
 #include <QtCore/QJsonObject>
 #include <QtCore/QReadWriteLock>
 
 #include <NodeData.h>
 
+#include <ViewFrustum.h>
+
+#include "OctreeConstants.h"
 
 class OctreeQuery : public NodeData {
     Q_OBJECT
 
 public:
-    OctreeQuery();
+    OctreeQuery(bool randomizeConnectionID = false);
     virtual ~OctreeQuery() {}
+
+    OctreeQuery(const OctreeQuery&) = delete;
+    OctreeQuery& operator=(const OctreeQuery&) = delete;
 
     int getBroadcastData(unsigned char* destinationBuffer);
     int parseData(ReceivedMessage& message) override;
 
-    // getters for camera details
-    const glm::vec3& getCameraPosition() const { return _cameraPosition; }
-    const glm::quat& getCameraOrientation() const { return _cameraOrientation; }
-    float getCameraFov() const { return _cameraFov; }
-    float getCameraAspectRatio() const { return _cameraAspectRatio; }
-    float getCameraNearClip() const { return _cameraNearClip; }
-    float getCameraFarClip() const { return _cameraFarClip; }
-    const glm::vec3& getCameraEyeOffsetPosition() const { return _cameraEyeOffsetPosition; }
-    float getCameraCenterRadius() const { return _cameraCenterRadius; }
+    bool hasMainViewFrustum() const { return _hasMainFrustum; }
+    void setMainViewFrustum(const ViewFrustum& viewFrustum) { _hasMainFrustum = true; _mainViewFrustum = viewFrustum; }
+    void clearMainViewFrustum() { _hasMainFrustum = false; }
+    const ViewFrustum& getMainViewFrustum() const { return _mainViewFrustum; }
 
-    glm::vec3 calculateCameraDirection() const;
+    bool hasSecondaryViewFrustum() const { return _hasSecondaryFrustum; }
+    void setSecondaryViewFrustum(const ViewFrustum& viewFrustum) { _hasSecondaryFrustum = true; _secondaryViewFrustum = viewFrustum; }
+    void clearSecondaryViewFrustum() { _hasSecondaryFrustum = false; }
+    const ViewFrustum& getSecondaryViewFrustum() const { return _secondaryViewFrustum; }
 
-    // setters for camera details
-    void setCameraPosition(const glm::vec3& position) { _cameraPosition = position; }
-    void setCameraOrientation(const glm::quat& orientation) { _cameraOrientation = orientation; }
-    void setCameraFov(float fov) { _cameraFov = fov; }
-    void setCameraAspectRatio(float aspectRatio) { _cameraAspectRatio = aspectRatio; }
-    void setCameraNearClip(float nearClip) { _cameraNearClip = nearClip; }
-    void setCameraFarClip(float farClip) { _cameraFarClip = farClip; }
-    void setCameraEyeOffsetPosition(const glm::vec3& eyeOffsetPosition) { _cameraEyeOffsetPosition = eyeOffsetPosition; }
-    void setCameraCenterRadius(float radius) { _cameraCenterRadius = radius; }
-    
     // getters/setters for JSON filter
     QJsonObject getJSONParameters() { QReadLocker locker { &_jsonParametersLock }; return _jsonParameters; }
     void setJSONParameters(const QJsonObject& jsonParameters)
@@ -78,9 +53,13 @@ public:
     int getMaxQueryPacketsPerSecond() const { return _maxQueryPPS; }
     float getOctreeSizeScale() const { return _octreeElementSizeScale; }
     int getBoundaryLevelAdjust() const { return _boundaryLevelAdjust; }
-    
-    bool getUsesFrustum() { return _usesFrustum; }
-    void setUsesFrustum(bool usesFrustum) { _usesFrustum = usesFrustum; }
+
+    void incrementConnectionID() { ++_connectionID; }
+
+    bool hasReceivedFirstQuery() const  { return _hasReceivedFirstQuery; }
+
+signals:
+    void incomingConnectionIDChanged();
 
 public slots:
     void setMaxQueryPacketsPerSecond(int maxQueryPPS) { _maxQueryPPS = maxQueryPPS; }
@@ -88,30 +67,22 @@ public slots:
     void setBoundaryLevelAdjust(int boundaryLevelAdjust) { _boundaryLevelAdjust = boundaryLevelAdjust; }
 
 protected:
-    // camera details for the avatar
-    glm::vec3 _cameraPosition = glm::vec3(0.0f);
-    glm::quat _cameraOrientation = glm::quat();
-    float _cameraFov = 0.0f;
-    float _cameraAspectRatio = 1.0f;
-    float _cameraNearClip = 0.0f;
-    float _cameraFarClip = 0.0f;
-    float _cameraCenterRadius { 0.0f };
-    glm::vec3 _cameraEyeOffsetPosition = glm::vec3(0.0f);
+    bool _hasMainFrustum { false };
+    ViewFrustum _mainViewFrustum;
+    bool _hasSecondaryFrustum { false };
+    ViewFrustum _secondaryViewFrustum;
 
     // octree server sending items
     int _maxQueryPPS = DEFAULT_MAX_OCTREE_PPS;
     float _octreeElementSizeScale = DEFAULT_OCTREE_SIZE_SCALE; /// used for LOD calculations
     int _boundaryLevelAdjust = 0; /// used for LOD calculations
-    
-    uint8_t _usesFrustum = true;
+
+    uint16_t _connectionID; // query connection ID, randomized to start, increments with each new connection to server
     
     QJsonObject _jsonParameters;
     QReadWriteLock _jsonParametersLock;
-    
-private:
-    // privatize the copy constructor and assignment operator so they cannot be called
-    OctreeQuery(const OctreeQuery&);
-    OctreeQuery& operator= (const OctreeQuery&);
+
+    bool _hasReceivedFirstQuery { false };
 };
 
 #endif // hifi_OctreeQuery_h

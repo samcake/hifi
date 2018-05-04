@@ -16,13 +16,14 @@ import "."
 Item {
     id: root
     anchors.fill: parent
+    width: parent.width
+    height: parent.height
     objectName: "tabletMenuHandlerItem"
 
     StackView {
         anchors.fill: parent
         id: d
         objectName: "stack"
-        initialItem: topMenu
 
         property var menuStack: []
         property var topMenu: null;
@@ -48,12 +49,15 @@ Item {
         }
 
         function pushSource(path) {
-            d.push(Qt.resolvedUrl(path));
-            d.currentItem.eventBridge = tabletMenu.eventBridge
-            d.currentItem.sendToScript.connect(tabletMenu.sendToScript);
+            d.push(Qt.resolvedUrl("../../" + path));
+            if (d.currentItem.sendToScript !== undefined) {
+                d.currentItem.sendToScript.connect(tabletMenu.sendToScript);
+            }
             d.currentItem.focus = true;
             d.currentItem.forceActiveFocus();
-            breadcrumbText.text = d.currentItem.title;
+            if (d.currentItem.title !== undefined) {
+                breadcrumbText.text = d.currentItem.title;
+            }
             if (typeof bgNavBar !== "undefined") {
                 d.currentItem.y = bgNavBar.height;
                 d.currentItem.height -= bgNavBar.height;
@@ -65,11 +69,11 @@ Item {
             d.pop();
         }
 
-        function toModel(items) {
+        function toModel(items, newMenu) {
             var result = modelMaker.createObject(tabletMenu);
+
             for (var i = 0; i < items.length; ++i) {
                 var item = items[i];
-                if (!item.visible) continue;
                 switch (item.type) {
                 case MenuItemType.Menu:
                     result.append({"name": item.title, "item": item})
@@ -115,6 +119,7 @@ Item {
         }
 
         function clearMenus() {
+            topMenu = null
             d.clear()
         }
 
@@ -133,10 +138,21 @@ Item {
             }
         }
 
+        property Component exclusiveGroupMaker: Component {
+            ExclusiveGroup {
+            }
+        }
+
         function buildMenu(items) {
-            var model = toModel(items);
             // Menus must be childed to desktop for Z-ordering
-            var newMenu = menuViewMaker.createObject(tabletMenu, { model: model, isSubMenu: topMenu !== null });
+            var newMenu = menuViewMaker.createObject(tabletMenu);
+            console.debug('newMenu created: ', newMenu)
+
+            var model = toModel(items, newMenu);
+
+            newMenu.model = model;
+            newMenu.isSubMenu = topMenu !== null;
+
             pushMenu(newMenu);
             return newMenu;
         }
@@ -181,5 +197,4 @@ Item {
     function nextItem() { d.topMenu.nextItem(); }
     function selectCurrentItem() { d.topMenu.selectCurrentItem(); }
     function previousPage() { d.topMenu.previousPage(); }
-
 }

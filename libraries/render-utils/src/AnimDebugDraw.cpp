@@ -7,18 +7,22 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 
+#include "AnimDebugDraw.h"
+
 #include <qmath.h>
+#include <gpu/Batch.h>
+#include <GLMHelpers.h>
+
+#include "AbstractViewStateInterface.h"
+#include "RenderUtilsLogging.h"
+#include "DebugDraw.h"
+#include "StencilMaskPass.h"
 
 #include "animdebugdraw_vert.h"
 #include "animdebugdraw_frag.h"
-#include <gpu/Batch.h>
-#include "AbstractViewStateInterface.h"
-#include "RenderUtilsLogging.h"
-#include "GLMHelpers.h"
-#include "DebugDraw.h"
 
-#include "AnimDebugDraw.h"
-
+#include "animdebugdraw_vert.h"
+#include "animdebugdraw_frag.h"
 class AnimDebugDrawData {
 public:
 
@@ -48,9 +52,9 @@ public:
 
         batch.setInputFormat(_vertexFormat);
         batch.setInputBuffer(0, _vertexBuffer, 0, sizeof(Vertex));
-        batch.setIndexBuffer(gpu::UINT16, _indexBuffer, 0);
+        batch.setIndexBuffer(gpu::UINT32, _indexBuffer, 0);
 
-        auto numIndices = _indexBuffer->getSize() / sizeof(uint16_t);
+        auto numIndices = _indexBuffer->getSize() / sizeof(uint32_t);
         batch.drawIndexed(gpu::LINES, (int)numIndices);
     }
 
@@ -67,7 +71,7 @@ public:
 typedef render::Payload<AnimDebugDrawData> AnimDebugDrawPayload;
 
 namespace render {
-    template <> const ItemKey payloadGetKey(const AnimDebugDrawData::Pointer& data) { return (data->_isVisible ? ItemKey::Builder::opaqueShape() : ItemKey::Builder::opaqueShape().withInvisible()); }
+    template <> const ItemKey payloadGetKey(const AnimDebugDrawData::Pointer& data) { return (data->_isVisible ? ItemKey::Builder::transparentShape() : ItemKey::Builder::transparentShape().withInvisible()).withTagBits(ItemKey::TAG_BITS_ALL); }
     template <> const Item::Bound payloadGetBound(const AnimDebugDrawData::Pointer& data) { return data->_bound; }
     template <> void payloadRender(const AnimDebugDrawData::Pointer& data, RenderArgs* args) {
         data->render(args);
@@ -101,8 +105,9 @@ AnimDebugDraw::AnimDebugDraw() :
     state->setBlendFunction(false, gpu::State::SRC_ALPHA, gpu::State::BLEND_OP_ADD,
                             gpu::State::INV_SRC_ALPHA, gpu::State::FACTOR_ALPHA,
                             gpu::State::BLEND_OP_ADD, gpu::State::ONE);
-    auto vertShader = gpu::Shader::createVertex(std::string(animdebugdraw_vert));
-    auto fragShader = gpu::Shader::createPixel(std::string(animdebugdraw_frag));
+    PrepareStencil::testMaskDrawShape(*state.get());
+    auto vertShader = animdebugdraw_vert::getShader();
+    auto fragShader = animdebugdraw_frag::getShader();
     auto program = gpu::Shader::createProgram(vertShader, fragShader);
     _pipeline = gpu::Pipeline::create(program, state);
 
@@ -130,9 +135,9 @@ AnimDebugDraw::AnimDebugDraw() :
         AnimDebugDrawData::Vertex { glm::vec3(1.0, 1.0f, 1.0f), toRGBA(0, 0, 255, 255) },
         AnimDebugDrawData::Vertex { glm::vec3(1.0, 1.0f, 2.0f), toRGBA(0, 0, 255, 255) },
     });
-    static std::vector<uint16_t> indices({ 0, 1, 2, 3, 4, 5 });
+    static std::vector<uint32_t> indices({ 0, 1, 2, 3, 4, 5 });
     _animDebugDrawData->_vertexBuffer->setSubData<AnimDebugDrawData::Vertex>(0, vertices);
-    _animDebugDrawData->_indexBuffer->setSubData<uint16_t>(0, indices);
+    _animDebugDrawData->_indexBuffer->setSubData<uint32_t>(0, indices);
 }
 
 AnimDebugDraw::~AnimDebugDraw() {
@@ -144,6 +149,7 @@ void AnimDebugDraw::shutdown() {
     if (scene && _itemID) {
         render::Transaction transaction;
         transaction.removeItem(_itemID);
+        render::Item::clearID(_itemID);
         scene->enqueueTransaction(transaction);
     }
 }
@@ -260,7 +266,7 @@ static void addLink(const AnimPose& rootPose, const AnimPose& pose, const AnimPo
         // there is room, so lets draw a nice bone
 
         glm::vec3 uAxis, vAxis, wAxis;
-        generateBasisVectors(boneAxis0, glm::vec3(1, 0, 0), uAxis, vAxis, wAxis);
+        generateBasisVectors(boneAxis0, glm::vec3(1.0f, 0.0f, 0.0f), uAxis, vAxis, wAxis);
 
         glm::vec3 boneBaseCorners[NUM_BASE_CORNERS];
         boneBaseCorners[0] = pose0 * ((uAxis * radius) + (vAxis * radius) + (wAxis * radius));
@@ -316,7 +322,9 @@ void AnimDebugDraw::update() {
     if (!scene) {
         return;
     }
-
+    if (!render::Item::isValidID(_itemID)) {
+        return;
+    }
     render::Transaction transaction;
     transaction.updateItem<AnimDebugDrawData>(_itemID, [&](AnimDebugDrawData& data) {
 
@@ -417,9 +425,9 @@ void AnimDebugDraw::update() {
 
         data._isVisible = (numVerts > 0);
 
-        data._indexBuffer->resize(sizeof(uint16_t) * numVerts);
+        data._indexBuffer->resize(sizeof(uint32_t) * numVerts);
         for (int i = 0; i < numVerts; i++) {
-            data._indexBuffer->setSubData<uint16_t>(i, (uint16_t)i);;
+            data._indexBuffer->setSubData<uint32_t>(i, (uint32_t)i);;
         }
     });
     scene->enqueueTransaction(transaction);

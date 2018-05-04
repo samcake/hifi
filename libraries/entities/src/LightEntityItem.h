@@ -29,18 +29,13 @@ public:
     ALLOW_INSTANTIATION // This class can be instantiated
 
     /// set dimensions in domain scale units (0.0 - 1.0) this will also reset radius appropriately
-    virtual void setDimensions(const glm::vec3& value) override;
+    virtual void setUnscaledDimensions(const glm::vec3& value) override;
 
     virtual bool setProperties(const EntityItemProperties& properties) override;
     virtual bool setSubClassProperties(const EntityItemProperties& properties) override;
 
     // methods for getting/setting all properties of an entity
     virtual EntityItemProperties getProperties(EntityPropertyFlags desiredProperties = EntityPropertyFlags()) const override;
-
-    /// Override this in your derived class if you'd like to be informed when something about the state of the entity
-    /// has changed. This will be called with properties change or when new data is loaded from a stream
-    /// Overriding this function to capture the information that a light properties has changed
-    virtual void somethingChangedNotification() override;
 
     virtual EntityPropertyFlags getEntityProperties(EncodeBitstreamParams& params) const override;
 
@@ -83,9 +78,19 @@ public:
     static bool getLightsArePickable() { return _lightsArePickable; }
     static void setLightsArePickable(bool value) { _lightsArePickable = value; }
     
+    virtual void locationChanged(bool tellPhysics) override;
+    virtual void dimensionsChanged() override;
+
+    bool lightPropertiesChanged() const { return _lightPropertiesChanged; }
+    void resetLightPropertiesChanged();
+
+    virtual bool supportsDetailedRayIntersection() const override { return true; }
+    virtual bool findDetailedRayIntersection(const glm::vec3& origin, const glm::vec3& direction,
+                            OctreeElementPointer& element, float& distance,
+                            BoxFace& face, glm::vec3& surfaceNormal,
+                            QVariantMap& extraInfo, bool precisionPicking) const override;
+
 private:
-
-
     // properties of a light
     rgbColor _color;
     bool _isSpotlight { DEFAULT_IS_SPOTLIGHT };
@@ -93,11 +98,7 @@ private:
     float _falloffRadius { DEFAULT_FALLOFF_RADIUS };
     float _exponent { DEFAULT_EXPONENT };
     float _cutoff { DEFAULT_CUTOFF };
-
-protected:
     // Dirty flag turn true when either light properties is changing values.
-    // This gets back to false in the somethingChangedNotification() call
-    // Which is called after a setProperties() or a readEntitySubClassFromBUfferCall on the entity.
     bool _lightPropertiesChanged { false };
 
     static bool _lightsArePickable;

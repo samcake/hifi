@@ -52,9 +52,11 @@ public:
         Browsable,
         Slider,
         Spinner,
+        SpinnerSlider,
         Checkbox,
         Button,
         ComboBox,
+        PrimaryHand,
         // Special casing for an unusual preference
         Avatar
     };
@@ -196,6 +198,7 @@ class IntPreference : public TypedPreference<int> {
     Q_PROPERTY(float min READ getMin CONSTANT)
     Q_PROPERTY(float max READ getMax CONSTANT)
     Q_PROPERTY(float step READ getStep CONSTANT)
+    Q_PROPERTY(int decimals READ getDecimals CONSTANT)
 
 public:
     IntPreference(const QString& category, const QString& name, Getter getter, Setter setter)
@@ -210,6 +213,9 @@ public:
     float getStep() const { return _step; }
     void setStep(float step) { _step = step; };
 
+    int getDecimals() const { return _decimals; }
+    void setDecimals(int decimals) { _decimals = decimals; };
+
 signals:
     void valueChanged();
 
@@ -219,6 +225,7 @@ protected:
     int _min { std::numeric_limits<int>::min() };
     int _max { std::numeric_limits<int>::max() };
     int _step { 1 };
+    int _decimals { 0 };
 };
 
 class StringPreference : public TypedPreference<QString> {
@@ -252,6 +259,15 @@ public:
         : FloatPreference(category, name, getter, setter) { }
 
     Type getType() override { return Spinner; }
+};
+
+class SpinnerSliderPreference : public FloatPreference {
+    Q_OBJECT
+public:
+    SpinnerSliderPreference(const QString& category, const QString& name, Getter getter, Setter setter)
+        : FloatPreference(category, name, getter, setter) { }
+
+    Type getType() override { return SpinnerSlider; }
 };
 
 class IntSpinnerPreference : public IntPreference {
@@ -327,6 +343,14 @@ public:
     CheckPreference(const QString& category, const QString& name, Getter getter, Setter setter)
         : BoolPreference(category, name, getter, setter) { }
     Type getType() override { return Checkbox; }
+};
+
+class PrimaryHandPreference : public StringPreference {
+    Q_OBJECT
+public:
+    PrimaryHandPreference(const QString& category, const QString& name, Getter getter, Setter setter)
+        : StringPreference(category, name, getter, setter) { }
+    Type getType() override { return PrimaryHand; }
 };
 
 #endif

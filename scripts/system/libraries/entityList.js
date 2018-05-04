@@ -77,18 +77,24 @@ EntityListTool = function(opts) {
             var properties = Entities.getEntityProperties(id);
 
             if (!filterInView || Vec3.distance(properties.position, cameraPosition) <= searchRadius) {
+                var url = "";
+                if (properties.type == "Model") {
+                    url = properties.modelURL;
+                } else if (properties.type == "Material") {
+                    url = properties.materialURL;
+                }
                 entities.push({
                     id: id,
                     name: properties.name,
                     type: properties.type,
-                    url: properties.type == "Model" ? properties.modelURL : "",
+                    url: url,
                     locked: properties.locked,
                     visible: properties.visible,
                     verticesCount: valueIfDefined(properties.renderInfo.verticesCount),
                     texturesCount: valueIfDefined(properties.renderInfo.texturesCount),
                     texturesSize: valueIfDefined(properties.renderInfo.texturesSize),
                     hasTransparent: valueIfDefined(properties.renderInfo.hasTransparent),
-                    isBaked: properties.type == "Model" ? properties.modelURL.toLowerCase().endsWith(".baked.fbx") : false, 
+                    isBaked: properties.type == "Model" ? url.toLowerCase().endsWith(".baked.fbx") : false,
                     drawCalls: valueIfDefined(properties.renderInfo.drawCalls),
                     hasScript: properties.script !== ""
                 });
@@ -97,7 +103,7 @@ EntityListTool = function(opts) {
 
         var selectedIDs = [];
         for (var j = 0; j < selectionManager.selections.length; j++) {
-            selectedIDs.push(selectionManager.selections[j].id);
+            selectedIDs.push(selectionManager.selections[j]);
         }
 
         var data = {
@@ -108,8 +114,24 @@ EntityListTool = function(opts) {
         webView.emitScriptEvent(JSON.stringify(data));
     };
 
+    function onFileSaveChanged(filename) {
+        Window.saveFileChanged.disconnect(onFileSaveChanged);
+        if (filename !== "") {
+            var success = Clipboard.exportEntities(filename, selectionManager.selections);
+            if (!success) {
+                Window.notifyEditError("Export failed.");
+            }
+        }
+    }
+
     webView.webEventReceived.connect(function(data) {
-        data = JSON.parse(data);
+        try {
+            data = JSON.parse(data);
+        } catch(e) {
+            print("entityList.js: Error parsing JSON: " + e.name + " data " + data)
+            return;
+        }
+
         if (data.type == "selectionUpdate") {
             var ids = data.entityIds;
             var entityIDs = [];
@@ -133,13 +155,8 @@ EntityListTool = function(opts) {
             if (!selectionManager.hasSelection()) {
                 Window.notifyEditError("No entities have been selected.");
             } else {
-                var filename = Window.save("Select Where to Save", "", "*.json");
-                if (filename) {
-                    var success = Clipboard.exportEntities(filename, selectionManager.selections);
-                    if (!success) {
-                        Window.notifyEditError("Export failed.");
-                    }
-                }
+                Window.saveFileChanged.connect(onFileSaveChanged);
+                Window.saveAsync("Select Where to Save", "", "*.json");
             }
         } else if (data.type == "pal") {
             var sessionIds = {}; // Collect the sessionsIds of all selected entitities, w/o duplicates.

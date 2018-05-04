@@ -14,6 +14,7 @@
 
 #include <controllers/Forward.h>
 #include <plugins/Forward.h>
+#include <string>
 
 bool oculusViaOpenVR(); // is the user using Oculus via OpenVR
 bool openVrSupported();
@@ -25,6 +26,8 @@ bool openVrQuitRequested();
 void enableOpenVrKeyboard(PluginContainer* container);
 void disableOpenVrKeyboard();
 bool isOpenVrKeyboardShown();
+QString getVrSettingString(const char* section, const char* setting);
+std::string getOpenVrDeviceName();
 
 
 template<typename F>
@@ -79,6 +82,12 @@ struct PoseData {
             poses[i] = resetMat * toGlm(vrPoses[i].mDeviceToAbsoluteTracking);
             linearVelocities[i] = transformVectorFast(resetMat, toGlm(vrPoses[i].vVelocity));
             angularVelocities[i] = transformVectorFast(resetMat, toGlm(vrPoses[i].vAngularVelocity));
+        }
+    }
+
+    void resetToInvalid() {
+        for (int i = 0; i < vr::k_unMaxTrackedDeviceCount; i++) {
+            vrPoses[i].bPoseIsValid = false;
         }
     }
 };

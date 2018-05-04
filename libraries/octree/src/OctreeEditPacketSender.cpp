@@ -22,13 +22,10 @@ const int OctreeEditPacketSender::DEFAULT_MAX_PENDING_MESSAGES = PacketSender::D
 
 
 OctreeEditPacketSender::OctreeEditPacketSender() :
-    PacketSender(),
     _shouldSend(true),
     _maxPendingMessages(DEFAULT_MAX_PENDING_MESSAGES),
-    _releaseQueuedMessagesPending(false),
-    _serverJurisdictions(NULL)
+    _releaseQueuedMessagesPending(false)
 {
-
 }
 
 OctreeEditPacketSender::~OctreeEditPacketSender() {
@@ -40,34 +37,8 @@ OctreeEditPacketSender::~OctreeEditPacketSender() {
 
 
 bool OctreeEditPacketSender::serversExist() const {
-    bool hasServers = false;
-    bool atLeastOneJurisdictionMissing = false; // assume the best
-
-    DependencyManager::get<NodeList>()->eachNodeBreakable([&](const SharedNodePointer& node){
-        if (node->getType() == getMyNodeType() && node->getActiveSocket()) {
-
-            QUuid nodeUUID = node->getUUID();
-            // If we've got Jurisdictions set, then check to see if we know the jurisdiction for this server
-            if (_serverJurisdictions) {
-                // lookup our nodeUUID in the jurisdiction map, if it's missing then we're
-                // missing at least one jurisdiction
-                _serverJurisdictions->withReadLock([&] {
-                    if ((*_serverJurisdictions).find(nodeUUID) == (*_serverJurisdictions).end()) {
-                        atLeastOneJurisdictionMissing = true;
-                    }
-                });
-            }
-            hasServers = true;
-        }
-
-        if (atLeastOneJurisdictionMissing) {
-            return false; // no point in looking further - return false from anonymous function
-        } else {
-            return true;
-        }
-    });
-
-    return (hasServers && !atLeastOneJurisdictionMissing);
+    auto node = DependencyManager::get<NodeList>()->soloNodeOfType(getMyNodeType());
+    return node && node->getActiveSocket();
 }
 
 // This method is called when the edit packet layer has determined that it has a fully formed packet destined for
@@ -115,8 +86,24 @@ void OctreeEditPacketSender::queuePacketToNode(const QUuid& nodeUUID, std::uniqu
     });
 }
 
+// This method is called when the edit packet layer has determined that it has a fully formed packet destined for
+// a known nodeID.
+void OctreeEditPacketSender::queuePacketListToNode(const QUuid& nodeUUID, std::unique_ptr<NLPacketList> packetList) {
+    DependencyManager::get<NodeList>()->eachNode([&](const SharedNodePointer& node) {
+        // only send to the NodeTypes that are getMyNodeType()
+        if (node->getType() == getMyNodeType()
+            && ((node->getUUID() == nodeUUID) || (nodeUUID.isNull()))
+            && node->getActiveSocket()) {
+
+            // NOTE: unlike packets, the packet lists don't get rewritten sequence numbers.
+            // or do history for resend
+            queuePacketListForSending(node, std::move(packetList));
+        }
+    });
+}
+
 void OctreeEditPacketSender::processPreServerExistsPackets() {
-    assert(serversExist()); // we should only be here if we have jurisdictions
+    assert(serversExist()); // we should only be here if we have servers
 
     // First send out all the single message packets...
     _pendingPacketsLock.lock();
@@ -134,7 +121,7 @@ void OctreeEditPacketSender::processPreServerExistsPackets() {
 
     _pendingPacketsLock.unlock();
 
-    // if while waiting for the jurisdictions the caller called releaseQueuedMessages()
+    // if while waiting for the servers the caller called releaseQueuedMessages()
     // then we want to honor that request now.
     if (_releaseQueuedMessagesPending) {
         releaseQueuedMessages();
@@ -162,34 +149,12 @@ void OctreeEditPacketSender::queuePacketToNodes(std::unique_ptr<NLPacket> packet
         return; // bail early
     }
 
-    assert(serversExist()); // we must have jurisdictions to be here!!
+    assert(serversExist()); // we must have servers to be here!!
 
-    const unsigned char* octCode = reinterpret_cast<unsigned char*>(packet->getPayload()) + sizeof(short) + sizeof(quint64);
-
-    // We want to filter out edit messages for servers based on the server's Jurisdiction
-    // But we can't really do that with a packed message, since each edit message could be destined
-    // for a different server... So we need to actually manage multiple queued packets... one
-    // for each server
-
-    DependencyManager::get<NodeList>()->eachNode([&](const SharedNodePointer& node){
-        // only send to the NodeTypes that are getMyNodeType()
-        if (node->getActiveSocket() && node->getType() == getMyNodeType()) {
-            QUuid nodeUUID = node->getUUID();
-            bool isMyJurisdiction = true;
-            // we need to get the jurisdiction for this
-            // here we need to get the "pending packet" for this server
-            _serverJurisdictions->withReadLock([&] {
-                const JurisdictionMap& map = (*_serverJurisdictions)[nodeUUID];
-                isMyJurisdiction = (map.isMyJurisdiction(octCode, CHECK_NODE_ONLY) == JurisdictionMap::WITHIN);
-            });
-
-            if (isMyJurisdiction) {
-                // make a copy of this packet for this node and queue
-                auto packetCopy = NLPacket::createCopy(*packet);
-                queuePacketToNode(nodeUUID, std::move(packetCopy));
-            }
-        }
-    });
+    auto node = DependencyManager::get<NodeList>()->soloNodeOfType(getMyNodeType());
+    if (node && node->getActiveSocket()) {
+        queuePacketToNode(node->getUUID(), std::move(packet));
+    }
 }
 
 
@@ -200,8 +165,8 @@ void OctreeEditPacketSender::queueOctreeEditMessage(PacketType type, QByteArray&
         return; // bail early
     }
 
-    // If we don't have jurisdictions, then we will simply queue up all of these packets and wait till we have
-    // jurisdictions for processing
+    // If we don't have servers, then we will simply queue up all of these packets and wait till we have
+    // servers for processing
     if (!serversExist()) {
         if (_maxPendingMessages > 0) {
             EditMessagePair messagePair { type, QByteArray(editMessage) };
@@ -219,87 +184,104 @@ void OctreeEditPacketSender::queueOctreeEditMessage(PacketType type, QByteArray&
         return; // bail early
     }
 
-    // We want to filter out edit messages for servers based on the server's Jurisdiction
-    // But we can't really do that with a packed message, since each edit message could be destined
-    // for a different server... So we need to actually manage multiple queued packets... one
-    // for each server
     _packetsQueueLock.lock();
 
-    DependencyManager::get<NodeList>()->eachNode([&](const SharedNodePointer& node){
-        // only send to the NodeTypes that are getMyNodeType()
-        if (node->getActiveSocket() && node->getType() == getMyNodeType()) {
-            QUuid nodeUUID = node->getUUID();
-            bool isMyJurisdiction = true;
+    auto node = DependencyManager::get<NodeList>()->soloNodeOfType(getMyNodeType());
+    if (node && node->getActiveSocket()) {
+        QUuid nodeUUID = node->getUUID();
 
-            if (type == PacketType::EntityErase) {
-                isMyJurisdiction = true; // send erase messages to all servers
-            } else if (_serverJurisdictions) {
-                // we need to get the jurisdiction for this
-                // here we need to get the "pending packet" for this server
-                _serverJurisdictions->withReadLock([&] {
-                    if ((*_serverJurisdictions).find(nodeUUID) != (*_serverJurisdictions).end()) {
-                        const JurisdictionMap& map = (*_serverJurisdictions)[nodeUUID];
-                        isMyJurisdiction = (map.isMyJurisdiction(reinterpret_cast<const unsigned char*>(editMessage.data()),
-                            CHECK_NODE_ONLY) == JurisdictionMap::WITHIN);
-                    } else {
-                        isMyJurisdiction = false;
-                    }
-                });
+        // for edit messages, we will attempt to combine multiple edit commands where possible, we
+        // don't do this for add because we send those reliably
+        if (type == PacketType::EntityAdd) {
+            auto newPacket = NLPacketList::create(type, QByteArray(), true, true);
+            auto nodeClockSkew = node->getClockSkewUsec();
+
+            // pack sequence number
+            quint16 sequence = _outgoingSequenceNumbers[nodeUUID]++;
+            newPacket->writePrimitive(sequence);
+
+            // pack in timestamp
+            quint64 now = usecTimestampNow() + nodeClockSkew;
+            newPacket->writePrimitive(now);
+
+
+            // We call this virtual function that allows our specific type of EditPacketSender to
+            // fixup the buffer for any clock skew
+            if (nodeClockSkew != 0) {
+                adjustEditPacketForClockSkew(type, editMessage, nodeClockSkew);
             }
-            if (isMyJurisdiction) {
-                std::unique_ptr<NLPacket>& bufferedPacket = _pendingEditPackets[nodeUUID];
 
-                if (!bufferedPacket) {
-                    bufferedPacket = initializePacket(type, node->getClockSkewUsec());
-                } else {
-                    // If we're switching type, then we send the last one and start over
-                    if ((type != bufferedPacket->getType() && bufferedPacket->getPayloadSize() > 0) ||
-                        (editMessage.size() >= bufferedPacket->bytesAvailableForWrite())) {
+            newPacket->write(editMessage);
 
-                        // create the new packet and swap it with the packet in _pendingEditPackets
-                        auto packetToRelease = initializePacket(type, node->getClockSkewUsec());
-                        bufferedPacket.swap(packetToRelease);
+            // release the new packet
+            releaseQueuedPacketList(nodeUUID, std::move(newPacket));
 
-                        // release the previously buffered packet
-                        releaseQueuedPacket(nodeUUID, std::move(packetToRelease));
-                    }
+            // tell the sent packet history that we used a sequence number for an untracked packet
+            auto& sentPacketHistory = _sentPacketHistories[nodeUUID];
+            sentPacketHistory.untrackedPacketSent(sequence);
+        } else {
+            // only a NLPacket for now
+            std::unique_ptr<NLPacket>& bufferedPacket = _pendingEditPackets[nodeUUID].first;
+
+            if (!bufferedPacket) {
+                bufferedPacket = initializePacket(type, node->getClockSkewUsec());
+            } else {
+                // If we're switching type, then we send the last one and start over
+                if ((type != bufferedPacket->getType() && bufferedPacket->getPayloadSize() > 0) ||
+                    (editMessage.size() >= bufferedPacket->bytesAvailableForWrite())) {
+
+                    // create the new packet and swap it with the packet in _pendingEditPackets
+                    auto packetToRelease = initializePacket(type, node->getClockSkewUsec());
+                    bufferedPacket.swap(packetToRelease);
+
+                    // release the previously buffered packet
+                    releaseQueuedPacket(nodeUUID, std::move(packetToRelease));
                 }
-
-                // This is really the first time we know which server/node this particular edit message
-                // is going to, so we couldn't adjust for clock skew till now. But here's our chance.
-                // We call this virtual function that allows our specific type of EditPacketSender to
-                // fixup the buffer for any clock skew
-                if (node->getClockSkewUsec() != 0) {
-                    adjustEditPacketForClockSkew(type, editMessage, node->getClockSkewUsec());
-                }
-
-                bufferedPacket->write(editMessage);
             }
+
+            // This is really the first time we know which server/node this particular edit message
+            // is going to, so we couldn't adjust for clock skew till now. But here's our chance.
+            // We call this virtual function that allows our specific type of EditPacketSender to
+            // fixup the buffer for any clock skew
+            if (node->getClockSkewUsec() != 0) {
+                adjustEditPacketForClockSkew(type, editMessage, node->getClockSkewUsec());
+            }
+
+            bufferedPacket->write(editMessage);
         }
-    });
+    }
 
     _packetsQueueLock.unlock();
 
 }
 
 void OctreeEditPacketSender::releaseQueuedMessages() {
-    // if we don't yet have jurisdictions then we can't actually release messages yet because we don't
-    // know where to send them to. Instead, just remember this request and when we eventually get jurisdictions
+    // if we don't yet have servers then we can't actually release messages yet because we don't
+    // know where to send them to. Instead, just remember this request and when we eventually get servers
     // call release again at that time.
     if (!serversExist()) {
         _releaseQueuedMessagesPending = true;
     } else {
         _packetsQueueLock.lock();
         for (auto& i : _pendingEditPackets) {
-            if (i.second) {
+            if (i.second.first) {
                 // construct a null unique_ptr to an NL packet
                 std::unique_ptr<NLPacket> releasedPacket;
                 
                 // swap the null ptr with the packet we want to release
-                i.second.swap(releasedPacket);
+                i.second.first.swap(releasedPacket);
                 
                 // move and release the queued packet
                 releaseQueuedPacket(i.first, std::move(releasedPacket));
+            } else if (i.second.second) {
+                // construct a null unique_ptr to an NLPacketList
+                std::unique_ptr<NLPacketList> releasedPacketList;
+
+                // swap the null ptr with the NLPacketList we want to release
+                i.second.second.swap(releasedPacketList);
+
+                // move and release the queued NLPacketList
+                releaseQueuedPacketList(i.first, std::move(releasedPacketList));
             }
             
         }
@@ -311,6 +293,14 @@ void OctreeEditPacketSender::releaseQueuedPacket(const QUuid& nodeID, std::uniqu
     _releaseQueuedPacketMutex.lock();
     if (packet->getPayloadSize() > 0 && packet->getType() != PacketType::Unknown) {
         queuePacketToNode(nodeID, std::move(packet));
+    }
+    _releaseQueuedPacketMutex.unlock();
+}
+
+void OctreeEditPacketSender::releaseQueuedPacketList(const QUuid& nodeID, std::unique_ptr<NLPacketList> packetList) {
+    _releaseQueuedPacketMutex.lock();
+    if (packetList->getMessageSize() > 0 && packetList->getType() != PacketType::Unknown) {
+        queuePacketListToNode(nodeID, std::move(packetList));
     }
     _releaseQueuedPacketMutex.unlock();
 }
@@ -329,8 +319,8 @@ std::unique_ptr<NLPacket> OctreeEditPacketSender::initializePacket(PacketType ty
 }
 
 bool OctreeEditPacketSender::process() {
-    // if we have server jurisdiction details, and we have pending pre-jurisdiction packets, then process those
-    // before doing our normal process step. This processPreJurisdictionPackets()
+    // if we have servers, and we have pending pre-servers exist packets, then process those
+    // before doing our normal process step. This processPreServerExistPackets()
     if (serversExist() && (!_preServerEdits.empty() || !_preServerSingleMessagePackets.empty() )) {
         processPreServerExistsPackets();
     }

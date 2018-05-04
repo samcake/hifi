@@ -18,6 +18,7 @@
 #include <udt/PacketHeaders.h>
 
 #include "AudioInjectorOptions.h"
+#include "AudioInjector.h"
 
 class AudioInjector;
 class AudioInjectorLocalBuffer;
@@ -27,20 +28,22 @@ class AbstractAudioInterface : public QObject {
     Q_OBJECT
 public:
     AbstractAudioInterface(QObject* parent = 0) : QObject(parent) {};
-    
-    static void emitAudioPacket(const void* audioData, size_t bytes, quint16& sequenceNumber,
+
+    static void emitAudioPacket(const void* audioData, size_t bytes, quint16& sequenceNumber, bool isStereo,
                                 const Transform& transform, glm::vec3 avatarBoundingBoxCorner, glm::vec3 avatarBoundingBoxScale,
                                 PacketType packetType, QString codecName = QString(""));
 
     // threadsafe
     // moves injector->getLocalBuffer() to another thread (so removes its parent)
     // take care to delete it when ~AudioInjector, as parenting Qt semantics will not work
-    virtual bool outputLocalInjector(AudioInjector* injector) = 0;
+    virtual bool outputLocalInjector(const AudioInjectorPointer& injector) = 0;
 
 public slots:
     virtual bool shouldLoopbackInjectors() { return false; }
-    
-    virtual void setIsStereoInput(bool stereo) = 0;
+
+    virtual bool setIsStereoInput(bool stereo) = 0;
+
+    virtual bool isStereoInput() = 0;
 };
 
 Q_DECLARE_METATYPE(AbstractAudioInterface*)

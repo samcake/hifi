@@ -8,8 +8,8 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 
-import QtQuick 2.5
-import QtQuick.Controls 1.4
+import QtQuick 2.7
+import QtQuick.Controls 2.2
 import "tabletWindows"
 import "../../dialogs"
 
@@ -19,7 +19,6 @@ StackView {
     objectName: "stack"
     property var title: "Networking Settings"
 
-    property var eventBridge;
     signal sendToScript(var message);
 
     function pushSource(path) {

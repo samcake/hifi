@@ -15,6 +15,7 @@
 #define hifi_DomainGatekeeper_h
 
 #include <unordered_map>
+#include <unordered_set>
 
 #include <QtCore/QObject>
 #include <QtNetwork/QNetworkReply>
@@ -39,9 +40,9 @@ public:
                                 const QUuid& walletUUID, const QString& nodeVersion);
     QUuid assignmentUUIDForPendingAssignment(const QUuid& tempUUID);
     
-    void preloadAllowedUserPublicKeys();
-    
     void removeICEPeer(const QUuid& peerUUID) { _icePeers.remove(peerUUID); }
+
+    Node::LocalID findOrCreateLocalID(const QUuid& uuid);
 
     static void sendProtocolMismatchConnectionDenial(const HifiSockAddr& senderSockAddr);
 public slots:
@@ -76,7 +77,8 @@ private:
     SharedNodePointer processAgentConnectRequest(const NodeConnectionData& nodeConnection,
                                                  const QString& username,
                                                  const QByteArray& usernameSignature);
-    SharedNodePointer addVerifiedNodeFromConnectRequest(const NodeConnectionData& nodeConnection);
+    SharedNodePointer addVerifiedNodeFromConnectRequest(const NodeConnectionData& nodeConnection,
+                                                        QUuid nodeID = QUuid());
     
     bool verifyUserSignature(const QString& username, const QByteArray& usernameSignature,
                              const HifiSockAddr& senderSockAddr);
@@ -92,7 +94,7 @@ private:
     
     void pingPunchForConnectingPeer(const SharedNetworkPeer& peer);
     
-    void requestUserPublicKey(const QString& username);
+    void requestUserPublicKey(const QString& username, bool isOptimistic = false);
     
     DomainServer* _server;
     
@@ -101,8 +103,17 @@ private:
     QHash<QUuid, SharedNetworkPeer> _icePeers;
     
     QHash<QString, QUuid> _connectionTokenHash;
-    QHash<QString, QByteArray> _userPublicKeys;
-    QSet<QString> _inFlightPublicKeyRequests; // keep track of which we've already asked for
+
+    // the word "optimistic" below is used for keys that we request during user connection before the user has
+    // had a chance to upload a new public key
+
+    // we don't send back user signature decryption errors for those keys so that there isn't a thrasing of key re-generation
+    // and connection refusal
+
+    using KeyFlagPair = QPair<QByteArray, bool>;
+
+    QHash<QString, KeyFlagPair> _userPublicKeys; // keep track of keys and flag them as optimistic or not
+    QHash<QString, bool> _inFlightPublicKeyRequests; // keep track of keys we've asked for (and if it was optimistic)
     QSet<QString> _domainOwnerFriends; // keep track of friends of the domain owner
     QSet<QString> _inFlightGroupMembershipsRequests; // keep track of which we've already asked for
 
@@ -112,6 +123,16 @@ private:
     void getGroupMemberships(const QString& username);
     // void getIsGroupMember(const QString& username, const QUuid groupID);
     void getDomainOwnerFriendsList();
+
+    // Local ID management.
+    void initLocalIDManagement();
+    using UUIDToLocalID = std::unordered_map<QUuid, Node::LocalID> ;
+    using LocalIDs = std::unordered_set<Node::LocalID>;
+    LocalIDs _localIDs;
+    UUIDToLocalID _uuidToLocalID;
+
+    Node::LocalID _currentLocalID;
+    Node::LocalID _idIncrement;
 };
 
 

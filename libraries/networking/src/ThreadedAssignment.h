@@ -40,14 +40,15 @@ signals:
 
 protected:
     void commonInit(const QString& targetName, NodeType_t nodeType);
+
     bool _isFinished;
     QTimer _domainServerTimer;
     QTimer _statsTimer;
     int _numQueuedCheckIns { 0 };
-    
+
 protected slots:
     void domainSettingsRequestFailed();
-    
+
 private slots:
     void checkInWithDomainServerOrExit();
 };

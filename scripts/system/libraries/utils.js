@@ -6,8 +6,8 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 
-// note: this constant is currently duplicated in edit.js
-EDIT_SETTING = "io.highfidelity.isEditting";
+// note: this constant is currently duplicated in edit.js and ambientSound.js
+EDIT_SETTING = "io.highfidelity.isEditing";
 isInEditMode = function isInEditMode() {
     return Settings.getValue(EDIT_SETTING);
 };
@@ -185,7 +185,7 @@ logTrace = function(str) {
 // (the vector that would move the point outside the sphere)
 // otherwise returns false
 findSphereHit = function(point, sphereRadius) {
-    var EPSILON = 0.000001;	//smallish positive number - used as margin of error for some computations
+    var EPSILON = 0.000001;     //smallish positive number - used as margin of error for some computations
     var vectorLength = Vec3.length(point);
     if (vectorLength < EPSILON) {
         return true;
@@ -351,3 +351,94 @@ clamp = function(val, min, max){
 flatten = function(array) {
     return [].concat.apply([], array);
 }
+
+getTabletWidthFromSettings = function () {
+    var DEFAULT_TABLET_WIDTH = 0.4375;
+    var tablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
+    var toolbarMode = tablet.toolbarMode;
+    var DEFAULT_TABLET_SCALE = 70;
+    var tabletScalePercentage = DEFAULT_TABLET_SCALE;
+    if (!toolbarMode) {
+        if (HMD.active) {
+            tabletScalePercentage = Settings.getValue("hmdTabletScale") || DEFAULT_TABLET_SCALE;
+        } else {
+            tabletScalePercentage = Settings.getValue("desktopTabletScale") || DEFAULT_TABLET_SCALE;
+        }
+    }
+    return DEFAULT_TABLET_WIDTH * (tabletScalePercentage / 100);
+};
+
+resizeTablet = function (width, newParentJointIndex, sensorToWorldScaleOverride) {
+
+    if (!HMD.tabletID || !HMD.tabletScreenID || !HMD.homeButtonID || !HMD.homeButtonHighlightID) {
+        return;
+    }
+    var sensorScaleFactor = sensorToWorldScaleOverride || MyAvatar.sensorToWorldScale;
+    var sensorScaleOffsetOverride = 1;
+    var SENSOR_TO_ROOM_MATRIX = 65534;
+    var parentJointIndex = newParentJointIndex || Overlays.getProperty(HMD.tabletID, "parentJointIndex");
+    if (parentJointIndex === SENSOR_TO_ROOM_MATRIX) {
+        sensorScaleOffsetOverride = 1 / sensorScaleFactor;
+    }
+
+    // will need to be recaclulated if dimensions of fbx model change.
+    var TABLET_NATURAL_DIMENSIONS = {x: 32.083, y: 48.553, z: 2.269};
+    var DEFAULT_DPI = 31;
+    var DEFAULT_WIDTH = 0.4375;
+
+    // scale factor of natural tablet dimensions.
+    var tabletWidth = (width || DEFAULT_WIDTH) * sensorScaleFactor;
+    var tabletScaleFactor = tabletWidth / TABLET_NATURAL_DIMENSIONS.x;
+    var tabletHeight = TABLET_NATURAL_DIMENSIONS.y * tabletScaleFactor;
+    var tabletDepth = TABLET_NATURAL_DIMENSIONS.z * tabletScaleFactor;
+    var tabletDpi = DEFAULT_DPI * (DEFAULT_WIDTH / tabletWidth);
+
+    // update tablet model dimensions
+    Overlays.editOverlay(HMD.tabletID, {
+        dimensions: { x: tabletWidth, y: tabletHeight, z: tabletDepth }
+    });
+
+    // update webOverlay
+    var RAYPICK_OFFSET = 0.0007; // Sufficient for raypick to reliably intersect tablet screen before tablet model.
+    var WEB_ENTITY_Z_OFFSET = (tabletDepth / 2.0) * sensorScaleOffsetOverride + RAYPICK_OFFSET;
+    var WEB_ENTITY_Y_OFFSET = 1 * tabletScaleFactor;
+    print(WEB_ENTITY_Y_OFFSET);
+    var screenWidth = 0.9275 * tabletWidth;
+    var screenHeight = 0.8983 * tabletHeight;
+    var landscape = Tablet.getTablet("com.highfidelity.interface.tablet.system").landscape;
+    Overlays.editOverlay(HMD.tabletScreenID, {
+        localPosition: { x: 0, y: WEB_ENTITY_Y_OFFSET, z: -WEB_ENTITY_Z_OFFSET },
+        dimensions: {x: landscape ? screenHeight : screenWidth, y: landscape ? screenWidth : screenHeight, z: 0.1},
+        dpi: tabletDpi
+    });
+
+    // update homeButton
+    var HOME_BUTTON_Y_OFFSET = ((tabletHeight / 2) - (tabletHeight / 20) + 0.003 * sensorScaleFactor) * sensorScaleOffsetOverride;
+    // FIXME: Circle3D overlays currently at the wrong dimensions, so we need to account for that here
+    var homeButtonDim = 4.0 * tabletScaleFactor / 3.0;
+    Overlays.editOverlay(HMD.homeButtonID, {
+        localPosition: { x: 0, y: -HOME_BUTTON_Y_OFFSET, z: -WEB_ENTITY_Z_OFFSET },
+        localRotation: Quat.angleAxis(180, Vec3.UNIT_Y),
+        dimensions: { x: homeButtonDim, y: homeButtonDim, z: homeButtonDim }
+    });
+
+    Overlays.editOverlay(HMD.homeButtonHighlightID, {
+        localPosition: { x: 0, y: -HOME_BUTTON_Y_OFFSET, z: -WEB_ENTITY_Z_OFFSET },
+        localRotation: Quat.angleAxis(180, Vec3.UNIT_Y),
+        dimensions: { x: homeButtonDim, y: homeButtonDim, z: homeButtonDim }
+    });
+};
+
+getMainTabletIDs = function () {
+    var tabletIDs = [];
+    if (HMD.tabletID) {
+        tabletIDs.push(HMD.tabletID);
+    }
+    if (HMD.tabletScreenID) {
+        tabletIDs.push(HMD.tabletScreenID);
+    }
+    if (HMD.homeButtonID) {
+        tabletIDs.push(HMD.homeButtonID);
+    }
+    return tabletIDs;
+};

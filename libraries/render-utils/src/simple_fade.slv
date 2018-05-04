@@ -1,0 +1,45 @@
+<@include gpu/Config.slh@>
+<$VERSION_HEADER$>
+//  Generated on <$_SCRIBE_DATE$>
+//
+//  simple_fade.vert
+//  vertex shader
+//
+//  Created by Olivier Prat on 06/04/17.
+//  Copyright 2017 High Fidelity, Inc.
+//
+//  Distributed under the Apache License, Version 2.0.
+//  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
+//
+
+<@include gpu/Inputs.slh@>
+<@include gpu/Color.slh@>
+<@include gpu/Transform.slh@>
+<$declareStandardTransform()$>
+
+<@include Fade.slh@>
+<$declareFadeVertexInstanced()$>
+
+// the interpolated normal
+out vec3 _normalWS;
+out vec3 _normalMS;
+out vec4 _color;
+out vec2 _texCoord0;
+out vec4 _positionMS;
+out vec4 _positionES;
+out vec4 _positionWS;
+
+void main(void) {
+    _color = color_sRGBAToLinear(inColor);
+    _texCoord0 = inTexCoord0.st;
+    _positionMS = inPosition;
+    _normalMS = inNormal.xyz;
+
+    // standard transform
+    TransformCamera cam = getTransformCamera();
+    TransformObject obj = getTransformObject();
+    <$transformModelToEyeAndClipPos(cam, obj, inPosition, _positionES, gl_Position)$>
+    <$transformModelToWorldPos(obj, inPosition, _positionWS)$>
+    <$transformModelToWorldDir(cam, obj, inNormal.xyz, _normalWS)$>
+    <$passThroughFadeObjectParams()$>
+}

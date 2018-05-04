@@ -23,10 +23,12 @@ import "../../../windows"
 import "../../../dialogs/fileDialog"
 
 //FIXME implement shortcuts for favorite location
-Item {
+Rectangle {
     id: root
-    anchors.top: parent.top
+    anchors.top: parent ? parent.top : undefined
     HifiConstants { id: hifi }
+
+    color: hifi.colors.baseGray;
 
     Settings {
         category: "FileDialog"
@@ -476,9 +478,6 @@ Item {
             itemDelegate: Item {
                 clip: true
 
-                //FontLoader { id: firaSansSemiBold; source: "../../fonts/FiraSans-SemiBold.ttf"; }
-                //FontLoader { id: firaSansRegular; source: "../../fonts/FiraSans-Regular.ttf"; }
-
                 FiraSansSemiBold {
                     text: getText();
                     elide: styleData.elideMode
@@ -492,7 +491,7 @@ Item {
                     size: hifi.fontSizes.tableText
                     color: hifi.colors.baseGrayHighlight
                     //font.family: (styleData.row !== -1 && fileTableView.model.get(styleData.row).fileIsDir)
-                        //? firaSansSemiBold.name : firaSansRegular.name
+                        //? "Fira Sans SemiBold" : "Fira Sans"
 
                     function getText() {
                         if (styleData.row === -1) {

@@ -45,9 +45,6 @@ public:
     float getBaseRoll() const { return _baseRoll; }
     void setBaseRoll(float roll) { _baseRoll = glm::clamp(roll, MIN_HEAD_ROLL, MAX_HEAD_ROLL); }
 
-    virtual void setFinalYaw(float finalYaw) { _baseYaw = finalYaw; }
-    virtual void setFinalPitch(float finalPitch) { _basePitch = finalPitch; }
-    virtual void setFinalRoll(float finalRoll) { _baseRoll = finalRoll; }
     virtual float getFinalYaw() const { return _baseYaw; }
     virtual float getFinalPitch() const { return _basePitch; }
     virtual float getFinalRoll() const { return _baseRoll; }
@@ -60,6 +57,7 @@ public:
     void setBlendshape(QString name, float val);
     const QVector<float>& getBlendshapeCoefficients() const { return _blendshapeCoefficients; }
     const QVector<float>& getSummedBlendshapeCoefficients();
+    int getNumSummedBlendshapeCoefficients() const;
     void setBlendshapeCoefficients(const QVector<float>& blendshapeCoefficients) { _blendshapeCoefficients = blendshapeCoefficients; }
 
     const glm::vec3& getLookAtPosition() const { return _lookAtPosition; }

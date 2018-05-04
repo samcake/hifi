@@ -26,16 +26,13 @@ const int LineEntityItem::MAX_POINTS_PER_LINE = 70;
 
 
 EntityItemPointer LineEntityItem::factory(const EntityItemID& entityID, const EntityItemProperties& properties) {
-    EntityItemPointer entity { new LineEntityItem(entityID) };
+    EntityItemPointer entity(new LineEntityItem(entityID), [](EntityItem* ptr) { ptr->deleteLater(); });
     entity->setProperties(properties);
     return entity;
 }
 
 LineEntityItem::LineEntityItem(const EntityItemID& entityItemID) :
-    EntityItem(entityItemID),
-    _lineWidth(DEFAULT_LINE_WIDTH),
-    _points(QVector<glm::vec3>(0)),
-    _pointsChanged(true)
+    EntityItem(entityItemID)
 {
     _type = EntityTypes::Line;
 }
@@ -83,7 +80,7 @@ bool LineEntityItem::appendPoint(const glm::vec3& point) {
         qCDebug(entities) << "MAX POINTS REACHED!";
         return false;
     }
-    glm::vec3 halfBox = getDimensions() * 0.5f;
+    glm::vec3 halfBox = getScaledDimensions() * 0.5f;
     if ( (point.x < - halfBox.x || point.x > halfBox.x) || (point.y < -halfBox.y || point.y > halfBox.y) || (point.z < - halfBox.z || point.z > halfBox.z) ) {
         qCDebug(entities) << "Point is outside entity's bounding box";
         return false;
@@ -99,7 +96,7 @@ bool LineEntityItem::setLinePoints(const QVector<glm::vec3>& points) {
     if (points.size() > MAX_POINTS_PER_LINE) {
         return false;
     }
-    glm::vec3 halfBox = getDimensions() * 0.5f;
+    glm::vec3 halfBox = getScaledDimensions() * 0.5f;
     for (int i = 0; i < points.size(); i++) {
         glm::vec3 point = points.at(i);
         if ( (point.x < - halfBox.x || point.x > halfBox.x) || (point.y < -halfBox.y || point.y > halfBox.y) || (point.z < - halfBox.z || point.z > halfBox.z) ) {
@@ -131,7 +128,6 @@ int LineEntityItem::readEntitySubclassDataFromBuffer(const unsigned char* data, 
 }
 
 
-// TODO: eventually only include properties changed since the params.nodeData->getLastTimeBagEmpty() time
 EntityPropertyFlags LineEntityItem::getEntityProperties(EncodeBitstreamParams& params) const {
     EntityPropertyFlags requestedProperties = EntityItem::getEntityProperties(params);
     requestedProperties += PROP_COLOR;
@@ -159,8 +155,8 @@ void LineEntityItem::debugDump() const {
     quint64 now = usecTimestampNow();
     qCDebug(entities) << "   LINE EntityItem id:" << getEntityItemID() << "---------------------------------------------";
     qCDebug(entities) << "               color:" << _color[0] << "," << _color[1] << "," << _color[2];
-    qCDebug(entities) << "            position:" << debugTreeVector(getPosition());
-    qCDebug(entities) << "          dimensions:" << debugTreeVector(getDimensions());
+    qCDebug(entities) << "            position:" << debugTreeVector(getWorldPosition());
+    qCDebug(entities) << "          dimensions:" << debugTreeVector(getScaledDimensions());
     qCDebug(entities) << "       getLastEdited:" << debugTime(getLastEdited(), now);
 }
 
@@ -211,4 +207,10 @@ QVector<glm::vec3> LineEntityItem::getLinePoints() const {
         result = _points;
     });
     return result;
+}
+
+void LineEntityItem::resetPointsChanged() { 
+    withWriteLock([&] {
+        _pointsChanged = false;
+    });
 }

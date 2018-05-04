@@ -31,16 +31,39 @@ SkeletonModel::SkeletonModel(Avatar* owningAvatar, QObject* parent) :
     _defaultEyeModelPosition(glm::vec3(0.0f, 0.0f, 0.0f)),
     _headClipDistance(DEFAULT_NEAR_CLIP)
 {
+    // SkeletonModels, and by extention Avatars, use Dual Quaternion skinning.
+    _useDualQuaternionSkinning = true;
+
+    // Avatars all cast shadow
+    _canCastShadow = true;
+
     assert(_owningAvatar);
 }
 
 SkeletonModel::~SkeletonModel() {
 }
 
+void SkeletonModel::setURL(const QUrl& url) {
+    _texturesLoaded = false;
+    Model::setURL(url);
+}
+
+void SkeletonModel::setTextures(const QVariantMap& textures) {
+    _texturesLoaded = false;
+    Model::setTextures(textures);
+}
+
 void SkeletonModel::initJointStates() {
     const FBXGeometry& geometry = getFBXGeometry();
     glm::mat4 modelOffset = glm::scale(_scale) * glm::translate(_offset);
     _rig.initJointStates(geometry, modelOffset);
+
+    {
+        // initialize _jointData with proper values for default joints
+        QVector<JointData> defaultJointData;
+        _rig.copyJointsIntoJointData(defaultJointData);
+        _owningAvatar->setRawJointData(defaultJointData);
+    }
 
     // Determine the default eye position for avatar scale = 1.0
     int headJointIndex = geometry.headJointIndex;
@@ -118,16 +141,16 @@ void SkeletonModel::updateRig(float deltaTime, glm::mat4 parentTransform) {
     _rig.updateFromEyeParameters(eyeParams);
 }
 
-void SkeletonModel::updateAttitude() {
+void SkeletonModel::updateAttitude(const glm::quat& orientation) {
     setTranslation(_owningAvatar->getSkeletonPosition());
-    setRotation(_owningAvatar->getOrientation() * Quaternions::Y_180);
-    setScale(glm::vec3(1.0f, 1.0f, 1.0f) * _owningAvatar->getScale());
+    setRotation(orientation * Quaternions::Y_180);
+    setScale(glm::vec3(1.0f, 1.0f, 1.0f) * _owningAvatar->getModelScale());
 }
 
 // Called by Avatar::simulate after it has set the joint states (fullUpdate true if changed),
 // but just before head has been simulated.
 void SkeletonModel::simulate(float deltaTime, bool fullUpdate) {
-    updateAttitude();
+    updateAttitude(_owningAvatar->getWorldOrientation());
     if (fullUpdate) {
         setBlendshapeCoefficients(_owningAvatar->getHead()->getSummedBlendshapeCoefficients());
 
@@ -140,6 +163,13 @@ void SkeletonModel::simulate(float deltaTime, bool fullUpdate) {
         }
     } else {
         Parent::simulate(deltaTime, fullUpdate);
+    }
+
+    // FIXME: This texture loading logic should probably live in Avatar, to mirror RenderableModelEntityItem and ModelOverlay,
+    // but Avatars don't get updates in the same way
+    if (!_texturesLoaded && getGeometry() && getGeometry()->areTexturesLoaded()) {
+        _texturesLoaded = true;
+        updateRenderItems();
     }
 
     if (!isActive() || !_owningAvatar->isMyAvatar()) {
@@ -220,28 +250,12 @@ bool SkeletonModel::getRightHandPosition(glm::vec3& position) const {
     return getJointPositionInWorldFrame(getRightHandJointIndex(), position);
 }
 
-bool SkeletonModel::restoreLeftHandPosition(float fraction, float priority) {
-    return restoreJointPosition(getLeftHandJointIndex(), fraction, priority);
-}
-
 bool SkeletonModel::getLeftShoulderPosition(glm::vec3& position) const {
     return getJointPositionInWorldFrame(getLastFreeJointIndex(getLeftHandJointIndex()), position);
 }
 
-float SkeletonModel::getLeftArmLength() const {
-    return getLimbLength(getLeftHandJointIndex());
-}
-
-bool SkeletonModel::restoreRightHandPosition(float fraction, float priority) {
-    return restoreJointPosition(getRightHandJointIndex(), fraction, priority);
-}
-
 bool SkeletonModel::getRightShoulderPosition(glm::vec3& position) const {
     return getJointPositionInWorldFrame(getLastFreeJointIndex(getRightHandJointIndex()), position);
-}
-
-float SkeletonModel::getRightArmLength() const {
-    return getLimbLength(getRightHandJointIndex());
 }
 
 bool SkeletonModel::getHeadPosition(glm::vec3& headPosition) const {
@@ -294,7 +308,7 @@ bool SkeletonModel::getEyePositions(glm::vec3& firstEyePosition, glm::vec3& seco
 }
 
 glm::vec3 SkeletonModel::getDefaultEyeModelPosition() const {
-    return _owningAvatar->getScale() * _defaultEyeModelPosition;
+    return _owningAvatar->getModelScale() * _defaultEyeModelPosition;
 }
 
 float DENSITY_OF_WATER = 1000.0f; // kg/m^3
@@ -316,26 +330,26 @@ void SkeletonModel::computeBoundingShape() {
     float radius, height;
     glm::vec3 offset;
     _rig.computeAvatarBoundingCapsule(geometry, radius, height, offset);
-    float invScale = 1.0f / _owningAvatar->getUniformScale();
+    float invScale = 1.0f / _owningAvatar->getModelScale();
     _boundingCapsuleRadius = invScale * radius;
     _boundingCapsuleHeight = invScale * height;
     _boundingCapsuleLocalOffset = invScale * offset;
 }
 
-void SkeletonModel::renderBoundingCollisionShapes(gpu::Batch& batch, float scale, float alpha) {
+void SkeletonModel::renderBoundingCollisionShapes(RenderArgs* args, gpu::Batch& batch, float scale, float alpha) {
     auto geometryCache = DependencyManager::get<GeometryCache>();
     // draw a blue sphere at the capsule top point
     glm::vec3 topPoint = _translation + getRotation() * (scale * (_boundingCapsuleLocalOffset + (0.5f * _boundingCapsuleHeight) * Vectors::UNIT_Y));
 
     batch.setModelTransform(Transform().setTranslation(topPoint).postScale(scale * _boundingCapsuleRadius));
-    geometryCache->renderSolidSphereInstance(batch, glm::vec4(0.6f, 0.6f, 0.8f, alpha));
+    geometryCache->renderSolidSphereInstance(args, batch, glm::vec4(0.6f, 0.6f, 0.8f, alpha));
 
     // draw a yellow sphere at the capsule bottom point
     glm::vec3 bottomPoint = topPoint - glm::vec3(0.0f, scale * _boundingCapsuleHeight, 0.0f);
     glm::vec3 axis = topPoint - bottomPoint;
 
     batch.setModelTransform(Transform().setTranslation(bottomPoint).postScale(scale * _boundingCapsuleRadius));
-    geometryCache->renderSolidSphereInstance(batch, glm::vec4(0.8f, 0.8f, 0.6f, alpha));
+    geometryCache->renderSolidSphereInstance(args, batch, glm::vec4(0.8f, 0.8f, 0.6f, alpha));
 
     // draw a green cylinder between the two points
     glm::vec3 origin(0.0f);

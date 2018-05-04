@@ -47,7 +47,7 @@ void OctreeInboundPacketProcessor::resetStats() {
     _singleSenderStats.clear();
 }
 
-unsigned long OctreeInboundPacketProcessor::getMaxWait() const {
+uint32_t OctreeInboundPacketProcessor::getMaxWait() const {
     // calculate time until next sendNackPackets()
     quint64 nextNackTime = _lastNackTime + TOO_LONG_SINCE_LAST_NACK;
     quint64 now = usecTimestampNow();
@@ -92,7 +92,19 @@ void OctreeInboundPacketProcessor::processPacket(QSharedPointer<ReceivedMessage>
     // Ask our tree subclass if it can handle the incoming packet...
     PacketType packetType = message->getType();
     
-    if (_myServer->getOctree()->handlesEditPacketType(packetType)) {
+    if (packetType == PacketType::ChallengeOwnership) {
+        _myServer->getOctree()->withWriteLock([&] {
+            _myServer->getOctree()->processChallengeOwnershipPacket(*message, sendingNode);
+        });
+    } else if (packetType == PacketType::ChallengeOwnershipRequest) {
+        _myServer->getOctree()->withWriteLock([&] {
+            _myServer->getOctree()->processChallengeOwnershipRequestPacket(*message, sendingNode);
+        });
+    } else if (packetType == PacketType::ChallengeOwnershipReply) {
+        _myServer->getOctree()->withWriteLock([&] {
+            _myServer->getOctree()->processChallengeOwnershipReplyPacket(*message, sendingNode);
+        });
+    } else if (_myServer->getOctree()->handlesEditPacketType(packetType)) {
         PerformanceWarning warn(debugProcessPacket, "processPacket KNOWN TYPE", debugProcessPacket);
         _receivedPacketCount++;
 

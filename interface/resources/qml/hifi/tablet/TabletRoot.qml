@@ -1,7 +1,6 @@
 import QtQuick 2.0
 import Hifi 1.0
-import QtQuick.Controls 1.4
-import HFTabletWebEngineProfile 1.0
+
 import "../../dialogs"
 import "../../controls"
 
@@ -9,7 +8,7 @@ Item {
     id: tabletRoot
     objectName: "tabletRoot"
     property string username: "Unknown user"
-    property var eventBridge;
+    property string usernameShort: "Unknown user"
     property var rootMenu;
     property var openModal: null;
     property var openMessage: null;
@@ -18,7 +17,7 @@ Item {
     signal showDesktop();
     property bool shown: true
     property int currentApp: -1;
-    property alias tabletApps: tabletApps 
+    property alias tabletApps: tabletApps
 
     function setOption(value) {
         option = value;
@@ -44,7 +43,7 @@ Item {
     Component { id: fileDialogBuilder; TabletFileDialog { } }
     function fileDialog(properties) {
         openModal = fileDialogBuilder.createObject(tabletRoot, properties);
-        return openModal; 
+        return openModal;
     }
 
     Component { id: assetDialogBuilder; TabletAssetDialog { } }
@@ -66,53 +65,70 @@ Item {
         return false;
     }
 
+    function isUrlLoaded(url) {
+        if (currentApp >= 0) {
+            var currentAppUrl = tabletApps.get(currentApp).appUrl;
+            if (currentAppUrl === url) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     function loadSource(url) {
         tabletApps.clear();
-        loader.source = "";  // make sure we load the qml fresh each time.
-        loader.source = url;
         tabletApps.append({"appUrl": url, "isWebUrl": false, "scriptUrl": "", "appWebUrl": ""});
+        loader.load(url)
     }
 
     function loadQMLOnTop(url) {
-        tabletApps.append({"appUrl": url, "isWebUrl": false, "scriptUrl": "", "appWebUrl": ""});
-        loader.source = "";
-        loader.source = tabletApps.get(currentApp).appUrl;
-        if (loader.item.hasOwnProperty("gotoPreviousApp")) {
-            loader.item.gotoPreviousApp = true;
+        if (!isUrlLoaded(url)) {
+            tabletApps.append({"appUrl": url, "isWebUrl": false, "scriptUrl": "", "appWebUrl": ""});
+            loader.load(tabletApps.get(currentApp).appUrl, function(){
+	            if (loader.item.hasOwnProperty("gotoPreviousApp")) {
+	                loader.item.gotoPreviousApp = true;
+	            }
+            });
         }
     }
 
-    function loadWebOnTop(url, injectJavaScriptUrl) {
-        tabletApps.append({"appUrl": loader.source, "isWebUrl": true, "scriptUrl": injectJavaScriptUrl, "appWebUrl": url});
-        loader.item.url = tabletApps.get(currentApp).appWebUrl;
-        loader.item.scriptUrl = tabletApps.get(currentApp).scriptUrl;
-        if (loader.item.hasOwnProperty("gotoPreviousApp")) {
-            loader.item.gotoPreviousApp = true;
+    function loadWebContent(source, url, injectJavaScriptUrl) {
+        if (!isUrlLoaded(url)) {
+            tabletApps.append({"appUrl": source, "isWebUrl": true, "scriptUrl": injectJavaScriptUrl, "appWebUrl": url});
+            loader.load(source, function() {
+                loader.item.scriptURL = injectJavaScriptUrl;
+                loader.item.url = url;
+                if (loader.item.hasOwnProperty("gotoPreviousApp")) {
+                    loader.item.gotoPreviousApp = true;
+                }
+            });
         }
     }
 
-    function loadWebBase() {
-        loader.source = "";
-        loader.source = "TabletWebView.qml";
+    function loadWebBase(url, injectJavaScriptUrl) {
+        loadWebContent("hifi/tablet/TabletWebView.qml", url, injectJavaScriptUrl);
     }
-        
+
+    function loadTabletWebBase(url, injectJavaScriptUrl) {
+        loadWebContent("hifi/tablet/BlocksWebView.qml", url, injectJavaScriptUrl);
+    }
+
     function returnToPreviousApp() {
         tabletApps.remove(currentApp);
         var isWebPage = tabletApps.get(currentApp).isWebUrl;
         if (isWebPage) {
             var webUrl = tabletApps.get(currentApp).appWebUrl;
             var scriptUrl = tabletApps.get(currentApp).scriptUrl;
-            loadSource("TabletWebView.qml");
+            loadSource("hifi/tablet/TabletWebView.qml");
             loadWebUrl(webUrl, scriptUrl);
         } else {
-            loader.source = tabletApps.get(currentApp).appUrl;
+        	loader.load(tabletApps.get(currentApp).appUrl);
         }
     }
 
     function openBrowserWindow(request, profile) {
         var component = Qt.createComponent("../../controls/TabletWebView.qml");
         var newWindow = component.createObject(tabletRoot);
-        newWindow.eventBridge = tabletRoot.eventBridge;
         newWindow.remove = true;
         newWindow.profile = profile;
         request.openIn(newWindow.webView);
@@ -124,6 +140,9 @@ Item {
         loader.item.url = url;
         loader.item.scriptURL = injectedJavaScriptUrl;
         tabletApps.append({"appUrl": "TabletWebView.qml", "isWebUrl": true, "scriptUrl": injectedJavaScriptUrl, "appWebUrl": url});
+        if (loader.item.hasOwnProperty("closeButtonVisible")) {
+            loader.item.closeButtonVisible = false;
+        }
     }
 
     // used to send a message from qml to interface script.
@@ -150,12 +169,13 @@ Item {
         }
     }
 
-    function toggleMicEnabled() {
-        ApplicationInterface.toggleMuteAudio();
-    }
-
     function setUsername(newUsername) {
         username = newUsername;
+        usernameShort = newUsername.substring(0, 8);
+
+        if (newUsername.length > 8) {
+            usernameShort = usernameShort + "..."
+        }
     }
 
     ListModel {
@@ -165,49 +185,87 @@ Item {
         }
     }
 
-    Loader {
-        id: loader
-        objectName: "loader"
-        asynchronous: false
-
-        
-        width: parent.width
-        height: parent.height
-
-        onLoaded: {
-            if (loader.item.hasOwnProperty("eventBridge")) {
-                loader.item.eventBridge = eventBridge;
-
-                // Hook up callback for clara.io download from the marketplace.
-                eventBridge.webEventReceived.connect(function (event) {
-                    if (event.slice(0, 17) === "CLARA.IO DOWNLOAD") {
-                        ApplicationInterface.addAssetToWorldFromURL(event.slice(18));
-                    }
-                });
-            }
-            if (loader.item.hasOwnProperty("sendToScript")) {
-                loader.item.sendToScript.connect(tabletRoot.sendToScript);
-            }
-            if (loader.item.hasOwnProperty("setRootMenu")) {
-                loader.item.setRootMenu(tabletRoot.rootMenu, tabletRoot.subMenu);
-            }
-            loader.item.forceActiveFocus();
-
-            if (openModal) {
-                openModal.canceled();
-                openModal.destroy();
-                openModal = null;
-            }
-
-            if (openBrowser) {
-                openBrowser.destroy();
-                openBrowser = null;
+    // Hook up callback for clara.io download from the marketplace.
+    Connections {
+        id: eventBridgeConnection
+        target: eventBridge
+        onWebEventReceived: {
+            if (message.slice(0, 17) === "CLARA.IO DOWNLOAD") {
+                ApplicationInterface.addAssetToWorldFromURL(message.slice(18));
             }
         }
     }
 
+	Item {
+		id: loader
+        objectName: "loader";
+        anchors.fill: parent;
+    	property string source: "";
+    	property var item: null;
+    	signal loaded;
+
+		onWidthChanged: {
+    		if (loader.item) {
+	        	loader.item.width = loader.width;
+    		}
+		}
+
+    	onHeightChanged: {
+    		if (loader.item) {
+	        	loader.item.height = loader.height;
+    		}
+		}
+
+    	function load(newSource, callback) {
+            if (loader.source == newSource) {
+                loader.loaded();
+                return;
+            }
+
+            if (loader.item) {
+                loader.item.destroy();
+                loader.item = null;
+            }
+
+	        QmlSurface.load(newSource, loader, function(newItem) {
+	        	loader.item = newItem;
+	        	loader.item.width = loader.width;
+	        	loader.item.height = loader.height;
+	        	loader.loaded();
+	            if (loader.item.hasOwnProperty("sendToScript")) {
+	                loader.item.sendToScript.connect(tabletRoot.sendToScript);
+	            }
+	            if (loader.item.hasOwnProperty("setRootMenu")) {
+	                loader.item.setRootMenu(tabletRoot.rootMenu, tabletRoot.subMenu);
+	            }
+	            loader.item.forceActiveFocus();
+
+	            if (openModal) {
+	                openModal.canceled();
+	                openModal.destroy();
+	                openModal = null;
+	            }
+
+	            if (openBrowser) {
+	                openBrowser.destroy();
+	                openBrowser = null;
+	            }
+
+	            if (callback) {
+	            	callback();
+	            }
+	        });
+    	}
+	}
+
     width: 480
     height: 706
 
-    function setShown(value) {}
+    function setShown(value) {
+        if (value === true) {
+            HMD.openTablet(HMD.tabletContextualMode) // pass in current contextual mode flag to maintain flag (otherwise uses default false argument)
+        } else {
+            HMD.closeTablet()
+        }
+    }
 }

@@ -91,9 +91,15 @@ namespace gpu {
     using Textures = std::vector<TexturePointer>;
     class TextureView;
     using TextureViews = std::vector<TextureView>;
+    class TextureTable;
+    using TextureTablePointer = std::shared_ptr<TextureTable>;
 
     struct StereoState {
+        bool isStereo() const {
+            return _enable && !_contextDisable;
+        }
         bool _enable{ false };
+        bool _contextDisable { false };
         bool _skybox{ false };
         // 0 for left eye, 1 for right eye
         uint8 _pass{ 0 };
@@ -132,6 +138,11 @@ namespace gpu {
     namespace gl45 {
         class GL45Backend;
         class GL45Buffer;
+    }
+
+    namespace gles {
+        class GLESBackend;
+        class GLESBuffer;
     }
 }
 

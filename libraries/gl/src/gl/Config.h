@@ -12,25 +12,46 @@
 #ifndef hifi_gpu_GPUConfig_h
 #define hifi_gpu_GPUConfig_h
 
-#define GL_GLEXT_PROTOTYPES 1
+#include <QtCore/QtGlobal>
 
-#include <GL/glew.h>
+#if defined(USE_GLES)
+// Minimum GL ES version required is 3.2
+#define GL_MIN_VERSION_MAJOR 0x03
+#define GL_MIN_VERSION_MINOR 0x02
+#define GL_DEFAULT_VERSION_MAJOR GL_MIN_VERSION_MAJOR
+#define GL_DEFAULT_VERSION_MINOR GL_MIN_VERSION_MINOR
+#else
+// Minimum desktop GL version required is 4.1
+#define GL_MIN_VERSION_MAJOR 0x04
+#define GL_MIN_VERSION_MINOR 0x01
+#define GL_DEFAULT_VERSION_MAJOR 0x04
+#define GL_DEFAULT_VERSION_MINOR 0x05
+#endif
 
-#if defined(__APPLE__)
+#define MINIMUM_GL_VERSION ((GL_MIN_VERSION_MAJOR << 8) | GL_MIN_VERSION_MINOR)
 
-#include <OpenGL/gl.h>
-#include <OpenGL/glext.h>
-#include <OpenGL/OpenGL.h>
+#include <glad/glad.h>
+
+#if defined(Q_OS_ANDROID)
+#include <EGL/egl.h>
+#else
+
+#ifndef GL_SLUMINANCE8_EXT
+#define GL_SLUMINANCE8_EXT 0x8C47
+#endif
+
+// Prevent inclusion of System GL headers
+#define __glext_h_
+#define __gl_h_
+#define __gl3_h_
 
 #endif
 
-#if defined(WIN32)
-
-#include <GL/wglew.h>
-
-// Uncomment this define and recompile to be able to avoid code path preventing to be able to run nsight graphics debug
-//#define HIFI_ENABLE_NSIGHT_DEBUG 1
-
-#endif
+// Platform specific code to load the GL functions
+namespace gl {
+    void initModuleGl();
+    int getSwapInterval();
+    void setSwapInterval(int swapInterval);
+}
 
 #endif // hifi_gpu_GPUConfig_h

@@ -11,46 +11,36 @@
 import QtQuick 2.5
 import QtQuick.Window 2.2
 
-Item {
-    readonly property alias colors: colors
-    readonly property alias colorSchemes: colorSchemes
-    readonly property alias dimensions: dimensions
-    readonly property alias fontSizes: fontSizes
-    readonly property alias glyphs: glyphs
-    readonly property alias icons: icons
-    readonly property alias buttons: buttons
-    readonly property alias effects: effects
+QtObject {
 
     function glyphForIcon(icon) {
         // Translates icon enum to glyph char.
         var glyph;
         switch (icon) {
-            case hifi.icons.information:
-                glyph = hifi.glyphs.info;
+            case icons.information:
+                glyph = glyphs.info;
                 break;
-            case hifi.icons.question:
-                glyph = hifi.glyphs.question;
+            case icons.question:
+                glyph = glyphs.question;
                 break;
-            case hifi.icons.warning:
-                glyph = hifi.glyphs.alert;
+            case icons.warning:
+                glyph = glyphs.alert;
                 break;
-            case hifi.icons.critical:
-                glyph = hifi.glyphs.error;
+            case icons.critical:
+                glyph = glyphs.error;
                 break;
-            case hifi.icons.placemark:
-                glyph = hifi.glyphs.placemark;
+            case icons.placemark:
+                glyph = glyphs.placemark;
                 break;
             default:
-                glyph = hifi.glyphs.noIcon;
+                glyph = glyphs.noIcon;
         }
         return glyph;
     }
 
-    Item {
-        id: colors
-
+    readonly property QtObject colors: QtObject {
         // Base colors
-        readonly property color baseGray: "#404040"
+        readonly property color baseGray: "#393939"
         readonly property color darkGray: "#121212"
         readonly property color baseGrayShadow: "#252525"
         readonly property color baseGrayHighlight: "#575757"
@@ -134,14 +124,13 @@ Item {
         readonly property color tabBackgroundLight: "#d4d4d4"
     }
 
-    Item {
-        id: colorSchemes
+    readonly property QtObject colorSchemes: QtObject {
         readonly property int light: 0
         readonly property int dark: 1
+        readonly property int faintGray: 2
     }
 
-    Item {
-        id: dimensions
+    readonly property QtObject dimensions: QtObject {
         readonly property bool largeScreen: Screen.width >= 1920 && Screen.height >= 1080
         readonly property real borderRadius: largeScreen ? 7.5 : 5.0
         readonly property real borderWidth: largeScreen ? 2 : 1
@@ -161,13 +150,14 @@ Item {
         readonly property real controlLineHeight: 28  // Height of spinbox control on 1920 x 1080 monitor
         readonly property real controlInterlineHeight: 21  // 75% of controlLineHeight
         readonly property vector2d menuPadding: Qt.vector2d(14, 102)
-        readonly property real scrollbarBackgroundWidth: 18
+        readonly property real scrollbarBackgroundWidth: 20
         readonly property real scrollbarHandleWidth: scrollbarBackgroundWidth - 2
         readonly property real tabletMenuHeader: 90
+        readonly property real buttonWidth: 120
     }
 
-    Item {
-        id: fontSizes  // In pixels
+    readonly property QtObject fontSizes: QtObject {
+        // In pixels
         readonly property real overlayTitle: dimensions.largeScreen ? 18 : 14
         readonly property real tabName: dimensions.largeScreen ? 12 : 10
         readonly property real sectionName: dimensions.largeScreen ? 12 : 10
@@ -178,7 +168,7 @@ Item {
         readonly property real tableHeading: dimensions.largeScreen ? 12 : 10
         readonly property real tableHeadingIcon: dimensions.largeScreen ? 60 : 33
         readonly property real tableText: dimensions.largeScreen ? 15 : 12
-        readonly property real buttonLabel: dimensions.largeScreen ? 13 : 9
+        readonly property real buttonLabel: dimensions.largeScreen ? 14 : 9
         readonly property real iconButton: dimensions.largeScreen ? 13 : 9
         readonly property real listItem: dimensions.largeScreen ? 15 : 11
         readonly property real tabularData: dimensions.largeScreen ? 15 : 11
@@ -192,8 +182,7 @@ Item {
         readonly property real disclosureButton: dimensions.largeScreen ? 30 : 22
     }
 
-    Item {
-        id: icons
+    readonly property QtObject icons: QtObject {
         // Values per OffscreenUi::Icon
         readonly property int none: 0
         readonly property int question: 1
@@ -203,29 +192,32 @@ Item {
         readonly property int placemark: 5
     }
 
-    Item {
-        id: buttons
+    readonly property QtObject buttons: QtObject {
         readonly property int white: 0
         readonly property int blue: 1
         readonly property int red: 2
         readonly property int black: 3
-        readonly property var textColor: [ colors.darkGray, colors.white, colors.white, colors.white ]
-        readonly property var colorStart: [ colors.white, colors.primaryHighlight, "#d42043", "#343434" ]
-        readonly property var colorFinish: [ colors.lightGrayText, colors.blueAccent, "#94132e", colors.black ]
-        readonly property var hoveredColor: [ colorStart[white], colorStart[blue], colorStart[red], colorFinish[black] ]
-        readonly property var pressedColor: [ colorFinish[white], colorFinish[blue], colorFinish[red], colorStart[black] ]
+        readonly property int none: 4
+        readonly property int noneBorderless: 5
+        readonly property int noneBorderlessWhite: 6
+        readonly property int noneBorderlessGray: 7
+        readonly property var textColor: [ colors.darkGray, colors.white, colors.white, colors.white, colors.white, colors.blueAccent, colors.white, colors.darkGray ]
+        readonly property var colorStart: [ colors.white, colors.primaryHighlight, "#d42043", "#343434", Qt.rgba(0, 0, 0, 0), Qt.rgba(0, 0, 0, 0), Qt.rgba(0, 0, 0, 0), Qt.rgba(0, 0, 0, 0) ]
+        readonly property var colorFinish: [ colors.lightGrayText, colors.blueAccent, "#94132e", colors.black, Qt.rgba(0, 0, 0, 0), Qt.rgba(0, 0, 0, 0), Qt.rgba(0, 0, 0, 0), Qt.rgba(0, 0, 0, 0) ]
+        readonly property var hoveredColor: [ colorStart[white], colorStart[blue], colorStart[red], colorFinish[black], colorStart[none], colorStart[noneBorderless], colorStart[noneBorderlessWhite], colorStart[noneBorderlessGray] ]
+        readonly property var pressedColor: [ colorFinish[white], colorFinish[blue], colorFinish[red], colorStart[black], colorStart[none], colorStart[noneBorderless], colorStart[noneBorderlessWhite], colors.lightGrayText ]
+        readonly property var focusedColor: [ colors.lightGray50, colors.blueAccent, colors.redAccent, colors.darkGray, colorStart[none], colorStart[noneBorderless], colorStart[noneBorderlessWhite], colorStart[noneBorderlessGray] ]
         readonly property var disabledColorStart: [ colorStart[white], colors.baseGrayHighlight]
         readonly property var disabledColorFinish: [ colorFinish[white], colors.baseGrayShadow]
         readonly property var disabledTextColor: [ colors.lightGrayText, colors.baseGrayShadow]
         readonly property int radius: 5
     }
 
-    QtObject {
-        id: effects
+    readonly property QtObject effects: QtObject {
         readonly property int fadeInDuration: 300
     }
-    Item {
-        id: glyphs
+
+    readonly property QtObject glyphs: QtObject {
         readonly property string noIcon: ""
         readonly property string hmd: "b"
         readonly property string screen: "c"
@@ -333,5 +325,29 @@ Item {
         readonly property string vol_x_2: "\ue015"
         readonly property string vol_x_3: "\ue016"
         readonly property string vol_x_4: "\ue017"
+        readonly property string source: "\ue01c"
+        readonly property string playback_play: "\ue01d"
+        readonly property string stop_square: "\ue01e"
+        readonly property string avatarTPose: "\ue01f"
+        readonly property string lock: "\ue006"
+        readonly property string checkmark: "\ue020"
+        readonly property string leftRightArrows: "\ue021"
+        readonly property string hfc: "\ue022"
+        readonly property string home2: "\ue023"
+        readonly property string walletKey: "\ue024"
+        readonly property string lightning: "\ue025"
+        readonly property string securityImage: "\ue026"
+        readonly property string wallet: "\ue027"
+        readonly property string paperPlane: "\ue028"
+        readonly property string passphrase: "\ue029"
+        readonly property string globe: "\ue02c"
+        readonly property string wand: "\ue02d"
+        readonly property string hat: "\ue02e"
+        readonly property string install: "\ue02f"
+        readonly property string certificate: "\ue030"
+        readonly property string gift: "\ue031"
+        readonly property string update: "\ue032"
+        readonly property string uninstall: "\ue033"
+        readonly property string verticalEllipsis: "\ue034"
     }
 }

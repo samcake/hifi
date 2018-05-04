@@ -26,12 +26,29 @@ namespace Simulation {
     const uint32_t DIRTY_MATERIAL = 0x00400;
     const uint32_t DIRTY_PHYSICS_ACTIVATION = 0x0800; // should activate object in physics engine
     const uint32_t DIRTY_SIMULATOR_ID = 0x1000; // the simulatorID has changed
-    const uint32_t DIRTY_SIMULATION_OWNERSHIP_FOR_POKE = 0x2000; // bid for simulation ownership at "poke"
-    const uint32_t DIRTY_SIMULATION_OWNERSHIP_FOR_GRAB = 0x4000; // bid for simulation ownership at "grab"
+    const uint32_t DIRTY_SIMULATION_OWNERSHIP_PRIORITY = 0x2000; // our own bid priority has changed
+
+    // bits 17-32 are reservied for special flags
+    const uint32_t SPECIAL_FLAGS_NO_BOOTSTRAPPING = 0x10000;
 
     const uint32_t DIRTY_TRANSFORM = DIRTY_POSITION | DIRTY_ROTATION;
     const uint32_t DIRTY_VELOCITIES = DIRTY_LINEAR_VELOCITY | DIRTY_ANGULAR_VELOCITY;
-    const uint32_t DIRTY_SIMULATION_OWNERSHIP_PRIORITY = DIRTY_SIMULATION_OWNERSHIP_FOR_POKE | DIRTY_SIMULATION_OWNERSHIP_FOR_GRAB;
+    const uint32_t SPECIAL_FLAGS = SPECIAL_FLAGS_NO_BOOTSTRAPPING;
+
+    const uint32_t DIRTY_FLAGS = DIRTY_POSITION |
+      DIRTY_ROTATION |
+      DIRTY_LINEAR_VELOCITY |
+      DIRTY_ANGULAR_VELOCITY |
+      DIRTY_MASS |
+      DIRTY_COLLISION_GROUP |
+      DIRTY_MOTION_TYPE |
+      DIRTY_SHAPE |
+      DIRTY_LIFETIME |
+      DIRTY_UPDATEABLE |
+      DIRTY_MATERIAL |
+      DIRTY_PHYSICS_ACTIVATION |
+      DIRTY_SIMULATOR_ID |
+      DIRTY_SIMULATION_OWNERSHIP_PRIORITY;
 };
 
 #endif // hifi_SimulationFlags_h

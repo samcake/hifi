@@ -9,7 +9,6 @@
 //
 
 import QtQuick 2.5
-import QtQuick.Controls 1.4
 
 import "../../controls-uit" as HifiControls
 import "../../styles-uit"
@@ -25,7 +24,6 @@ Item {
     property bool keyboardRaised: false
     property bool punctuationMode: false
 
-    property var eventBridge;
     signal sendToScript(var message);
 
     anchors.fill: parent

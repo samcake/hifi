@@ -21,11 +21,11 @@
 #include <AudioLimiter.h>
 #include <UUIDHasher.h>
 
+#include <plugins/Forward.h>
 #include <plugins/CodecPlugin.h>
 
 #include "PositionalAudioStream.h"
 #include "AvatarAudioStream.h"
-
 
 class AudioMixerClientData : public NodeData {
     Q_OBJECT
@@ -84,6 +84,9 @@ public:
     // uses randomization to have the AudioMixer send a stats packet to this node around every second
     bool shouldSendStats(int frameNumber);
 
+    float getMasterAvatarGain() const { return _masterAvatarGain; }
+    void setMasterAvatarGain(float gain) { _masterAvatarGain = gain; }
+
     AudioLimiter audioLimiter;
 
     void setupCodec(CodecPluginPointer codec, const QString& codecName);
@@ -108,6 +111,8 @@ public:
     bool getRequestsDomainListData() { return _requestsDomainListData; }
     void setRequestsDomainListData(bool requesting) { _requestsDomainListData = requesting; }
 
+    void setupCodecForReplicatedAgent(QSharedPointer<ReceivedMessage> message);
+
 signals:
     void injectorStreamFinished(const QUuid& streamIdentifier);
 
@@ -123,6 +128,8 @@ private:
 
     QReadWriteLock _streamsLock;
     AudioStreamMap _audioStreams; // microphone stream from avatar is stored under key of null UUID
+
+    void optionallyReplicatePacket(ReceivedMessage& packet, const Node& node);
 
     using IgnoreZone = AABox;
     class IgnoreZoneMemo {
@@ -171,6 +178,8 @@ private:
     AudioStreamStats _downstreamAudioStreamStats;
 
     int _frameToSendStats { 0 };
+
+    float _masterAvatarGain { 1.0f };   // per-listener mixing gain, applied only to avatars
 
     CodecPluginPointer _codec;
     QString _selectedCodecName;

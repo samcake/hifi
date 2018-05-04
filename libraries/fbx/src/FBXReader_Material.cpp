@@ -92,6 +92,7 @@ FBXTexture FBXReader::getTexture(const QString& textureID) {
         texture.filename = filepath;
     }
 
+    texture.id = textureID;
     texture.name = _textureNames.value(textureID);
     texture.transform.setIdentity();
     texture.texcoordSet = 0;
@@ -278,7 +279,7 @@ void FBXReader::consolidateFBXMaterials(const QVariantHash& mapping) {
         }
 
         // Finally create the true material representation
-        material._material = std::make_shared<model::Material>();
+        material._material = std::make_shared<graphics::Material>();
 
         // Emissive color is the mix of emissiveColor with emissiveFactor
         auto emissive = material.emissiveColor * (isMaterialLambert ? 1.0f : material.emissiveFactor); // In lambert there is not emissiveFactor
@@ -292,7 +293,7 @@ void FBXReader::consolidateFBXMaterials(const QVariantHash& mapping) {
             material._material->setRoughness(material.roughness);
             material._material->setMetallic(material.metallic);
         } else {
-            material._material->setRoughness(model::Material::shininessToRoughness(material.shininess));
+            material._material->setRoughness(graphics::Material::shininessToRoughness(material.shininess));
             float metallic = std::max(material.specularColor.x, std::max(material.specularColor.y, material.specularColor.z));
             material._material->setMetallic(metallic);
 

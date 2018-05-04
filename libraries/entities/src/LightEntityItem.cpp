@@ -30,7 +30,7 @@ const float LightEntityItem::DEFAULT_CUTOFF = PI / 2.0f;
 bool LightEntityItem::_lightsArePickable = false;
 
 EntityItemPointer LightEntityItem::factory(const EntityItemID& entityID, const EntityItemProperties& properties) {
-    EntityItemPointer entity { new LightEntityItem(entityID) };
+    EntityItemPointer entity(new LightEntityItem(entityID), [](EntityItem* ptr) { ptr->deleteLater(); });
     entity->setProperties(properties);
     return entity;
 }
@@ -41,17 +41,31 @@ LightEntityItem::LightEntityItem(const EntityItemID& entityItemID) : EntityItem(
     _color[RED_INDEX] = _color[GREEN_INDEX] = _color[BLUE_INDEX] = 0;
 }
 
-void LightEntityItem::setDimensions(const glm::vec3& value) {
+void LightEntityItem::setUnscaledDimensions(const glm::vec3& value) {
     if (_isSpotlight) {
         // If we are a spotlight, treat the z value as our radius or length, and
         // recalculate the x/y dimensions to properly encapsulate the spotlight.
         const float length = value.z;
         const float width = length * glm::sin(glm::radians(_cutoff));
-        EntityItem::setDimensions(glm::vec3(width, width, length));
+        EntityItem::setUnscaledDimensions(glm::vec3(width, width, length));
     } else {
         float maxDimension = glm::compMax(value);
-        EntityItem::setDimensions(glm::vec3(maxDimension, maxDimension, maxDimension));
+        EntityItem::setUnscaledDimensions(glm::vec3(maxDimension, maxDimension, maxDimension));
     }
+}
+
+void LightEntityItem::locationChanged(bool tellPhysics) {
+    EntityItem::locationChanged(tellPhysics);
+    withWriteLock([&] {
+        _lightPropertiesChanged = true;
+    });
+}
+
+void LightEntityItem::dimensionsChanged() {
+    EntityItem::dimensionsChanged();
+    withWriteLock([&] {
+        _lightPropertiesChanged = true;
+    });
 }
 
 
@@ -84,7 +98,7 @@ void LightEntityItem::setIsSpotlight(bool value) {
         return;
     }
 
-    glm::vec3 dimensions = getDimensions();
+    glm::vec3 dimensions = getScaledDimensions();
     glm::vec3 newDimensions;
     if (value) {
         const float length = dimensions.z;
@@ -98,7 +112,7 @@ void LightEntityItem::setIsSpotlight(bool value) {
         _isSpotlight = value;
         _lightPropertiesChanged = true;
     });
-    setDimensions(newDimensions);
+    setScaledDimensions(newDimensions);
 }
 
 void LightEntityItem::setCutoff(float value) {
@@ -114,9 +128,9 @@ void LightEntityItem::setCutoff(float value) {
     if (getIsSpotlight()) {
         // If we are a spotlight, adjusting the cutoff will affect the area we encapsulate,
         // so update the dimensions to reflect this.
-        const float length = getDimensions().z;
+        const float length = getScaledDimensions().z;
         const float width = length * glm::sin(glm::radians(_cutoff));
-        setDimensions(glm::vec3(width, width, length));
+        setScaledDimensions(glm::vec3(width, width, length));
     }
     
     withWriteLock([&] {
@@ -161,41 +175,17 @@ int LightEntityItem::readEntitySubclassDataFromBuffer(const unsigned char* data,
     int bytesRead = 0;
     const unsigned char* dataAt = data;
 
-    if (args.bitstreamVersion < VERSION_ENTITIES_LIGHT_HAS_INTENSITY_AND_COLOR_PROPERTIES) {
-        READ_ENTITY_PROPERTY(PROP_IS_SPOTLIGHT, bool, setIsSpotlight);
-
-        // _diffuseColor has been renamed to _color
-        READ_ENTITY_PROPERTY(PROP_DIFFUSE_COLOR, rgbColor, setColor);
-
-        // Ambient and specular color are from an older format and are no longer supported.
-        // Their values will be ignored.
-        READ_ENTITY_PROPERTY(PROP_AMBIENT_COLOR_UNUSED, rgbColor, setIgnoredColor);
-        READ_ENTITY_PROPERTY(PROP_SPECULAR_COLOR_UNUSED, rgbColor, setIgnoredColor);
-
-        // _constantAttenuation has been renamed to _intensity
-        READ_ENTITY_PROPERTY(PROP_INTENSITY, float, setIntensity);
-
-        // Linear and quadratic attenuation are from an older format and are no longer supported.
-        // Their values will be ignored.
-        READ_ENTITY_PROPERTY(PROP_LINEAR_ATTENUATION_UNUSED, float, setIgnoredAttenuation);
-        READ_ENTITY_PROPERTY(PROP_QUADRATIC_ATTENUATION_UNUSED, float, setIgnoredAttenuation);
-
-        READ_ENTITY_PROPERTY(PROP_EXPONENT, float, setExponent);
-        READ_ENTITY_PROPERTY(PROP_CUTOFF, float, setCutoff);
-    } else {
-        READ_ENTITY_PROPERTY(PROP_IS_SPOTLIGHT, bool, setIsSpotlight);
-        READ_ENTITY_PROPERTY(PROP_COLOR, rgbColor, setColor);
-        READ_ENTITY_PROPERTY(PROP_INTENSITY, float, setIntensity);
-        READ_ENTITY_PROPERTY(PROP_EXPONENT, float, setExponent);
-        READ_ENTITY_PROPERTY(PROP_CUTOFF, float, setCutoff);
-        READ_ENTITY_PROPERTY(PROP_FALLOFF_RADIUS, float, setFalloffRadius);
-    }
+    READ_ENTITY_PROPERTY(PROP_IS_SPOTLIGHT, bool, setIsSpotlight);
+    READ_ENTITY_PROPERTY(PROP_COLOR, rgbColor, setColor);
+    READ_ENTITY_PROPERTY(PROP_INTENSITY, float, setIntensity);
+    READ_ENTITY_PROPERTY(PROP_EXPONENT, float, setExponent);
+    READ_ENTITY_PROPERTY(PROP_CUTOFF, float, setCutoff);
+    READ_ENTITY_PROPERTY(PROP_FALLOFF_RADIUS, float, setFalloffRadius);
 
     return bytesRead;
 }
 
 
-// TODO: eventually only include properties changed since the params.nodeData->getLastTimeBagEmpty() time
 EntityPropertyFlags LightEntityItem::getEntityProperties(EncodeBitstreamParams& params) const {
     EntityPropertyFlags requestedProperties = EntityItem::getEntityProperties(params);
     requestedProperties += PROP_IS_SPOTLIGHT;
@@ -222,13 +212,6 @@ void LightEntityItem::appendSubclassData(OctreePacketData* packetData, EncodeBit
     APPEND_ENTITY_PROPERTY(PROP_EXPONENT, getExponent());
     APPEND_ENTITY_PROPERTY(PROP_CUTOFF, getCutoff());
     APPEND_ENTITY_PROPERTY(PROP_FALLOFF_RADIUS, getFalloffRadius());
-}
-
-void LightEntityItem::somethingChangedNotification() {
-    EntityItem::somethingChangedNotification();
-    withWriteLock([&] {
-        _lightPropertiesChanged = false;
-    });
 }
 
 const rgbColor& LightEntityItem::getColor() const { 
@@ -307,5 +290,22 @@ float LightEntityItem::getCutoff() const {
         result = _cutoff;
     });
     return result;
+}
+
+void LightEntityItem::resetLightPropertiesChanged() {
+    withWriteLock([&] { _lightPropertiesChanged = false; });
+}
+
+bool LightEntityItem::findDetailedRayIntersection(const glm::vec3& origin, const glm::vec3& direction,
+                        OctreeElementPointer& element, float& distance,
+                        BoxFace& face, glm::vec3& surfaceNormal,
+                        QVariantMap& extraInfo, bool precisionPicking) const {
+
+    // TODO: consider if this is really what we want to do. We've made it so that "lights are pickable" is a global state
+    // this is probably reasonable since there's typically only one tree you'd be picking on at a time. Technically we could
+    // be on the clipboard and someone might be trying to use the ray intersection API there. Anyway... if you ever try to
+    // do ray intersection testing off of trees other than the main tree of the main entity renderer, then we'll need to
+    // fix this mechanism.
+    return _lightsArePickable;
 }
 
