@@ -19,12 +19,23 @@
 <@include Skinning.slh@>
 <$declareUseDualQuaternionSkinning()$>
 
+<@include BlendshapeOffset.slh@>
+<$declareApplyBlendshapeOffsets()$>
+
+<@include render-utils/ShaderConstants.h@>
+
+layout(location=RENDER_UTILS_ATTR_POSITION_WS) out vec4 _positionWS;
+
 void main(void) {
-    vec4 position = vec4(0.0, 0.0, 0.0, 0.0);
-    skinPosition(inSkinClusterIndex, inSkinClusterWeight, inPosition, position);
+    vec4 position;
+    applyBlendshapeOffset(gl_VertexID, inPosition, position);
+
+    vec4 skinnedPosition;
+    skinPosition(inSkinClusterIndex, inSkinClusterWeight, position, skinnedPosition);
 
     // standard transform
     TransformCamera cam = getTransformCamera();
     TransformObject obj = getTransformObject();
-    <$transformModelToClipPos(cam, obj, position, gl_Position)$>
+    <$transformModelToClipPos(cam, obj, skinnedPosition, gl_Position)$>
+    <$transformModelToWorldPos(obj, skinnedPosition, _positionWS)$>
 }
