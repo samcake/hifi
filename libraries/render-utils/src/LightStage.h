@@ -76,6 +76,8 @@ public:
 
         Shadow(graphics::LightPointer light, float maxDistance, unsigned int cascadeCount = 1);
 
+        void setLight(graphics::LightPointer light);
+
         void setKeylightFrustum(const ViewFrustum& viewFrustum,
                                 float nearDepth = 1.0f, float farDepth = 1000.0f);
         void setKeylightCascadeFrustum(unsigned int cascadeIndex, const ViewFrustum& viewFrustum,
@@ -93,10 +95,15 @@ public:
         const graphics::LightPointer& getLight() const { return _light; }
 
         gpu::TexturePointer map;
+#include "Shadows_shared.slh"
+        class Schema : public ShadowParameters {
+        public:
 
+            Schema();
+
+        };
     protected:
 
-#include "Shadows_shared.slh"
 
         using Cascades = std::vector<Cascade>;
 
@@ -106,12 +113,7 @@ public:
         float _maxDistance;
         Cascades _cascades;
 
-        class Schema : public ShadowParameters {
-        public:
 
-            Schema();
-
-        };
         UniformBufferView _schemaBuffer = nullptr;
     };
 
@@ -182,6 +184,24 @@ public:
     };
     using FramePointer = std::shared_ptr<Frame>;
     
+    class ShadowFrame {
+    public:
+        ShadowFrame() {}
+        
+        void clear() {}
+        
+        using Object = ShadowPointer;
+        using Objects = std::vector<Object>;
+
+        void pushShadow(const ShadowPointer& shadow) {
+            _objects.emplace_back(shadow);
+        }
+
+
+        Objects _objects;
+    };
+    using ShadowFramePointer = std::shared_ptr<ShadowFrame>;
+
     Frame _currentFrame;
     
     Index getAmbientOffLight() { return _ambientOffLightId; }
