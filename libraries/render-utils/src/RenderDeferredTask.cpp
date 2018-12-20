@@ -249,7 +249,7 @@ void RenderDeferredTask::build(JobModel& task, const render::Varying& input, ren
     // Debugging task is happening in the "over" layer after tone mapping and just before HUD
     { // Debug the bounds of the rendered items, still look at the zbuffer
         const auto extraDebugBuffers = RenderDeferredTaskDebug::ExtraBuffers(linearDepthTarget, surfaceGeometryFramebuffer, ambientOcclusionFramebuffer, ambientOcclusionFramebuffer, scatteringResource, velocityBuffer);
-        const auto debugInputs = RenderDeferredTaskDebug::Input(fetchedItems, inputs.get2(), lightingStageInputs, lightClusters, prepareDeferredOutputs, extraDebugBuffers,
+        const auto debugInputs = RenderDeferredTaskDebug::Input(fetchedItems, shadowTaskOutputs, lightingStageInputs, lightClusters, prepareDeferredOutputs, extraDebugBuffers,
                  deferredFrameTransform, jitter, lightingModel).asVarying();
         task.addJob<RenderDeferredTaskDebug>("DebugRenderDeferredTask", debugInputs);
     }
@@ -354,7 +354,7 @@ void RenderDeferredTaskDebug::build(JobModel& task, const render::Varying& input
 
         task.addJob<DrawBounds>("DrawLightBounds", lights);
         task.addJob<DrawBounds>("DrawZones", zones);
-        const auto frustums = task.addJob<ExtractFrustums>("ExtractFrustums", lightFrame);
+        const auto frustums = task.addJob<ExtractFrustums>("ExtractFrustums", shadowFrame);
         const auto viewFrustum = frustums.getN<ExtractFrustums::Outputs>(ExtractFrustums::VIEW_FRUSTUM);
         task.addJob<DrawFrustum>("DrawViewFrustum", viewFrustum, glm::vec3(0.0f, 1.0f, 0.0f));
         for (auto i = 0; i < ExtractFrustums::SHADOW_CASCADE_FRUSTUM_COUNT; i++) {
@@ -447,7 +447,7 @@ void DrawDeferred::run(const RenderContextPointer& renderContext, const Inputs& 
     const auto& lightFrame = inputs.get2();
     const auto& lightingModel = inputs.get3();
     const auto& lightClusters = inputs.get4();
-    const auto& shadowFrame = inputs.get5();
+    // Not needed yet: const auto& shadowFrame = inputs.get5();
     const auto jitter = inputs.get6();
     auto deferredLightingEffect = DependencyManager::get<DeferredLightingEffect>();
 
