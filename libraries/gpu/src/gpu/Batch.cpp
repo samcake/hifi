@@ -467,9 +467,20 @@ void Batch::restoreContextViewCorrection() {
 void Batch::disableContextStereo() {
     ADD_COMMAND(disableContextStereo);
 }
-
 void Batch::restoreContextStereo() {
     ADD_COMMAND(restoreContextStereo);
+}
+void Batch::enableContextStereo() {
+    ADD_COMMAND(enableContextStereo);
+}
+
+void Batch::setContextStereoProjection(const Mat4 stereoProjs[2]) {
+    ADD_COMMAND(setContextStereoProjection);
+    _params.emplace_back(cacheData(2 * sizeof(Mat4), stereoProjs));
+}
+void Batch::setContextStereoView(const Mat4 stereoViews[2]) {
+    ADD_COMMAND(setContextStereoView);
+    _params.emplace_back(cacheData(2 * sizeof(Mat4), stereoViews));
 }
 
 void Batch::runLambda(std::function<void()> f) {

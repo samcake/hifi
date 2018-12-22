@@ -135,6 +135,19 @@ private:
 
     static void getVertices(const ViewFrustum& frustum, glm::vec3 vertices[8]);
 };
+
+class SetupStereoState {
+public:
+    using JobModel = render::Job::Model<SetupStereoState>;
+
+    SetupStereoState();
+
+    void run(const render::RenderContextPointer& renderContext);
+
+private:
+};
+
+
 }
 
 #endif // hifi_render_DrawTask_h

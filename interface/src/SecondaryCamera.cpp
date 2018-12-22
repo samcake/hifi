@@ -44,6 +44,7 @@ public:
         _textureHeight = config.textureHeight;
         _mirrorProjection = config.mirrorProjection;
         _portalProjection = config.portalProjection;
+        _stereo = config.stereo;
     }
 
     void setPortalProjection(ViewFrustum& srcViewFrustum) {
@@ -154,10 +155,11 @@ public:
             _cachedArgsPointer->_renderMode = args->_renderMode;
             args->_blitFramebuffer = destFramebuffer;
             args->_viewport = glm::ivec4(0, 0, destFramebuffer->getWidth(), destFramebuffer->getHeight());
-            args->_displayMode = RenderArgs::MONO;
+            args->_displayMode = (_stereo ? RenderArgs::DisplayMode::STEREO_HMD : RenderArgs::DisplayMode::MONO);
             args->_renderMode = RenderArgs::RenderMode::SECONDARY_CAMERA_RENDER_MODE;
 
             gpu::doInBatch("SecondaryCameraJob::run", args->_context, [&](gpu::Batch& batch) {
+                batch.enableContextStereo();
                 batch.disableContextStereo();
                 batch.disableContextViewCorrection();
             });
@@ -216,6 +218,7 @@ private:
     int _textureHeight;
     bool _mirrorProjection;
     bool _portalProjection;
+    bool _stereo;
     EntityPropertyFlags _attachedEntityPropertyFlags;
 };
 

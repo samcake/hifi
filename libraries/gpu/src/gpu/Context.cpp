@@ -162,7 +162,7 @@ void Context::setStereoViews(const mat4 views[2]) {
         _stereo._eyeViews[i] = views[i];
     }
 }
-
+/*
 void Context::getStereoProjections(mat4* eyeProjections) const {
     for (int i = 0; i < 2; ++i) {
         eyeProjections[i] = _stereo._eyeProjections[i];
@@ -174,7 +174,7 @@ void Context::getStereoViews(mat4* eyeViews) const {
         eyeViews[i] = _stereo._eyeViews[i];
     }
 }
-
+*/
 void Context::downloadFramebuffer(const FramebufferPointer& srcFramebuffer, const Vec4i& region, QImage& destImage) {
     _backend->downloadFramebuffer(srcFramebuffer, region, destImage);
 }
