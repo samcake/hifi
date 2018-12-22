@@ -28,6 +28,7 @@ class SecondaryCameraJobConfig : public render::Task::Config { // Exposes second
     Q_PROPERTY(float farClipPlaneDistance MEMBER farClipPlaneDistance NOTIFY dirty)  // Secondary camera's far clip plane distance. In meters.
     Q_PROPERTY(bool mirrorProjection MEMBER mirrorProjection NOTIFY dirty)  // Flag to use attached mirror entity to build frustum for the mirror and set mirrored camera position/orientation.
     Q_PROPERTY(bool portalProjection MEMBER portalProjection NOTIFY dirty)  // Flag to use attached portal entity to build frustum for the portal and set portal camera position/orientation.
+    Q_PROPERTY(bool stereo MEMBER stereo NOTIFY dirty)  // Flag to render stereo image.
 public:
     QUuid attachedEntityId;
     QUuid portalEntranceEntityId;
@@ -40,6 +41,7 @@ public:
     int textureHeight { TextureCache::DEFAULT_SPECTATOR_CAM_HEIGHT };
     bool mirrorProjection { false };
     bool portalProjection { false };
+    bool stereo{ false };
 
     SecondaryCameraJobConfig() : render::Task::Config(false) {}
 signals:

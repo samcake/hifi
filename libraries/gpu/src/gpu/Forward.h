@@ -100,7 +100,8 @@ namespace gpu {
             return _enable && !_contextDisable;
         }
         bool _enable{ false };
-        bool _contextDisable { false };
+        bool _contextDisable { false }; 
+        bool _forceContext { false };
         bool _skybox{ false };
         // 0 for left eye, 1 for right eye
         uint8 _pass{ 0 };

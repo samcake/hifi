@@ -85,6 +85,9 @@ void RenderForwardTask::build(JobModel& task, const render::Varying& input, rend
 
     // First job, alter faded
     fadeEffect->build(task, opaques);
+    
+    // setup stereo as needed
+    task.addJob<SetupStereoState>("SetupStereo");
 
     // Prepare objects shared by several jobs
     const auto deferredFrameTransform = task.addJob<GenerateDeferredFrameTransform>("DeferredFrameTransform");

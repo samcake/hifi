@@ -145,6 +145,9 @@ void RenderDeferredTask::build(JobModel& task, const render::Varying& input, ren
 
     fadeEffect->build(task, opaques);
 
+    // setup stereo as needed
+    task.addJob<SetupStereoState>("SetupStereo");
+
     const auto jitter = task.addJob<JitterSample>("JitterCam");
 
     // GPU jobs: Start preparing the primary, deferred and lighting buffer

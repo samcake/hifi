@@ -102,12 +102,45 @@ namespace render {
 
         bool isStereo() const { return _displayMode != MONO; }
 
+
         std::shared_ptr<gpu::Context> _context;
         std::shared_ptr<gpu::Framebuffer> _blitFramebuffer;
         std::shared_ptr<render::ShapePipeline> _shapePipeline;
         std::stack<ViewFrustum> _viewFrustums;
         glm::ivec4 _viewport { 0.0f, 0.0f, 1.0f, 1.0f };
         glm::vec3 _boomOffset { 0.0f, 0.0f, 1.0f };
+
+   /*     void setStereoProjections(const glm::mat4 eyeProjections[2]);
+        void setStereoViews(const glm::mat4 eyeViews[2]);
+        void getStereoProjections(glm::mat4* eyeProjections) const;
+        void getStereoViews(glm::mat4* eyeViews) const;
+*/
+        void setStereoProjections(const glm::mat4 eyeProjections[2]) {
+            for (int i = 0; i < 2; ++i) {
+                _eyeProjections[i] = eyeProjections[i];
+            }
+        }
+
+        void setStereoViews(const glm::mat4 views[2]) {
+            for (int i = 0; i < 2; ++i) {
+                _eyeViews[i] = views[i];
+            }
+        }
+
+        void getStereoProjections(glm::mat4* eyeProjections) const {
+            for (int i = 0; i < 2; ++i) {
+                eyeProjections[i] = _eyeProjections[i];
+            }
+        }
+
+        void getStereoViews(glm::mat4* eyeViews) const {
+            for (int i = 0; i < 2; ++i) {
+                eyeViews[i] = _eyeViews[i];
+            }
+        }
+
+        glm::mat4 _eyeViews[2];
+        glm::mat4 _eyeProjections[2];
 
         float _sizeScale { 1.0f };
         int _boundaryLevelAdjust { 0 };

@@ -374,3 +374,24 @@ void DrawFrustum::getVertices(const ViewFrustum& frustum, glm::vec3 vertices[8])
     vertices[6] = frustum.getFarBottomRight();
     vertices[7] = frustum.getFarBottomLeft();
 }
+
+SetupStereoState::SetupStereoState() {
+
+}
+
+void SetupStereoState::run(const render::RenderContextPointer& renderContext) {
+    assert(renderContext->args);
+    assert(renderContext->args->_context);
+    RenderArgs* args = renderContext->args;
+
+    gpu::doInBatch("SetupStereoState", args->_context, [&](gpu::Batch& batch) {
+        if (args->isStereo()) {
+            batch.enableContextStereo();
+            batch.setContextStereoProjection(args->_eyeProjections);
+            batch.setContextStereoView(args->_eyeViews);
+        } else {
+            batch.disableContextStereo();
+        }
+    });
+}
+

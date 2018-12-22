@@ -227,9 +227,13 @@ void GraphicsEngine::render_performFrame() {
         });
 
         if (isStereo) {
-            renderArgs._context->enableStereo(true);
-            renderArgs._context->setStereoProjections(stereoEyeProjections);
-            renderArgs._context->setStereoViews(stereoEyeOffsets);
+//            renderArgs._context->enableStereo(true);
+//            renderArgs._context->setStereoProjections(stereoEyeProjections);
+//            renderArgs._context->setStereoViews(stereoEyeOffsets);
+          //  renderArgs.enableStereo(true);
+            renderArgs.setStereoProjections(stereoEyeProjections);
+            renderArgs.setStereoViews(stereoEyeOffsets);
+
         }
     }
 

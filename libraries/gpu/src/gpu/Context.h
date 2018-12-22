@@ -206,8 +206,8 @@ public:
     bool isStereo();
     void setStereoProjections(const mat4 eyeProjections[2]);
     void setStereoViews(const mat4 eyeViews[2]);
-    void getStereoProjections(mat4* eyeProjections) const;
-    void getStereoViews(mat4* eyeViews) const;
+  //  void getStereoProjections(mat4* eyeProjections) const;
+  //  void getStereoViews(mat4* eyeViews) const;
 
     // Downloading the Framebuffer is a synchronous action that is not efficient.
     // It s here for convenience to easily capture a snapshot

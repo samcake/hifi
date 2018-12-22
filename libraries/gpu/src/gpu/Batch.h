@@ -242,6 +242,9 @@ public:
 
     void disableContextStereo();
     void restoreContextStereo();
+    void enableContextStereo();
+    void setContextStereoProjection(const Mat4 stereoProjs[2]);
+    void setContextStereoView(const Mat4 stereoViews[2]);
 
     // Debugging
     void pushProfileRange(const char* name);
@@ -343,6 +346,9 @@ public:
 
         COMMAND_disableContextStereo,
         COMMAND_restoreContextStereo,
+        COMMAND_enableContextStereo,
+        COMMAND_setContextStereoProjection,
+        COMMAND_setContextStereoView,
 
         COMMAND_runLambda,
 

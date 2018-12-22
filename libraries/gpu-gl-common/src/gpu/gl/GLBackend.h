@@ -333,6 +333,9 @@ public:
 
     virtual void do_disableContextStereo(const Batch& batch, size_t paramOffset) final;
     virtual void do_restoreContextStereo(const Batch& batch, size_t paramOffset) final;
+    virtual void do_enableContextStereo(const Batch& batch, size_t paramOffset) final;
+    virtual void do_setContextStereoProjection(const Batch& batch, size_t paramOffset) final;
+    virtual void do_setContextStereoView(const Batch& batch, size_t paramOffset) final;
 
     virtual void do_runLambda(const Batch& batch, size_t paramOffset) final;
 

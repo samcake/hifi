@@ -81,6 +81,9 @@ GLBackend::CommandCall GLBackend::_commandCalls[Batch::NUM_COMMANDS] =
     (&::gpu::gl::GLBackend::do_restoreContextViewCorrection),
     (&::gpu::gl::GLBackend::do_disableContextStereo),
     (&::gpu::gl::GLBackend::do_restoreContextStereo),
+    (&::gpu::gl::GLBackend::do_enableContextStereo),
+    (&::gpu::gl::GLBackend::do_setContextStereoProjection),
+    (&::gpu::gl::GLBackend::do_setContextStereoView),
 
     (&::gpu::gl::GLBackend::do_runLambda),
 
@@ -229,11 +232,14 @@ void GLBackend::renderPassTransfer(const Batch& batch) {
                     _stereo._contextDisable = false;
                     break;
 
+                case Batch::COMMAND_enableContextStereo:
                 case Batch::COMMAND_setFramebuffer:
                 case Batch::COMMAND_setViewportTransform:
                 case Batch::COMMAND_setViewTransform:
                 case Batch::COMMAND_setProjectionTransform:
                 case Batch::COMMAND_setProjectionJitter:
+                case Batch::COMMAND_setContextStereoProjection:
+                case Batch::COMMAND_setContextStereoView:
                 {
                     CommandCall call = _commandCalls[(*command)];
                     (this->*(call))(batch, *offset);
@@ -271,7 +277,10 @@ void GLBackend::renderPassDraw(const Batch& batch) {
             case Batch::COMMAND_setModelTransform:
             case Batch::COMMAND_setViewTransform:
             case Batch::COMMAND_setProjectionTransform:
-                break;
+            case Batch::COMMAND_enableContextStereo:
+            case Batch::COMMAND_setContextStereoProjection:
+            case Batch::COMMAND_setContextStereoView:
+               break;
 
             case Batch::COMMAND_draw:
             case Batch::COMMAND_drawIndexed:
@@ -399,6 +408,7 @@ void GLBackend::render(const Batch& batch) {
     // Allow the batch to override the rendering stereo settings
     // for things like full framebuffer copy operations (deferred lighting passes)
     bool savedStereo = _stereo._enable;
+    _stereo._forceContext = false;
     if (!batch.isStereoEnabled()) {
         _stereo._enable = false;
     }
@@ -426,7 +436,9 @@ void GLBackend::render(const Batch& batch) {
 #endif
 
     // Restore the saved stereo state for the next batch
-    _stereo._enable = savedStereo;
+    if (_stereo._forceContext) {
+        _stereo._enable = savedStereo;
+    }
 }
 
 
@@ -474,6 +486,25 @@ void GLBackend::do_disableContextStereo(const Batch& batch, size_t paramOffset) 
 
 void GLBackend::do_restoreContextStereo(const Batch& batch, size_t paramOffset) {
 
+}
+
+void GLBackend::do_enableContextStereo(const Batch& batch, size_t paramOffset) {
+    _stereo._enable = true;
+    _stereo._forceContext = true;
+}
+
+void GLBackend::do_setContextStereoProjection(const Batch& batch, size_t paramOffset) {
+    auto projs = (const glm::mat4*) batch.readData(batch._params[paramOffset + 0]._uint);
+    for (int i = 0; i < 2; i++) {
+        _stereo._eyeProjections[i] = projs[i];
+    }
+}
+
+void GLBackend::do_setContextStereoView(const Batch& batch, size_t paramOffset) {
+    auto views = (const glm::mat4*) batch.readData(batch._params[paramOffset + 0]._uint);
+    for (int i = 0; i < 2; i++ ) {
+        _stereo._eyeViews[i] = views[i];
+    }
 }
 
 void GLBackend::do_runLambda(const Batch& batch, size_t paramOffset) {
