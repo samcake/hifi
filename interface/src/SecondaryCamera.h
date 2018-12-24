@@ -29,6 +29,7 @@ class SecondaryCameraJobConfig : public render::Task::Config { // Exposes second
     Q_PROPERTY(bool mirrorProjection MEMBER mirrorProjection NOTIFY dirty)  // Flag to use attached mirror entity to build frustum for the mirror and set mirrored camera position/orientation.
     Q_PROPERTY(bool portalProjection MEMBER portalProjection NOTIFY dirty)  // Flag to use attached portal entity to build frustum for the portal and set portal camera position/orientation.
     Q_PROPERTY(bool stereo MEMBER stereo NOTIFY dirty)  // Flag to render stereo image.
+    Q_PROPERTY(bool stereoEyeInteraxial MEMBER stereoEyeInteraxial NOTIFY dirty)  // Interaxial distance beetween the eyes to render stereo image.
 public:
     QUuid attachedEntityId;
     QUuid portalEntranceEntityId;
@@ -42,6 +43,7 @@ public:
     bool mirrorProjection { false };
     bool portalProjection { false };
     bool stereo{ false };
+    float stereoEyeInteraxial{ 0.07f };
 
     SecondaryCameraJobConfig() : render::Task::Config(false) {}
 signals:

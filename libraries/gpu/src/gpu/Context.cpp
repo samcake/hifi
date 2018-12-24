@@ -92,7 +92,7 @@ FramePointer Context::endFrame() {
     _currentFrame.reset();
     _frameActive = false;
 
-    result->stereoState = _stereo;
+ //   result->stereoState = _stereo;
     result->finish();
     return result;
 }
@@ -142,7 +142,7 @@ void Context::executeFrame(const FramePointer& frame) const {
     getStats(endStats);
     _frameStats.evalDelta(beginStats, endStats);
 }
-
+/*
 void Context::enableStereo(bool enable) {
     _stereo._enable = enable;
 }

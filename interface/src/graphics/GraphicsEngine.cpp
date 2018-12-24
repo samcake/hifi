@@ -299,7 +299,8 @@ void GraphicsEngine::render_performFrame() {
 
     // Reset the framebuffer and stereo state
     renderArgs._blitFramebuffer.reset();
-    renderArgs._context->enableStereo(false);
+//    renderArgs._context->enableStereo(false);
+ //   renderArgs._displayMode = render::Args::MONO;
 
 #if !defined(DISABLE_QML)
     {

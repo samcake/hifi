@@ -202,11 +202,11 @@ public:
 
     const BackendPointer& getBackend() const { return _backend; }
 
-    void enableStereo(bool enable = true);
+ /*   void enableStereo(bool enable = true);
     bool isStereo();
     void setStereoProjections(const mat4 eyeProjections[2]);
     void setStereoViews(const mat4 eyeViews[2]);
-  //  void getStereoProjections(mat4* eyeProjections) const;
+ */ //  void getStereoProjections(mat4* eyeProjections) const;
   //  void getStereoViews(mat4* eyeViews) const;
 
     // Downloading the Framebuffer is a synchronous action that is not efficient.
@@ -272,7 +272,7 @@ protected:
     bool _frameActive{ false };
     FramePointer _currentFrame;
     RangeTimerPointer _frameRangeTimer;
-    StereoState _stereo;
+ //   StereoState _stereo;
 
     std::mutex _programsToSyncMutex;
     std::queue<ProgramsToSync> _programsToSyncQueue;

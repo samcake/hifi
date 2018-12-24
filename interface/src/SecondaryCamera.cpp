@@ -45,9 +45,10 @@ public:
         _mirrorProjection = config.mirrorProjection;
         _portalProjection = config.portalProjection;
         _stereo = config.stereo;
+        _stereoEyeInteraxial = config.stereoEyeInteraxial;
     }
 
-    void setPortalProjection(ViewFrustum& srcViewFrustum) {
+    void setPortalProjection(ViewFrustum& srcViewFrustum, render::Args* args) {
         if (_portalEntranceEntityId.isNull() || _attachedEntityId.isNull()) {
             qWarning() << "ERROR: Cannot set portal projection for SecondaryCamera without an attachedEntityId AND portalEntranceEntityId set.";
             return;
@@ -97,9 +98,22 @@ public:
         glm::vec3 bottomLeft = -halfPortalExitPropertiesDimensions - mainCameraPositionPortalEntrance;
         glm::mat4 frustum = glm::frustum(bottomLeft.x, upperRight.x, bottomLeft.y, upperRight.y, nearClip, _farClipPlaneDistance);
         srcViewFrustum.setProjection(frustum);
+
+        if (args->isStereo()) {
+
+            for (int eye = 0; eye < 2; eye++) {
+                vec3 eyeOffset = glm::vec3(_stereoEyeInteraxial * 0.5 * float(-1.0 + 2.0 * eye), 0.0f, 0.0f);
+                // Apply IPD scaling
+                //    mat4 eyeOffsetTransform = glm::translate(mat4(), eyeOffset * -1.0f);
+                args->_eyeViews[eye] = glm::translate(mat4(), eyeOffset * -1.0f);
+                args->_eyeProjections[eye] = glm::perspective(glm::radians(_vFoV),
+                    ((float)args->_viewport.z / (float)args->_viewport.w),
+                    _nearClipPlaneDistance, _farClipPlaneDistance);
+            }
+        }
     }
 
-    void setMirrorProjection(ViewFrustum& srcViewFrustum) {
+    void setMirrorProjection(ViewFrustum& srcViewFrustum, render::Args* args) {
         if (_attachedEntityId.isNull()) {
             qWarning() << "ERROR: Cannot set mirror projection for SecondaryCamera without an attachedEntityId set.";
             return;
@@ -141,6 +155,20 @@ public:
         glm::vec3 bottomLeft = -halfMirrorPropertiesDimensions - mirrorCameraPositionMirror;
         glm::mat4 frustum = glm::frustum(bottomLeft.x, upperRight.x, bottomLeft.y, upperRight.y, nearClip, _farClipPlaneDistance);
         srcViewFrustum.setProjection(frustum);
+
+
+        if (args->isStereo()) {
+
+            for (int eye = 0; eye < 2; eye++) {
+                vec3 eyeOffset = glm::vec3(_stereoEyeInteraxial * 0.5 * float(-1.0 + 2.0 * eye), 0.0f, 0.0f);
+                // Apply IPD scaling
+                //    mat4 eyeOffsetTransform = glm::translate(mat4(), eyeOffset * -1.0f);
+                args->_eyeViews[eye] = glm::translate(mat4(), eyeOffset * -1.0f);
+                args->_eyeProjections[eye] = glm::perspective(glm::radians(_vFoV),
+                    ((float)args->_viewport.z / (float)args->_viewport.w),
+                    _nearClipPlaneDistance, _farClipPlaneDistance);
+            }
+        }
     }
 
     void run(const render::RenderContextPointer& renderContext, RenderArgsPointer& cachedArgs) {
@@ -153,29 +181,28 @@ public:
             _cachedArgsPointer->_viewport = args->_viewport;
             _cachedArgsPointer->_displayMode = args->_displayMode;
             _cachedArgsPointer->_renderMode = args->_renderMode;
+            _cachedArgsPointer->_eyeProjections[0] = args->_eyeProjections[0];
+            _cachedArgsPointer->_eyeProjections[1] = args->_eyeProjections[1];
+            _cachedArgsPointer->_eyeViews[0] = args->_eyeViews[0];
+            _cachedArgsPointer->_eyeViews[1] = args->_eyeViews[1];
+
             args->_blitFramebuffer = destFramebuffer;
             args->_viewport = glm::ivec4(0, 0, destFramebuffer->getWidth(), destFramebuffer->getHeight());
             args->_displayMode = (_stereo ? RenderArgs::DisplayMode::STEREO_HMD : RenderArgs::DisplayMode::MONO);
             args->_renderMode = RenderArgs::RenderMode::SECONDARY_CAMERA_RENDER_MODE;
-
-            gpu::doInBatch("SecondaryCameraJob::run", args->_context, [&](gpu::Batch& batch) {
-                batch.enableContextStereo();
-                batch.disableContextStereo();
-                batch.disableContextViewCorrection();
-            });
 
             auto srcViewFrustum = args->getViewFrustum();
             if (_mirrorProjection) {
                 if (_portalProjection) {
                     qWarning() << "ERROR: You can't set both _portalProjection and _mirrorProjection";
                 } else {
-                    setMirrorProjection(srcViewFrustum);
+                    setMirrorProjection(srcViewFrustum, args);
                 }
             } else if (_portalProjection) {
                 if (_mirrorProjection) {
                     qWarning() << "ERROR: You can't set both _portalProjection and _mirrorProjection";
                 } else {
-                    setPortalProjection(srcViewFrustum);
+                    setPortalProjection(srcViewFrustum, args);
                 }
             } else {
                 if (!_attachedEntityId.isNull()) {
@@ -193,6 +220,18 @@ public:
                 srcViewFrustum.setProjection(glm::perspective(glm::radians(_vFoV), 
                                             ((float)args->_viewport.z / (float)args->_viewport.w), 
                                             _nearClipPlaneDistance, _farClipPlaneDistance));
+                if (args->isStereo()) {
+
+                    for (int eye = 0; eye < 2; eye++) {
+                        vec3 eyeOffset = glm::vec3(_stereoEyeInteraxial * 0.5 * float( -1.0 + 2.0 * eye), 0.0f, 0.0f);
+                        // Apply IPD scaling
+                    //    mat4 eyeOffsetTransform = glm::translate(mat4(), eyeOffset * -1.0f);
+                        args->_eyeViews[eye] = glm::translate(mat4(), eyeOffset * -1.0f);
+                        args->_eyeProjections[eye] = glm::perspective(glm::radians(_vFoV),
+                            ((float)args->_viewport.z / (float)args->_viewport.w),
+                            _nearClipPlaneDistance, _farClipPlaneDistance);
+                    }
+                }
             }
             // Without calculating the bound planes, the secondary camera will use the same culling frustum as the main camera,
             // which is not what we want here.
@@ -219,6 +258,7 @@ private:
     bool _mirrorProjection;
     bool _portalProjection;
     bool _stereo;
+    float _stereoEyeInteraxial;
     EntityPropertyFlags _attachedEntityPropertyFlags;
 };
 
@@ -262,6 +302,11 @@ public:
         args->_viewport = cachedArgs->_viewport;
         args->_displayMode = cachedArgs->_displayMode;
         args->_renderMode = cachedArgs->_renderMode;
+        args->_eyeProjections[0] = cachedArgs->_eyeProjections[0];
+        args->_eyeProjections[1] = cachedArgs->_eyeProjections[1];
+        args->_eyeViews[0] = cachedArgs->_eyeViews[0];
+        args->_eyeViews[1] = cachedArgs->_eyeViews[1];
+
         }
         args->popViewFrustum();
 

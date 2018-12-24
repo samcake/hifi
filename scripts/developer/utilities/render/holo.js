@@ -108,6 +108,8 @@
         var spectatorCameraConfig = Render.getConfig("SecondaryCamera");
         Render.getConfig("SecondaryCameraJob.ToneMapping").curve = 0;
         spectatorCameraConfig.enableSecondaryCameraRenderConfigs(true);
+        spectatorCameraConfig.stereo = true;
+        spectatorCameraConfig.stereoEyeInteraxial = 0.07;
         spectatorCameraConfig.portalProjection = true;
         spectatorCameraConfig.portalEntranceEntityId = this.screenOutEntity;
         spectatorCameraConfig.attachedEntityId = this.screenEntity;

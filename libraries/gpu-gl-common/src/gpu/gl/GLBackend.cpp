@@ -436,7 +436,7 @@ void GLBackend::render(const Batch& batch) {
 #endif
 
     // Restore the saved stereo state for the next batch
-    if (_stereo._forceContext) {
+    if (!_stereo._forceContext) {
         _stereo._enable = savedStereo;
     }
 }
