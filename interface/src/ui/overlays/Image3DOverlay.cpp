@@ -117,11 +117,22 @@ void Image3DOverlay::render(RenderArgs* args) {
     batch->setModelTransform(getRenderTransform());
     batch->setResourceTexture(0, _texture->getGPUTexture());
 
-    DependencyManager::get<GeometryCache>()->renderQuad(
-        *batch, topLeft, bottomRight, texCoordTopLeft, texCoordBottomRight,
-        imageColor, _geometryId
-    );
-
+    if (_stereoImage) {
+        auto Xoffset = texCoordTopLeft.x;
+        auto Xwidth = 0.5f * (texCoordBottomRight.x - Xoffset);
+        auto frameOddness = args->_frameIndex % 2;
+        texCoordTopLeft.x = Xoffset + frameOddness * Xwidth;
+        texCoordBottomRight.x = Xoffset + (1 + frameOddness) * Xwidth;
+        DependencyManager::get<GeometryCache>()->renderQuad(
+            *batch, topLeft, bottomRight, texCoordTopLeft, texCoordBottomRight,
+            imageColor, _geometryId
+        );
+    } else {
+        DependencyManager::get<GeometryCache>()->renderQuad(
+            *batch, topLeft, bottomRight, texCoordTopLeft, texCoordBottomRight,
+            imageColor, _geometryId
+        );
+    }
     batch->setResourceTexture(0, nullptr); // restore default white color after me
 }
 

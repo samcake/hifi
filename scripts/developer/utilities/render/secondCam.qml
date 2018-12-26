@@ -50,12 +50,19 @@ Item {
         }
 
         HifiControls.CheckBox {
+            id: isStereoCam
             boxSize: 20
             text: "Stereo"
             checked: secondaryCam.stereo
             onCheckedChanged: { secondaryCam.stereo = checked }
         }
-
+        HifiControls.CheckBox {
+            enabled: isStereoCam.checked
+            boxSize: 20
+            text: "Stereo Image"
+            //checked: secondaryCam.stereo
+            onCheckedChanged: { if (checked) {sendToScript({method: "enableShowStereoImage"}); } else {sendToScript({method: "disableShowStereoImage"});} }
+        }
         RichSlider {
             showLabel: true
             showValue: true

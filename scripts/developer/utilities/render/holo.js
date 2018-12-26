@@ -133,17 +133,25 @@
                 z: 0
             },
             lifetime: config.lifetime,
-            stereoTex: true,
+            stereoImage: true,
         };
         this.screen = Overlays.addOverlay("image3d", this.screenProperties);
-        this.screenProperties = Overlays.getProperties(this.screen);
+      //  this.screenProperties = Overlays.getProperties(this.screen);
 
     }
 
-    Holo.prototype.setStereoTex = function(isStereo) {
-
+    Holo.prototype.enableShowStereoImage = function() {
+        var success = Overlays.editOverlay(this.screen, {
+            stereoImage: true
+          });
+          print("Success: " + success);
     }
-
+    Holo.prototype.disableShowStereoImage = function() {
+        var success = Overlays.editOverlay(this.screen, {
+            stereoImage: false
+          });
+          print("Success: " + success);
+    }
     Holo.prototype.kill = function () {
         print("Kill Holo")
        var spectatorCameraConfig = Render.getConfig("SecondaryCamera");
@@ -305,6 +313,18 @@
             if (holo) {
                 holo.kill();
                 holo = null;
+            }
+        }
+        break;
+        case 'enableShowStereoImage': {
+            if (holo) {
+                holo.enableShowStereoImage();
+            }
+        }
+        break;
+        case 'disableShowStereoImage': {
+            if (holo) {
+                holo.disableShowStereoImage();
             }
         }
         break;

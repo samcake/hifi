@@ -217,6 +217,8 @@ void GraphicsEngine::render_performFrame() {
         viewFrustum = _appRenderArgs._renderArgs.getViewFrustum();
     }
 
+    renderArgs._frameIndex = _renderFrameCount;
+
     {
         PROFILE_RANGE(render, "/gpuContextReset");
         getGPUContext()->beginFrame(_appRenderArgs._view, HMDSensorPose);

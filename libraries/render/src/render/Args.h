@@ -166,6 +166,9 @@ namespace render {
 
         std::function<void(gpu::Batch&, const gpu::TexturePointer&, bool mirror)> _hudOperator;
         gpu::TexturePointer _hudTexture;
+
+
+        uint32_t _frameIndex = 0;
     };
 
 }
