@@ -188,6 +188,11 @@ void Image3DOverlay::setProperties(const QVariantMap& properties) {
     if (emissiveValue.isValid()) {
         _emissive = emissiveValue.toBool();
     }
+
+    auto stereoImageValue = properties["stereoImage"];
+    if (stereoImageValue.isValid()) {
+        _stereoImage = stereoImageValue.toBool();
+    }
 }
 
 /**jsdoc
@@ -255,6 +260,9 @@ QVariant Image3DOverlay::getProperty(const QString& property) {
     }
     if (property == "keepAspectRatio") {
         return _keepAspectRatio;
+    }
+    if (property == "stereoImage") {
+        return _stereoImage;
     }
 
     return Billboard3DOverlay::getProperty(property);

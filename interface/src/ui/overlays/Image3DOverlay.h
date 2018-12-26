@@ -59,6 +59,7 @@ private:
     bool _alphaTexture { false };
     bool _emissive { false };
     bool _keepAspectRatio { true };
+    bool _stereoImage{ false };
 
     QRect _fromImage; // where from in the image to sample
     int _geometryId { 0 };
