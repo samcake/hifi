@@ -21,15 +21,19 @@ Item {
     id: secondCamRoot
     anchors.fill:parent
 
+    property var secondaryCamTask: Render.getConfig("SecondaryCameraJob");
+    property var secondaryCam: Render.getConfig("SecondaryCamera");
+
     Component.onCompleted: {
+        secondaryCamRender.checked = Render.getConfig("SecondaryCameraJob").enabled;
+        isStereoCam.checked = Render.getConfig("SecondaryCamera").stereo;
+        isStereoImage.checked = isStereoCam.checked;
     }
 
     Component.onDestruction: {
         sendToScript({method: "kill2ndCam"})
     }
 
-    property var secondaryCamTask: Render.getConfig("SecondaryCameraJob");
-    property var secondaryCam: Render.getConfig("SecondaryCamera");
 
     Column {
         id: topHeader
@@ -43,21 +47,23 @@ Item {
         }
 
         HifiControls.CheckBox {
+            id: secondaryCamRender
             boxSize: 20
             text: "2nd Cam Renders"
-            checked: secondaryCamTask.enabled
-            onCheckedChanged: { secondaryCamTask.enabled = checked }
-        }
+            //checked: secondaryCamTask.enabled
+            onCheckedChanged: { if (checked) {sendToScript({method: "enableRender"}); } else {sendToScript({method: "disableRender"});} }
+         }
 
         HifiControls.CheckBox {
             id: isStereoCam
             boxSize: 20
             text: "Stereo"
-            checked: secondaryCam.stereo
-            onCheckedChanged: { secondaryCam.stereo = checked }
+            //checked: secondaryCam.stereo
+            onCheckedChanged: { if (checked) {sendToScript({method: "enableRenderStereo"}); } else {sendToScript({method: "disableRenderStereo"});} }
         }
         HifiControls.CheckBox {
-            enabled: isStereoCam.checked
+            id: isStereoImage
+           // enabled: isStereoCam.checked
             boxSize: 20
             text: "Stereo Image"
             //checked: secondaryCam.stereo

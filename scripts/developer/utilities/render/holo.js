@@ -29,6 +29,10 @@
     const SECONDARY_CAMERA_RESOLUTION = 1024; // width/height multiplier, in pixels
  
     function Holo(config) {
+        this.render = false;
+        this.renderStereo = false;
+        this.stereoImage = false;
+
         this.baseEntityProperties = {
                 name: "Holo-base",
                 //"collisionless": false,
@@ -99,6 +103,7 @@
             type: "Shape",
             shape: "Box",
             parentID:  this.screenEntity,
+            localPosition: { x: 10, y: 0, z: 0 },
             localRotation: { w: 0, x: 0, y: 1, z: 0 },
             lifetime: config.lifetime,
         }
@@ -109,8 +114,9 @@
     
         var spectatorCameraConfig = Render.getConfig("SecondaryCamera");
         Render.getConfig("SecondaryCameraJob.ToneMapping").curve = 0;
-        spectatorCameraConfig.enableSecondaryCameraRenderConfigs(true);
-        spectatorCameraConfig.stereo = true;
+        this.enableRender();
+        this.enableRenderStereo();
+
         spectatorCameraConfig.stereoEyeInteraxial = 0.07;
         spectatorCameraConfig.portalProjection = true;
         spectatorCameraConfig.portalEntranceEntityId = this.screenOutEntity;
@@ -133,25 +139,51 @@
                 z: 0
             },
             lifetime: config.lifetime,
-            stereoImage: true,
         };
         this.screen = Overlays.addOverlay("image3d", this.screenProperties);
-      //  this.screenProperties = Overlays.getProperties(this.screen);
+        this.enableStereoImage();
+        //  this.screenProperties = Overlays.getProperties(this.screen);
 
     }
 
-    Holo.prototype.enableShowStereoImage = function() {
-        var success = Overlays.editOverlay(this.screen, {
-            stereoImage: true
-          });
-          print("Success: " + success);
+    Holo.prototype.setRender = function(enabled) {
+        this.render = enabled       
+        Render.getConfig("SecondaryCamera").enableSecondaryCameraRenderConfigs(enabled);
+        print("Success: " + true + " setRender = " + enabled );
     }
-    Holo.prototype.disableShowStereoImage = function() {
-        var success = Overlays.editOverlay(this.screen, {
-            stereoImage: false
-          });
-          print("Success: " + success);
+    Holo.prototype.enableRender = function() {
+        this.setRender(true);
     }
+    Holo.prototype.disableRender = function() {
+        this.setRender(false);
+    }
+    
+    Holo.prototype.setStereoRender = function(enabled) {
+        this.renderStereo = enabled       
+        Render.getConfig("SecondaryCamera").stereo = enabled;
+        print("Success: " + true + " setStereoRender = " + enabled );
+    }
+    Holo.prototype.enableRenderStereo = function() {
+        this.setStereoRender(true);
+    }
+    Holo.prototype.disableRenderStereo = function() {
+        this.setStereoRender(false);
+    }
+
+    Holo.prototype.setStereoImage = function(enabled) {
+        this.stereoImage = enabled
+        var success = Overlays.editOverlay(this.screen, {
+            stereoImage: enabled
+        });
+        print("Success: " + success + " setStereoImage = " + enabled );
+    }
+    Holo.prototype.enableStereoImage = function() {
+        this.setStereoImage(true);
+    }
+    Holo.prototype.disableStereoImage = function() {
+        this.setStereoImage(false);
+    }
+
     Holo.prototype.kill = function () {
         print("Kill Holo")
        var spectatorCameraConfig = Render.getConfig("SecondaryCamera");
@@ -310,26 +342,38 @@
             }
             break;
         case 'kill2ndCam': {
-            if (holo) {
-                holo.kill();
-                holo = null;
-            }
-        }
-        break;
-        case 'enableShowStereoImage': {
-            if (holo) {
-                holo.enableShowStereoImage();
-            }
-        }
-        break;
-        case 'disableShowStereoImage': {
-            if (holo) {
-                holo.disableShowStereoImage();
-            }
-        }
-        break;
-        }
+                if (holo) {
+                    holo.kill();
+                    holo = null;
+                }
+            } break;
 
+        case 'enableRender':
+            if (holo) { holo.enableRender(); }
+            break;
+        case 'disableRender':
+            if (holo) { holo.disableRender(); }
+            break;  
+
+        case 'enableRenderStereo':
+            if (holo) { holo.enableRenderStereo(); }
+            break;
+        case 'disableRenderStereo':
+            if (holo) { holo.disableRenderStereo(); }
+            break;
+
+        case 'enableShowStereoImage':
+            if (holo) { holo.enableStereoImage(); }
+            break;
+        case 'disableShowStereoImage':
+            if (holo) { holo.disableStereoImage(); }
+            break;
+
+        case 'setStereoInteraxial':
+            if (holo) { holo.setStereoInteraxial( message.params[0] ); }
+            break;
+            
+        }
     }
 
     function startup() {
