@@ -100,15 +100,31 @@ public:
         srcViewFrustum.setProjection(frustum);
 
         if (args->isStereo()) {
+            auto mainCamWorld = qApp->getCamera().getTransform();
+ 
 
             for (int eye = 0; eye < 2; eye++) {
-                vec3 eyeOffset = glm::vec3(_stereoEyeInteraxial * 0.5 * float(-1.0 + 2.0 * eye), 0.0f, 0.0f);
-                // Apply IPD scaling
-                //    mat4 eyeOffsetTransform = glm::translate(mat4(), eyeOffset * -1.0f);
-                args->_eyeViews[eye] = glm::translate(mat4(), eyeOffset * -1.0f);
-                args->_eyeProjections[eye] = glm::perspective(glm::radians(_vFoV),
-                    ((float)args->_viewport.z / (float)args->_viewport.w),
-                    _nearClipPlaneDistance, _farClipPlaneDistance);
+                auto lateralOffset = _stereoEyeInteraxial * 0.5 * float(-1.0 + 2.0 * eye);
+
+                glm::vec3 worldSpaceEye =(glm::vec3(mainCamWorld * glm::vec4(lateralOffset, 0.0, 0.0, 1.0)));
+                glm::vec3 worldSpaceEyeCamViewSpace = vec3(portalEntranceFromWorld * vec4(worldSpaceEye, 1.0f));
+                worldSpaceEyeCamViewSpace = vec3(-worldSpaceEyeCamViewSpace.x, worldSpaceEyeCamViewSpace.y,
+                    -worldSpaceEyeCamViewSpace.z);
+                glm::vec3 eyePortalExitCameraPositionWorld = vec3(worldFromPortalExit * vec4(worldSpaceEyeCamViewSpace, 1.0f));
+
+                auto lateralEyeOffsetWorld = eyePortalExitCameraPositionWorld - portalExitCameraPositionWorld;
+
+               // args->_eyeViews[eye] = glm::translate(mat4(), lateralEyeOffsetWorld);
+                args->_eyeViews[eye] = mat4();
+
+
+                float eyeNearClip = worldSpaceEyeCamViewSpace.z + portalExitPropertiesDimensions.z * 2.0f;
+                // `mainCameraPositionPortalEntrance` should technically be `mainCameraPositionPortalExit`,
+                // but the values are the same.
+                glm::vec3 eyeUpperRight = halfPortalExitPropertiesDimensions - worldSpaceEyeCamViewSpace;
+                glm::vec3 eyeBottomLeft = -halfPortalExitPropertiesDimensions - worldSpaceEyeCamViewSpace;
+                args->_eyeProjections[eye] = glm::frustum(eyeBottomLeft.x, eyeUpperRight.x, eyeBottomLeft.y, eyeUpperRight.y, nearClip, _farClipPlaneDistance);
+
             }
         }
     }

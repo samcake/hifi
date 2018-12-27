@@ -23,6 +23,7 @@ Item {
 
     property var secondaryCamTask: Render.getConfig("SecondaryCameraJob");
     property var secondaryCam: Render.getConfig("SecondaryCamera");
+    property var notifyBackToScript: true;
 
     Component.onCompleted: {
         secondaryCamRender.checked = Render.getConfig("SecondaryCameraJob").enabled;
@@ -34,6 +35,27 @@ Item {
         sendToScript({method: "kill2ndCam"})
     }
 
+    function toScript(message) { 
+        if (notifyBackToScript) {
+            sendToScript(message)
+        }
+    }
+       
+    function fromScript(message) {
+        secondCamRoot.notifyBackToScript = false
+
+        switch (message.method) {
+        case "updateCamState":
+            print("assigned value! " + JSON.stringify(message.params))
+
+            secondaryCamRender.checked = (message.params.render);
+            isStereoCam.checked = (message.params.renderStereo);
+            isStereoImage.checked = (message.params.stereoImage);
+            isHMDMask.checked = (message.params.HMDMask);
+            break;
+        }
+        secondCamRoot.notifyBackToScript = true
+    }
 
     Column {
         id: topHeader
@@ -43,7 +65,7 @@ Item {
         HifiControls.Button {
             text: "Spawn"
             // activeFocusOnPress: false
-            onClicked: { sendToScript({method: "spawn2ndCam"}); }
+            onClicked: { toScript({method: "spawn2ndCam"}); }
         }
 
         HifiControls.CheckBox {
@@ -51,7 +73,7 @@ Item {
             boxSize: 20
             text: "2nd Cam Renders"
             //checked: secondaryCamTask.enabled
-            onCheckedChanged: { if (checked) {sendToScript({method: "enableRender"}); } else {sendToScript({method: "disableRender"});} }
+            onCheckedChanged: { if (checked) {toScript({method: "enableRender"}); } else {toScript({method: "disableRender"});} }
          }
 
         HifiControls.CheckBox {
@@ -59,7 +81,7 @@ Item {
             boxSize: 20
             text: "Stereo"
             //checked: secondaryCam.stereo
-            onCheckedChanged: { if (checked) {sendToScript({method: "enableRenderStereo"}); } else {sendToScript({method: "disableRenderStereo"});} }
+            onCheckedChanged: { if (checked) {toScript({method: "enableRenderStereo"}); } else {toScript({method: "disableRenderStereo"});} }
         }
         HifiControls.CheckBox {
             id: isStereoImage
@@ -67,7 +89,13 @@ Item {
             boxSize: 20
             text: "Stereo Image"
             //checked: secondaryCam.stereo
-            onCheckedChanged: { if (checked) {sendToScript({method: "enableShowStereoImage"}); } else {sendToScript({method: "disableShowStereoImage"});} }
+            onCheckedChanged: { if (checked) {toScript({method: "enableShowStereoImage"}); } else {toScript({method: "disableShowStereoImage"});} }
+        }
+        HifiControls.CheckBox {
+            id: isHMDMask
+            boxSize: 20
+            text: "HMD Mask"
+            onCheckedChanged: { if (checked) {toScript({method: "enableShowHMDMask"}); } else {toScript({method: "disableShowHMDMask"});} }
         }
         RichSlider {
             showLabel: true

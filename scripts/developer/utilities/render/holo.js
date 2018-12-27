@@ -29,9 +29,7 @@
     const SECONDARY_CAMERA_RESOLUTION = 1024; // width/height multiplier, in pixels
  
     function Holo(config) {
-        this.render = false;
-        this.renderStereo = false;
-        this.stereoImage = false;
+        this.state = { render: false, renderStereo: false, stereoImage: false, HMDMask:false };
 
         this.baseEntityProperties = {
                 name: "Holo-base",
@@ -103,8 +101,9 @@
             type: "Shape",
             shape: "Box",
             parentID:  this.screenEntity,
-            localPosition: { x: 10, y: 0, z: 0 },
-            localRotation: { w: 0, x: 0, y: 1, z: 0 },
+           // localPosition: { x: 10, y: 0, z: 0 },
+            //localRotation: { w: 0, x: 0, y: 1, z: 0 },
+            localRotation: { w: 1, x: 0, y: 0, z: 0 },
             lifetime: config.lifetime,
         }
         this.screenOutEntity = Entities.addEntity( this.screenOutEntityProperties );
@@ -114,8 +113,8 @@
     
         var spectatorCameraConfig = Render.getConfig("SecondaryCamera");
         Render.getConfig("SecondaryCameraJob.ToneMapping").curve = 0;
-        this.enableRender();
-        this.enableRenderStereo();
+        this.setRender(true);
+        this.setRenderStereo(true);
 
         spectatorCameraConfig.stereoEyeInteraxial = 0.07;
         spectatorCameraConfig.portalProjection = true;
@@ -141,47 +140,41 @@
             lifetime: config.lifetime,
         };
         this.screen = Overlays.addOverlay("image3d", this.screenProperties);
-        this.enableStereoImage();
+        this.setStereoImage(true);
+        this.setHMDMask(false);
         //  this.screenProperties = Overlays.getProperties(this.screen);
+        this.updateQML()
 
     }
 
     Holo.prototype.setRender = function(enabled) {
-        this.render = enabled       
+        this.state.render = enabled       
         Render.getConfig("SecondaryCamera").enableSecondaryCameraRenderConfigs(enabled);
         print("Success: " + true + " setRender = " + enabled );
-    }
-    Holo.prototype.enableRender = function() {
-        this.setRender(true);
-    }
-    Holo.prototype.disableRender = function() {
-        this.setRender(false);
+        this.updateQML()
     }
     
-    Holo.prototype.setStereoRender = function(enabled) {
-        this.renderStereo = enabled       
+    Holo.prototype.setRenderStereo = function(enabled) {
+        this.state.renderStereo = enabled       
         Render.getConfig("SecondaryCamera").stereo = enabled;
-        print("Success: " + true + " setStereoRender = " + enabled );
-    }
-    Holo.prototype.enableRenderStereo = function() {
-        this.setStereoRender(true);
-    }
-    Holo.prototype.disableRenderStereo = function() {
-        this.setStereoRender(false);
+        print("Success: " + true + " setRenderStereo = " + enabled );
+        this.updateQML()
     }
 
     Holo.prototype.setStereoImage = function(enabled) {
-        this.stereoImage = enabled
+        this.state.stereoImage = enabled
         var success = Overlays.editOverlay(this.screen, {
             stereoImage: enabled
         });
         print("Success: " + success + " setStereoImage = " + enabled );
+        this.updateQML()
     }
-    Holo.prototype.enableStereoImage = function() {
-        this.setStereoImage(true);
-    }
-    Holo.prototype.disableStereoImage = function() {
-        this.setStereoImage(false);
+
+    Holo.prototype.setHMDMask = function(enabled) {
+        this.state.hmdMask = enabled
+        Render.getConfig("SecondaryCameraJob.PrepareStencil").enabled = enabled;
+        print("Success: " + true + " setHMDMask = " + enabled );
+        this.updateQML()
     }
 
     Holo.prototype.kill = function () {
@@ -204,9 +197,12 @@
         if (this.screen) {
             Overlays.deleteOverlay(this.view);
         }
+        this.updateQML();
     };   
 
-
+    Holo.prototype.updateQML = function() {
+        sendToQml({method: "updateCamState", params: this.state})
+    }
     
         var TABLET_BUTTON_NAME = "2ndCam";
         var QMLAPP_URL = Script.resolvePath("./secondCam.qml");
@@ -349,24 +345,31 @@
             } break;
 
         case 'enableRender':
-            if (holo) { holo.enableRender(); }
+            if (holo) { holo.setRender(true); }
             break;
         case 'disableRender':
-            if (holo) { holo.disableRender(); }
+            if (holo) { holo.setRender(false); }
             break;  
 
         case 'enableRenderStereo':
-            if (holo) { holo.enableRenderStereo(); }
+            if (holo) { holo.setRenderStereo(true); }
             break;
         case 'disableRenderStereo':
-            if (holo) { holo.disableRenderStereo(); }
+            if (holo) { holo.setRenderStereo(false); }
             break;
 
         case 'enableShowStereoImage':
-            if (holo) { holo.enableStereoImage(); }
+            if (holo) { holo.setStereoImage(true); }
             break;
         case 'disableShowStereoImage':
-            if (holo) { holo.disableStereoImage(); }
+            if (holo) { holo.setStereoImage(false); }
+            break;
+
+        case 'enableShowHMDMask':
+            if (holo) { holo.setHMDMask(true); }
+            break;
+        case 'disableShowHMDMask':
+            if (holo) { holo.setHMDMask(false); }
             break;
 
         case 'setStereoInteraxial':
