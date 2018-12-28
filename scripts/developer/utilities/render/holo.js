@@ -102,8 +102,8 @@
             shape: "Box",
             parentID:  this.screenEntity,
            // localPosition: { x: 10, y: 0, z: 0 },
-            //localRotation: { w: 0, x: 0, y: 1, z: 0 },
-            localRotation: { w: 1, x: 0, y: 0, z: 0 },
+            localRotation: { w: 0, x: 0, y: 1, z: 0 },
+            //localRotation: { w: 1, x: 0, y: 0, z: 0 },
             lifetime: config.lifetime,
         }
         this.screenOutEntity = Entities.addEntity( this.screenOutEntityProperties );

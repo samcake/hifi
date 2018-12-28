@@ -721,6 +721,7 @@ QHash<SimpleProgramKey, gpu::PipelinePointer> GeometryCache::_simplePrograms;
 gpu::ShaderPointer GeometryCache::_simpleShader;
 gpu::ShaderPointer GeometryCache::_transparentShader;
 gpu::ShaderPointer GeometryCache::_unlitShader;
+gpu::ShaderPointer GeometryCache::_unlitStereoImageShader;
 gpu::ShaderPointer GeometryCache::_simpleFadeShader;
 gpu::ShaderPointer GeometryCache::_unlitFadeShader;
 
@@ -2149,6 +2150,7 @@ public:
         HAS_DEPTH_BIAS_FLAG,
         IS_FADING_FLAG,
         IS_ANTIALIASED_FLAG,
+        IS_STEREO_IMAGE_FLAG,
 
         NUM_FLAGS,
     };
@@ -2161,6 +2163,7 @@ public:
         HAS_DEPTH_BIAS = (1 << HAS_DEPTH_BIAS_FLAG),
         IS_FADING = (1 << IS_FADING_FLAG),
         IS_ANTIALIASED = (1 << IS_ANTIALIASED_FLAG),
+        IS_STEREO_IMAGE = (1 << IS_STEREO_IMAGE_FLAG),
     };
     typedef unsigned short Flags;
 
@@ -2173,6 +2176,7 @@ public:
     bool hasDepthBias() const { return isFlag(HAS_DEPTH_BIAS); }
     bool isFading() const { return isFlag(IS_FADING); }
     bool isAntiAliased() const { return isFlag(IS_ANTIALIASED); }
+    bool isStereoImage() const { return isFlag(IS_STEREO_IMAGE); }
 
     Flags _flags = 0;
 #if defined(__clang__)
@@ -2184,9 +2188,9 @@ public:
 
 
     SimpleProgramKey(bool textured = false, bool transparent = false, bool culled = true,
-        bool unlit = false, bool depthBias = false, bool fading = false, bool isAntiAliased = true) {
+        bool unlit = false, bool depthBias = false, bool fading = false, bool isAntiAliased = true, bool stereoImage = false) {
         _flags = (textured ? IS_TEXTURED : 0) | (transparent ? IS_TRANSPARENT : 0) | (culled ? IS_CULLED : 0) |
-            (unlit ? IS_UNLIT : 0) | (depthBias ? HAS_DEPTH_BIAS : 0) | (fading ? IS_FADING : 0) | (isAntiAliased ? IS_ANTIALIASED : 0);
+            (unlit ? IS_UNLIT : 0) | (depthBias ? HAS_DEPTH_BIAS : 0) | (fading ? IS_FADING : 0) | (isAntiAliased ? IS_ANTIALIASED : 0) | (stereoImage ? IS_STEREO_IMAGE : 0);
     }
 
     SimpleProgramKey(int bitmask) : _flags(bitmask) {}
@@ -2229,8 +2233,8 @@ gpu::PipelinePointer GeometryCache::getWebBrowserProgram(bool transparent) {
     return transparent ? _simpleTransparentWebBrowserPipeline : _simpleOpaqueWebBrowserPipeline;
 }
 
-void GeometryCache::bindSimpleProgram(gpu::Batch& batch, bool textured, bool transparent, bool culled, bool unlit, bool depthBiased, bool isAntiAliased) {
-    batch.setPipeline(getSimplePipeline(textured, transparent, culled, unlit, depthBiased, false, isAntiAliased));
+void GeometryCache::bindSimpleProgram(gpu::Batch& batch, bool textured, bool transparent, bool culled, bool unlit, bool depthBiased, bool isAntiAliased, bool stereoImage) {
+    batch.setPipeline(getSimplePipeline(textured, transparent, culled, unlit, depthBiased, false, isAntiAliased, stereoImage));
 
     // If not textured, set a default albedo map
     if (!textured) {
@@ -2239,8 +2243,8 @@ void GeometryCache::bindSimpleProgram(gpu::Batch& batch, bool textured, bool tra
     }
 }
 
-gpu::PipelinePointer GeometryCache::getSimplePipeline(bool textured, bool transparent, bool culled, bool unlit, bool depthBiased, bool fading, bool isAntiAliased) {
-    SimpleProgramKey config { textured, transparent, culled, unlit, depthBiased, fading, isAntiAliased };
+gpu::PipelinePointer GeometryCache::getSimplePipeline(bool textured, bool transparent, bool culled, bool unlit, bool depthBiased, bool fading, bool isAntiAliased, bool stereoImage) {
+    SimpleProgramKey config { textured, transparent, culled, unlit, depthBiased, fading, isAntiAliased, stereoImage };
 
     // If the pipeline already exists, return it
     auto it = _simplePrograms.find(config);
@@ -2260,6 +2264,7 @@ gpu::PipelinePointer GeometryCache::getSimplePipeline(bool textured, bool transp
             _simpleShader = gpu::Shader::createProgram(PS);
             _transparentShader = gpu::Shader::createProgram(PSTransparent);
             _unlitShader = gpu::Shader::createProgram(PSUnlit);
+            _unlitStereoImageShader = gpu::Shader::createProgram(simple_textured_unlit_stereoImage);
         });
     } else {
         static std::once_flag once;
@@ -2292,7 +2297,7 @@ gpu::PipelinePointer GeometryCache::getSimplePipeline(bool textured, bool transp
         PrepareStencil::testMaskDrawShapeNoAA(*state);
     }
 
-    gpu::ShaderPointer program = (config.isUnlit()) ? (config.isFading() ? _unlitFadeShader : _unlitShader) :
+    gpu::ShaderPointer program = (config.isUnlit()) ? (config.isFading() ? _unlitFadeShader : (config.isStereoImage() ? _unlitStereoImageShader : _unlitShader)) :
                                                       (config.isFading() ? _simpleFadeShader : (config.isTransparent() ? _transparentShader : _simpleShader));
     gpu::PipelinePointer pipeline = gpu::Pipeline::create(program, state);
     _simplePrograms.insert(config, pipeline);
