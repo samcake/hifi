@@ -28,7 +28,6 @@
 #pragma GCC diagnostic pop
 #endif
 
-
 #include <shared/QtHelpers.h>
 #include <AvatarData.h>
 #include <PerfStat.h>
@@ -49,8 +48,6 @@
 // 50 times per second - target is 45hz, but this helps account for any small deviations
 // in the update loop - this also results in ~30hz when in desktop mode which is essentially
 // what we want
-const int CLIENT_TO_AVATAR_MIXER_BROADCAST_FRAMES_PER_SECOND = 50;
-static const quint64 MIN_TIME_BETWEEN_MY_AVATAR_DATA_SENDS = USECS_PER_SECOND / CLIENT_TO_AVATAR_MIXER_BROADCAST_FRAMES_PER_SECOND;
 
 // We add _myAvatar into the hash with all the other AvatarData, and we use the default NULL QUid as the key.
 const QUuid MY_AVATAR_KEY;  // NULL key
@@ -68,6 +65,11 @@ AvatarManager::AvatarManager(QObject* parent) :
     connect(nodeList.data(), &NodeList::ignoredNode, this, [this](const QUuid& nodeID, bool enabled) {
         if (enabled) {
             removeAvatar(nodeID, KillAvatarReason::AvatarIgnored);
+        } else {
+            auto avatar = std::static_pointer_cast<Avatar>(getAvatarBySessionID(nodeID));
+            if (avatar) {
+                avatar->createOrb();
+            }
         }
     });
 
@@ -268,6 +270,7 @@ void AvatarManager::updateOtherAvatars(float deltaTime) {
         if (avatar->getSkeletonModel()->isLoaded()) {
             // remove the orb if it is there
             avatar->removeOrb();
+            avatar->updateCollisionGroup(_myAvatar->getOtherAvatarsCollisionsEnabled());
             if (avatar->needsPhysicsUpdate()) {
                 _avatarsToChangeInPhysics.insert(avatar);
             }
@@ -347,25 +350,6 @@ void AvatarManager::postUpdate(float deltaTime, const render::ScenePointer& scen
     }
 }
 
-void AvatarManager::sendIdentityRequest(const QUuid& avatarID) const {
-    auto nodeList = DependencyManager::get<NodeList>();
-    QWeakPointer<NodeList> nodeListWeak = nodeList;
-    nodeList->eachMatchingNode(
-        [](const SharedNodePointer& node)->bool {
-            return node->getType() == NodeType::AvatarMixer && node->getActiveSocket();
-        },
-        [this, avatarID, nodeListWeak](const SharedNodePointer& node) {
-            auto nodeList = nodeListWeak.lock();
-            if (nodeList) {
-                auto packet = NLPacket::create(PacketType::AvatarIdentityRequest, NUM_BYTES_RFC4122_UUID, true);
-                packet->write(avatarID.toRfc4122());
-                nodeList->sendPacket(std::move(packet), *node);
-                ++_identityRequestsSent;
-            }
-        }
-    );
-}
-
 void AvatarManager::simulateAvatarFades(float deltaTime) {
     if (_avatarsToFadeOut.empty()) {
         return;
@@ -391,8 +375,15 @@ void AvatarManager::simulateAvatarFades(float deltaTime) {
     scene->enqueueTransaction(transaction);
 }
 
-AvatarSharedPointer AvatarManager::newSharedAvatar() {
-    return AvatarSharedPointer(new OtherAvatar(qApp->thread()), [](OtherAvatar* ptr) { ptr->deleteLater(); });
+AvatarSharedPointer AvatarManager::newSharedAvatar(const QUuid& sessionUUID) {
+
+    auto otherAvatar = new OtherAvatar(qApp->thread());
+    otherAvatar->setSessionUUID(sessionUUID);
+    auto nodeList = DependencyManager::get<NodeList>();
+    if (!nodeList || !nodeList->isIgnoringNode(sessionUUID)) {
+        otherAvatar->createOrb();
+    }
+    return AvatarSharedPointer(otherAvatar, [](OtherAvatar* ptr) { ptr->deleteLater(); });
 }
 
 void AvatarManager::queuePhysicsChange(const OtherAvatarPointer& avatar) {
@@ -529,6 +520,7 @@ void AvatarManager::handleChangedMotionStates(const VectorOfMotionStates& motion
 }
 
 void AvatarManager::handleCollisionEvents(const CollisionEvents& collisionEvents) {
+    bool playedCollisionSound { false };
     for (Collision collision : collisionEvents) {
         // TODO: The plan is to handle MOTIONSTATE_TYPE_AVATAR, and then MOTIONSTATE_TYPE_MYAVATAR. As it is, other
         // people's avatars will have an id that doesn't match any entities, and one's own avatar will have
@@ -536,43 +528,47 @@ void AvatarManager::handleCollisionEvents(const CollisionEvents& collisionEvents
         // my avatar. (Other user machines will make a similar analysis and inject sound for their collisions.)
         if (collision.idA.isNull() || collision.idB.isNull()) {
             auto myAvatar = getMyAvatar();
-            auto collisionSound = myAvatar->getCollisionSound();
-            if (collisionSound) {
-                const auto characterController = myAvatar->getCharacterController();
-                const float avatarVelocityChange = (characterController ? glm::length(characterController->getVelocityChange()) : 0.0f);
-                const float velocityChange = glm::length(collision.velocityChange) + avatarVelocityChange;
-                const float MIN_AVATAR_COLLISION_ACCELERATION = 2.4f; // walking speed
-                const bool isSound = (collision.type == CONTACT_EVENT_TYPE_START) && (velocityChange > MIN_AVATAR_COLLISION_ACCELERATION);
+            myAvatar->collisionWithEntity(collision);
 
-                if (!isSound) {
-                    return;  // No sense iterating for others. We only have one avatar.
+            if (!playedCollisionSound) {
+                playedCollisionSound = true;
+                auto collisionSound = myAvatar->getCollisionSound();
+                if (collisionSound) {
+                    const auto characterController = myAvatar->getCharacterController();
+                    const float avatarVelocityChange =
+                        (characterController ? glm::length(characterController->getVelocityChange()) : 0.0f);
+                    const float velocityChange = glm::length(collision.velocityChange) + avatarVelocityChange;
+                    const float MIN_AVATAR_COLLISION_ACCELERATION = 2.4f;  // walking speed
+                    const bool isSound =
+                        (collision.type == CONTACT_EVENT_TYPE_START) && (velocityChange > MIN_AVATAR_COLLISION_ACCELERATION);
+
+                    if (!isSound) {
+                        return;  // No sense iterating for others. We only have one avatar.
+                    }
+                    // Your avatar sound is personal to you, so let's say the "mass" part of the kinetic energy is already accounted for.
+                    const float energy = velocityChange * velocityChange;
+                    const float COLLISION_ENERGY_AT_FULL_VOLUME = 10.0f;
+                    const float energyFactorOfFull = fmin(1.0f, energy / COLLISION_ENERGY_AT_FULL_VOLUME);
+
+                    // For general entity collisionSoundURL, playSound supports changing the pitch for the sound based on the size of the object,
+                    // but most avatars are roughly the same size, so let's not be so fancy yet.
+                    const float AVATAR_STRETCH_FACTOR = 1.0f;
+
+                    _collisionInjectors.remove_if(
+                        [](const AudioInjectorPointer& injector) { return !injector || injector->isFinished(); });
+
+                    static const int MAX_INJECTOR_COUNT = 3;
+                    if (_collisionInjectors.size() < MAX_INJECTOR_COUNT) {
+                        AudioInjectorOptions options;
+                        options.stereo = collisionSound->isStereo();
+                        options.position = myAvatar->getWorldPosition();
+                        options.volume = energyFactorOfFull;
+                        options.pitch = 1.0f / AVATAR_STRETCH_FACTOR;
+
+                        auto injector = AudioInjector::playSoundAndDelete(collisionSound, options);
+                        _collisionInjectors.emplace_back(injector);
+                    }
                 }
-                // Your avatar sound is personal to you, so let's say the "mass" part of the kinetic energy is already accounted for.
-                const float energy = velocityChange * velocityChange;
-                const float COLLISION_ENERGY_AT_FULL_VOLUME = 10.0f;
-                const float energyFactorOfFull = fmin(1.0f, energy / COLLISION_ENERGY_AT_FULL_VOLUME);
-
-                // For general entity collisionSoundURL, playSound supports changing the pitch for the sound based on the size of the object,
-                // but most avatars are roughly the same size, so let's not be so fancy yet.
-                const float AVATAR_STRETCH_FACTOR = 1.0f;
-
-                _collisionInjectors.remove_if([](const AudioInjectorPointer& injector) {
-                    return !injector || injector->isFinished();
-                });
-
-                static const int MAX_INJECTOR_COUNT = 3;
-                if (_collisionInjectors.size() < MAX_INJECTOR_COUNT) {
-                    AudioInjectorOptions options;
-                    options.stereo = collisionSound->isStereo();
-                    options.position = myAvatar->getWorldPosition();
-                    options.volume = energyFactorOfFull;
-                    options.pitch = 1.0f / AVATAR_STRETCH_FACTOR;
-
-                    auto injector = AudioInjector::playSoundAndDelete(collisionSound, options);
-                    _collisionInjectors.emplace_back(injector);
-                }
-                myAvatar->collisionWithEntity(collision);
-                return;
             }
         }
     }
@@ -886,4 +882,14 @@ QVariantMap AvatarManager::getPalData(const QStringList& specificAvatarIdentifie
     QJsonObject doc;
     doc.insert("data", palData);
     return doc.toVariantMap();
+}
+
+void AvatarManager::accumulateGrabPositions(std::map<QUuid, GrabLocationAccumulator>& grabAccumulators) {
+    auto avatarMap = getHashCopy();
+    AvatarHash::iterator itr = avatarMap.begin();
+    while (itr != avatarMap.end()) {
+        const auto& avatar = std::static_pointer_cast<Avatar>(*itr);
+        avatar->accumulateGrabPositions(grabAccumulators);
+        itr++;
+    }
 }

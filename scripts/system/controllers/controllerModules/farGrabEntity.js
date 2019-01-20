@@ -1,25 +1,24 @@
 "use strict";
 
-//  farActionGrabEntity.js
+//  farGrabEntity.js
 //
 //  Distributed under the Apache License, Version 2.0.
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 
 /* jslint bitwise: true */
 
-/* global Script, Controller, RIGHT_HAND, LEFT_HAND, Mat4, MyAvatar, Vec3, Camera, Quat, getEnabledModuleByName,
-   makeRunningValues, Entities, enableDispatcherModule, disableDispatcherModule, entityIsGrabbable,
-   makeDispatcherModuleParameters, MSECS_PER_SEC, HAPTIC_PULSE_STRENGTH, HAPTIC_PULSE_DURATION, TRIGGER_OFF_VALUE,
-   TRIGGER_ON_VALUE, ZERO_VEC, getControllerWorldLocation, projectOntoEntityXYPlane, ContextOverlay, HMD,
-   Picks, makeLaserLockInfo, makeLaserParams, AddressManager, getEntityParents, Selection, DISPATCHER_HOVERING_LIST,
-   Uuid, worldPositionToRegistrationFrameMatrix, DISPATCHER_PROPERTIES
+/* global Script, Controller, RIGHT_HAND, LEFT_HAND, Mat4, MyAvatar, Vec3, Quat, getEnabledModuleByName, makeRunningValues,
+   Entities, enableDispatcherModule, disableDispatcherModule, entityIsGrabbable, makeDispatcherModuleParameters, MSECS_PER_SEC,
+   HAPTIC_PULSE_STRENGTH, HAPTIC_PULSE_DURATION, TRIGGER_OFF_VALUE, TRIGGER_ON_VALUE, ZERO_VEC,
+   projectOntoEntityXYPlane, ContextOverlay, HMD, Picks, makeLaserLockInfo, makeLaserParams, AddressManager,
+   getEntityParents, Selection, DISPATCHER_HOVERING_LIST, unhighlightTargetEntity, Messages, findGroupParent,
+   worldPositionToRegistrationFrameMatrix, DISPATCHER_PROPERTIES
 */
 
 Script.include("/~/system/libraries/controllerDispatcherUtils.js");
 Script.include("/~/system/libraries/controllers.js");
 
 (function() {
-
     var MARGIN = 25;
 
     function TargetObject(entityID, entityProps) {
@@ -46,24 +45,23 @@ Script.include("/~/system/libraries/controllers.js");
         };
     }
 
-    function FarActionGrabEntity(hand) {
+    function FarGrabEntity(hand) {
         this.hand = hand;
         this.grabbing = false;
-        this.grabbedThingID = null;
+        this.targetEntityID = null;
         this.targetObject = null;
-        this.actionID = null; // action this script created...
-        this.entityToLockOnto = null;
+        this.previouslyUnhooked = {};
         this.potentialEntityWithContextOverlay = false;
         this.entityWithContextOverlay = false;
         this.contextOverlayTimer = false;
-        this.locked = false;
-        this.highlightedEntity = null;
         this.reticleMinX = MARGIN;
         this.reticleMaxX = 0;
         this.reticleMinY = MARGIN;
         this.reticleMaxY = 0;
+        this.endedGrab = 0;
+        this.MIN_HAPTIC_PULSE_INTERVAL = 500; // ms
 
-        var ACTION_TTL = 15; // seconds
+        var FAR_GRAB_JOINTS = [65527, 65528]; // FARGRAB_LEFTHAND_INDEX, FARGRAB_RIGHTHAND_INDEX
 
         var DISTANCE_HOLDING_RADIUS_FACTOR = 3.5; // multiplied by distance between hand and object
         var DISTANCE_HOLDING_ACTION_TIMEFRAME = 0.1; // how quickly objects move to their new position
@@ -71,7 +69,7 @@ Script.include("/~/system/libraries/controllers.js");
         var DISTANCE_HOLDING_UNITY_DISTANCE = 6; //  The distance at which the distance holding action timeframe is unmodified
 
         this.parameters = makeDispatcherModuleParameters(
-            550,
+            540,
             this.hand === RIGHT_HAND ? ["rightHand"] : ["leftHand"],
             [],
             100,
@@ -96,11 +94,10 @@ Script.include("/~/system/libraries/controllers.js");
             return (dimensions.x * dimensions.y * dimensions.z) * density;
         };
 
-        this.startFarGrabAction = function (controllerData, grabbedProperties) {
+        this.startFarGrabEntity = function (controllerData, targetProps) {
             var controllerLocation = controllerData.controllerLocations[this.hand];
             var worldControllerPosition = controllerLocation.position;
             var worldControllerRotation = controllerLocation.orientation;
-
             // transform the position into room space
             var worldToSensorMat = Mat4.inverse(MyAvatar.getSensorToWorldMatrix());
             var roomControllerPosition = Mat4.transformPoint(worldToSensorMat, worldControllerPosition);
@@ -108,10 +105,9 @@ Script.include("/~/system/libraries/controllers.js");
             var now = Date.now();
 
             // add the action and initialize some variables
-            this.currentObjectPosition = grabbedProperties.position;
-            this.currentObjectRotation = grabbedProperties.rotation;
+            this.currentObjectPosition = targetProps.position;
+            this.currentObjectRotation = targetProps.rotation;
             this.currentObjectTime = now;
-            this.currentCameraOrientation = Camera.orientation;
 
             this.grabRadius = this.grabbedDistance;
             this.grabRadialVelocity = 0.0;
@@ -129,30 +125,48 @@ Script.include("/~/system/libraries/controllers.js");
             }
 
             // compute the mass for the purpose of energy and how quickly to move object
-            this.mass = this.getMass(grabbedProperties.dimensions, grabbedProperties.density);
-            var distanceToObject = Vec3.length(Vec3.subtract(MyAvatar.position, grabbedProperties.position));
-            var timeScale = this.distanceGrabTimescale(this.mass, distanceToObject);
-            this.linearTimeScale = timeScale;
-            this.actionID = Entities.addAction("far-grab", this.grabbedThingID, {
-                targetPosition: this.currentObjectPosition,
-                linearTimeScale: timeScale,
-                targetRotation: this.currentObjectRotation,
-                angularTimeScale: timeScale,
-                tag: "far-grab-" + MyAvatar.sessionUUID,
-                ttl: ACTION_TTL
-            });
-            if (this.actionID === Uuid.NULL) {
-                this.actionID = null;
+            this.mass = this.getMass(targetProps.dimensions, targetProps.density);
+
+            // Debounce haptic pules. Can occur as near grab controller module vacillates between being ready or not due to
+            // changing positions and floating point rounding.
+            if (Date.now() - this.endedGrab > this.MIN_HAPTIC_PULSE_INTERVAL) {
+                Controller.triggerHapticPulse(HAPTIC_PULSE_STRENGTH, HAPTIC_PULSE_DURATION, this.hand);
             }
 
-            if (this.actionID !== null) {
-                var args = [this.hand === RIGHT_HAND ? "right" : "left", MyAvatar.sessionUUID];
-                Entities.callEntityMethod(this.grabbedThingID, "startDistanceGrab", args);
-            }
+            unhighlightTargetEntity(this.targetEntityID);
+            var message = {
+                hand: this.hand,
+                entityID: this.targetEntityID
+            };
 
-            Controller.triggerHapticPulse(HAPTIC_PULSE_STRENGTH, HAPTIC_PULSE_DURATION, this.hand);
-            this.previousRoomControllerPosition = roomControllerPosition;
+            Messages.sendLocalMessage('Hifi-unhighlight-entity', JSON.stringify(message));
+
+            var newTargetPosLocal = MyAvatar.worldToJointPoint(targetProps.position);
+            MyAvatar.setJointTranslation(FAR_GRAB_JOINTS[this.hand], newTargetPosLocal);
+            MyAvatar.setJointRotation(FAR_GRAB_JOINTS[this.hand], { x: 0, y: 0, z: 0, w: 1 });
+
+            var args = [this.hand === RIGHT_HAND ? "right" : "left", MyAvatar.sessionUUID];
+            Entities.callEntityMethod(targetProps.id, "startDistanceGrab", args);
+
+            this.targetEntityID = targetProps.id;
+
+
+            if (this.grabID) {
+                MyAvatar.releaseGrab(this.grabID);
+            }
+            var farJointIndex = FAR_GRAB_JOINTS[this.hand];
+            this.grabID = MyAvatar.grab(targetProps.id, farJointIndex,
+                                        Entities.worldToLocalPosition(targetProps.position, MyAvatar.SELF_ID, farJointIndex),
+                                        Entities.worldToLocalRotation(targetProps.rotation, MyAvatar.SELF_ID, farJointIndex));
+
+            Messages.sendMessage('Hifi-Object-Manipulation', JSON.stringify({
+                action: 'grab',
+                grabbedEntity: targetProps.id,
+                joint: this.hand === RIGHT_HAND ? "RightHand" : "LeftHand"
+            }));
             this.grabbing = true;
+
+            this.previousRoomControllerPosition = roomControllerPosition;
         };
 
         this.continueDistanceHolding = function(controllerData) {
@@ -164,7 +178,7 @@ Script.include("/~/system/libraries/controllers.js");
             var worldToSensorMat = Mat4.inverse(MyAvatar.getSensorToWorldMatrix());
             var roomControllerPosition = Mat4.transformPoint(worldToSensorMat, worldControllerPosition);
 
-            var grabbedProperties = Entities.getEntityProperties(this.grabbedThingID, DISPATCHER_PROPERTIES);
+            var targetProps = Entities.getEntityProperties(this.targetEntityID, DISPATCHER_PROPERTIES);
             var now = Date.now();
             var deltaObjectTime = (now - this.currentObjectTime) / MSECS_PER_SEC; // convert to seconds
             this.currentObjectTime = now;
@@ -182,11 +196,11 @@ Script.include("/~/system/libraries/controllers.js");
             this.currentObjectPosition = Vec3.sum(this.currentObjectPosition, handMoved);
 
             var args = [this.hand === RIGHT_HAND ? "right" : "left", MyAvatar.sessionUUID];
-            Entities.callEntityMethod(this.grabbedThingID, "continueDistanceGrab", args);
+            Entities.callEntityMethod(this.targetEntityID, "continueDistanceGrab", args);
 
             //  Update radialVelocity
             var lastVelocity = Vec3.multiply(worldHandDelta, 1.0 / deltaObjectTime);
-            var delta = Vec3.normalize(Vec3.subtract(grabbedProperties.position, worldControllerPosition));
+            var delta = Vec3.normalize(Vec3.subtract(targetProps.position, worldControllerPosition));
             var newRadialVelocity = Vec3.dot(lastVelocity, delta);
 
             var VELOCITY_AVERAGING_TIME = 0.016;
@@ -213,42 +227,36 @@ Script.include("/~/system/libraries/controllers.js");
             newTargetPosition = Vec3.sum(newTargetPosition, worldControllerPosition);
             newTargetPosition = Vec3.sum(newTargetPosition, this.offsetPosition);
 
-            // XXX
-            // this.maybeScale(grabbedProperties);
+            // MyAvatar.setJointTranslation(FAR_GRAB_JOINTS[this.hand], MyAvatar.worldToJointPoint(newTargetPosition));
 
-            var distanceToObject = Vec3.length(Vec3.subtract(MyAvatar.position, this.currentObjectPosition));
-
-            this.linearTimeScale = (this.linearTimeScale / 2);
-            if (this.linearTimeScale <= DISTANCE_HOLDING_ACTION_TIMEFRAME) {
-                this.linearTimeScale = DISTANCE_HOLDING_ACTION_TIMEFRAME;
-            }
-            var success = Entities.updateAction(this.grabbedThingID, this.actionID, {
-                targetPosition: newTargetPosition,
-                linearTimeScale: this.linearTimeScale,
-                targetRotation: this.currentObjectRotation,
-                angularTimeScale: this.distanceGrabTimescale(this.mass, distanceToObject),
-                ttl: ACTION_TTL
-            });
-            if (!success) {
-                print("farActionGrabEntity continueDistanceHolding -- updateAction failed: " + this.actionID);
-                this.actionID = null;
-            }
+            // var newTargetPosLocal = Mat4.transformPoint(MyAvatar.getSensorToWorldMatrix(), newTargetPosition);
+            var newTargetPosLocal = MyAvatar.worldToJointPoint(newTargetPosition);
+            MyAvatar.setJointTranslation(FAR_GRAB_JOINTS[this.hand], newTargetPosLocal);
+            MyAvatar.setJointRotation(FAR_GRAB_JOINTS[this.hand], { x: 0, y: 0, z: 0, w: 1 });
 
             this.previousRoomControllerPosition = roomControllerPosition;
         };
 
-        this.endFarGrabAction = function () {
-            this.distanceHolding = false;
-            this.distanceRotating = false;
-            Entities.deleteAction(this.grabbedThingID, this.actionID);
+        this.endFarGrabEntity = function (controllerData) {
+            if (this.grabID) {
+                MyAvatar.releaseGrab(this.grabID);
+                this.grabID = null;
+            }
+
+            this.endedGrab = Date.now();
 
             var args = [this.hand === RIGHT_HAND ? "right" : "left", MyAvatar.sessionUUID];
-            Entities.callEntityMethod(this.grabbedThingID, "releaseGrab", args);
-            this.actionID = null;
-            this.grabbedThingID = null;
-            this.targetObject = null;
-            this.potentialEntityWithContextOverlay = false;
+            Entities.callEntityMethod(this.targetEntityID, "releaseGrab", args);
+            Messages.sendMessage('Hifi-Object-Manipulation', JSON.stringify({
+                action: 'release',
+                grabbedEntity: this.targetEntityID,
+                joint: this.hand === RIGHT_HAND ? "RightHand" : "LeftHand"
+            }));
+            unhighlightTargetEntity(this.targetEntityID);
             this.grabbing = false;
+            this.targetEntityID = null;
+            this.potentialEntityWithContextOverlay = false;
+            MyAvatar.clearJointData(FAR_GRAB_JOINTS[this.hand]);
         };
 
         this.updateRecommendedArea = function() {
@@ -278,43 +286,6 @@ Script.include("/~/system/libraries/controllers.js");
             return false;
         };
 
-        this.distanceRotate = function(otherFarGrabModule) {
-            this.distanceRotating = true;
-            this.distanceHolding = false;
-
-            var worldControllerRotation = getControllerWorldLocation(this.handToController(), true).orientation;
-            var controllerRotationDelta =
-                Quat.multiply(worldControllerRotation, Quat.inverse(this.previousWorldControllerRotation));
-            // Rotate entity by twice the delta rotation.
-            controllerRotationDelta = Quat.multiply(controllerRotationDelta, controllerRotationDelta);
-
-            // Perform the rotation in the translation controller's action update.
-            otherFarGrabModule.currentObjectRotation = Quat.multiply(controllerRotationDelta,
-                otherFarGrabModule.currentObjectRotation);
-
-            this.previousWorldControllerRotation = worldControllerRotation;
-        };
-
-        this.prepareDistanceRotatingData = function(controllerData) {
-            var intersection = controllerData.rayPicks[this.hand];
-
-            var controllerLocation = getControllerWorldLocation(this.handToController(), true);
-            var worldControllerPosition = controllerLocation.position;
-            var worldControllerRotation = controllerLocation.orientation;
-
-            var grabbedProperties = Entities.getEntityProperties(intersection.objectID, DISPATCHER_PROPERTIES);
-            this.currentObjectPosition = grabbedProperties.position;
-            this.grabRadius = intersection.distance;
-
-            // Offset between controller vector at the grab radius and the entity position.
-            var targetPosition = Vec3.multiply(this.grabRadius, Quat.getUp(worldControllerRotation));
-            targetPosition = Vec3.sum(targetPosition, worldControllerPosition);
-            this.offsetPosition = Vec3.subtract(this.currentObjectPosition, targetPosition);
-
-            // Initial controller rotation.
-            this.previousWorldControllerRotation = worldControllerRotation;
-        };
-
         this.destroyContextOverlay = function(controllerData) {
             if (this.entityWithContextOverlay) {
                 ContextOverlay.destroyContextOverlay(this.entityWithContextOverlay);
@@ -324,7 +295,7 @@ Script.include("/~/system/libraries/controllers.js");
         };
 
         this.targetIsNull = function() {
-            var properties = Entities.getEntityProperties(this.grabbedThingID, DISPATCHER_PROPERTIES);
+            var properties = Entities.getEntityProperties(this.targetEntityID, DISPATCHER_PROPERTIES);
             if (Object.keys(properties).length === 0 && this.distanceHolding) {
                 return true;
             }
@@ -332,9 +303,17 @@ Script.include("/~/system/libraries/controllers.js");
         };
 
         this.getTargetProps = function (controllerData) {
-            var targetEntityID = controllerData.rayPicks[this.hand].objectID;
-            if (targetEntityID) {
-                return Entities.getEntityProperties(targetEntityID, DISPATCHER_PROPERTIES);
+            var targetEntity = controllerData.rayPicks[this.hand].objectID;
+            if (targetEntity) {
+                var gtProps = Entities.getEntityProperties(targetEntity, DISPATCHER_PROPERTIES);
+                if (entityIsGrabbable(gtProps)) {
+                    // if we've attempted to grab a child, roll up to the root of the tree
+                    var groupRootProps = findGroupParent(controllerData, gtProps);
+                    if (entityIsGrabbable(groupRootProps)) {
+                        return groupRootProps;
+                    }
+                    return gtProps;
+                }
             }
             return null;
         };
@@ -346,14 +325,11 @@ Script.include("/~/system/libraries/controllers.js");
                 }
 
                 this.distanceHolding = false;
-                this.distanceRotating = false;
 
                 if (controllerData.triggerValues[this.hand] > TRIGGER_ON_VALUE) {
-                    this.prepareDistanceRotatingData(controllerData);
                     return makeRunningValues(true, [], []);
                 } else {
                     this.destroyContextOverlay();
-                    return makeRunningValues(false, [], []);
                 }
             }
             return makeRunningValues(false, [], []);
@@ -361,23 +337,16 @@ Script.include("/~/system/libraries/controllers.js");
 
         this.run = function (controllerData) {
             if (controllerData.triggerValues[this.hand] < TRIGGER_OFF_VALUE || this.targetIsNull()) {
-                this.endFarGrabAction();
-                Selection.removeFromSelectedItemsList(DISPATCHER_HOVERING_LIST, "entity",
-                    this.highlightedEntity);
-                this.highlightedEntity = null;
+                this.endFarGrabEntity(controllerData);
                 return makeRunningValues(false, [], []);
             }
             this.intersectionDistance = controllerData.rayPicks[this.hand].distance;
-
-            var otherModuleName = this.hand === RIGHT_HAND ? "LeftFarActionGrabEntity" : "RightFarActionGrabEntity";
-            var otherFarGrabModule = getEnabledModuleByName(otherModuleName);
 
             // gather up the readiness of the near-grab modules
             var nearGrabNames = [
                 this.hand === RIGHT_HAND ? "RightScaleAvatar" : "LeftScaleAvatar",
                 this.hand === RIGHT_HAND ? "RightFarTriggerEntity" : "LeftFarTriggerEntity",
-                this.hand === RIGHT_HAND ? "RightNearActionGrabEntity" : "LeftNearActionGrabEntity",
-                this.hand === RIGHT_HAND ? "RightNearParentingGrabEntity" : "LeftNearParentingGrabEntity"
+                this.hand === RIGHT_HAND ? "RightNearGrabEntity" : "LeftNearGrabEntity"
             ];
             if (!this.grabbing) {
                 nearGrabNames.push(this.hand === RIGHT_HAND ? "RightNearParentingGrabOverlay" : "LeftNearParentingGrabOverlay");
@@ -391,13 +360,12 @@ Script.include("/~/system/libraries/controllers.js");
                 nearGrabReadiness.push(ready);
             }
 
-            if (this.actionID) {
-                // if we are doing a distance grab and the object or tablet gets close enough to the controller,
+            if (this.targetEntityID) {
+                // if we are doing a distance grab and the object gets close enough to the controller,
                 // stop the far-grab so the near-grab or equip can take over.
                 for (var k = 0; k < nearGrabReadiness.length; k++) {
-                    if (nearGrabReadiness[k].active && (nearGrabReadiness[k].targets[0] === this.grabbedThingID ||
-                                                        HMD.tabletID && nearGrabReadiness[k].targets[0] === HMD.tabletID)) {
-                        this.endFarGrabAction();
+                    if (nearGrabReadiness[k].active && (nearGrabReadiness[k].targets[0] === this.targetEntityID)) {
+                        this.endFarGrabEntity(controllerData);
                         return makeRunningValues(false, [], []);
                     }
                 }
@@ -408,7 +376,7 @@ Script.include("/~/system/libraries/controllers.js");
                 // where it could near-grab something, stop searching.
                 for (var j = 0; j < nearGrabReadiness.length; j++) {
                     if (nearGrabReadiness[j].active) {
-                        this.endFarGrabAction();
+                        this.endFarGrabEntity(controllerData);
                         return makeRunningValues(false, [], []);
                     }
                 }
@@ -417,9 +385,6 @@ Script.include("/~/system/libraries/controllers.js");
                 if (rayPickInfo.type === Picks.INTERSECTED_ENTITY) {
                     if (controllerData.triggerClicks[this.hand]) {
                         var entityID = rayPickInfo.objectID;
-                        Selection.removeFromSelectedItemsList(DISPATCHER_HOVERING_LIST, "entity",
-                            this.highlightedEntity);
-                        this.highlightedEntity = null;
                         var targetProps = Entities.getEntityProperties(entityID, DISPATCHER_PROPERTIES);
                         if (targetProps.href !== "") {
                             AddressManager.handleLookupString(targetProps.href);
@@ -443,88 +408,49 @@ Script.include("/~/system/libraries/controllers.js");
                         entityID = targetEntity.id;
                         targetProps = targetEntity.props;
 
-                        if (!targetProps.dynamic && !this.targetObject.entityProps.dynamic) {
-                            // let farParentGrabEntity handle it
-                            return makeRunningValues(false, [], []);
-                        }
-
                         if (entityIsGrabbable(targetProps) || entityIsGrabbable(this.targetObject.entityProps)) {
-                            if (!this.distanceRotating) {
-                                this.grabbedThingID = entityID;
-                                this.grabbedDistance = rayPickInfo.distance;
-                            }
 
-                            if (otherFarGrabModule.grabbedThingID === this.grabbedThingID &&
-                                otherFarGrabModule.distanceHolding) {
-                                this.prepareDistanceRotatingData(controllerData);
-                                this.distanceRotate(otherFarGrabModule);
-                            } else {
-                                this.distanceHolding = true;
-                                this.distanceRotating = false;
-                                this.startFarGrabAction(controllerData, targetProps);
-                            }
+                            this.targetEntityID = entityID;
+                            this.grabbedDistance = rayPickInfo.distance;
+                            this.distanceHolding = true;
+                            this.startFarGrabEntity(controllerData, targetProps);
                         }
-                    } else {
-                        var targetEntityID = rayPickInfo.objectID;
-                        if (this.highlightedEntity !== targetEntityID) {
-                            Selection.removeFromSelectedItemsList(DISPATCHER_HOVERING_LIST, "entity",
-                                this.highlightedEntity);
-                            var selectionTargetProps = Entities.getEntityProperties(targetEntityID, DISPATCHER_PROPERTIES);
+                    } else if (!this.entityWithContextOverlay) {
+                        var _this = this;
 
-                            var selectionTargetObject = new TargetObject(targetEntityID, selectionTargetProps);
-                            selectionTargetObject.parentProps = getEntityParents(selectionTargetProps);
-                            var selectionTargetEntity = selectionTargetObject.getTargetEntity();
-
-                            if (entityIsGrabbable(selectionTargetEntity.props) ||
-                                entityIsGrabbable(selectionTargetObject.entityProps)) {
-
-                                Selection.addToSelectedItemsList(DISPATCHER_HOVERING_LIST, "entity", rayPickInfo.objectID);
+                        if (_this.potentialEntityWithContextOverlay !== rayPickInfo.objectID) {
+                            if (_this.contextOverlayTimer) {
+                                Script.clearTimeout(_this.contextOverlayTimer);
                             }
-                            this.highlightedEntity = rayPickInfo.objectID;
+                            _this.contextOverlayTimer = false;
+                            _this.potentialEntityWithContextOverlay = rayPickInfo.objectID;
                         }
 
-                        if (!this.entityWithContextOverlay) {
-                            var _this = this;
-
-                            if (_this.potentialEntityWithContextOverlay !== rayPickInfo.objectID) {
-                                if (_this.contextOverlayTimer) {
-                                    Script.clearTimeout(_this.contextOverlayTimer);
+                        if (!_this.contextOverlayTimer) {
+                            _this.contextOverlayTimer = Script.setTimeout(function () {
+                                if (!_this.entityWithContextOverlay &&
+                                    _this.contextOverlayTimer &&
+                                    _this.potentialEntityWithContextOverlay === rayPickInfo.objectID) {
+                                    var cotProps = Entities.getEntityProperties(rayPickInfo.objectID,
+                                                                                DISPATCHER_PROPERTIES);
+                                    var pointerEvent = {
+                                        type: "Move",
+                                        id: _this.hand + 1, // 0 is reserved for hardware mouse
+                                        pos2D: projectOntoEntityXYPlane(rayPickInfo.objectID,
+                                                                        rayPickInfo.intersection, cotProps),
+                                        pos3D: rayPickInfo.intersection,
+                                        normal: rayPickInfo.surfaceNormal,
+                                        direction: Vec3.subtract(ZERO_VEC, rayPickInfo.surfaceNormal),
+                                        button: "Secondary"
+                                    };
+                                    if (ContextOverlay.createOrDestroyContextOverlay(rayPickInfo.objectID, pointerEvent)) {
+                                        _this.entityWithContextOverlay = rayPickInfo.objectID;
+                                    }
                                 }
                                 _this.contextOverlayTimer = false;
-                                _this.potentialEntityWithContextOverlay = rayPickInfo.objectID;
-                            }
-
-                            if (!_this.contextOverlayTimer) {
-                                _this.contextOverlayTimer = Script.setTimeout(function () {
-                                    if (!_this.entityWithContextOverlay &&
-                                        _this.contextOverlayTimer &&
-                                        _this.potentialEntityWithContextOverlay === rayPickInfo.objectID) {
-                                        var pEvProps = Entities.getEntityProperties(rayPickInfo.objectID,
-                                                                                    DISPATCHER_PROPERTIES);
-                                        var pointerEvent = {
-                                            type: "Move",
-                                            id: _this.hand + 1, // 0 is reserved for hardware mouse
-                                            pos2D: projectOntoEntityXYPlane(rayPickInfo.objectID,
-                                                                            rayPickInfo.intersection, pEvProps),
-                                            pos3D: rayPickInfo.intersection,
-                                            normal: rayPickInfo.surfaceNormal,
-                                            direction: Vec3.subtract(ZERO_VEC, rayPickInfo.surfaceNormal),
-                                            button: "Secondary"
-                                        };
-                                        if (ContextOverlay.createOrDestroyContextOverlay(rayPickInfo.objectID, pointerEvent)) {
-                                            _this.entityWithContextOverlay = rayPickInfo.objectID;
-                                        }
-                                    }
-                                    _this.contextOverlayTimer = false;
-                                }, 500);
-                            }
+                            }, 500);
                         }
                     }
-                } else if (this.distanceRotating) {
-                    this.distanceRotate(otherFarGrabModule);
-                } else if (this.highlightedEntity) {
-                    Selection.removeFromSelectedItemsList(DISPATCHER_HOVERING_LIST, "entity", this.highlightedEntity);
-                    this.highlightedEntity = null;
                 }
             }
             return this.exitIfDisabled(controllerData);
@@ -535,21 +461,20 @@ Script.include("/~/system/libraries/controllers.js");
             var disableModule = getEnabledModuleByName(moduleName);
             if (disableModule) {
                 if (disableModule.disableModules) {
-                    this.endFarGrabAction();
-                    Selection.removeFromSelectedItemsList(DISPATCHER_HOVERING_LIST, "entity",
-                        this.highlightedEntity);
+                    this.endFarGrabEntity(controllerData);
+                    Selection.removeFromSelectedItemsList(DISPATCHER_HOVERING_LIST, "entity", this.highlightedEntity);
                     this.highlightedEntity = null;
                     return makeRunningValues(false, [], []);
                 }
             }
-            var grabbedThing = (this.distanceHolding || this.distanceRotating) ? this.targetObject.entityID : null;
+            var grabbedThing = this.distanceHolding ? this.targetObject.entityID : null;
             var offset = this.calculateOffset(controllerData);
             var laserLockInfo = makeLaserLockInfo(grabbedThing, false, this.hand, offset);
             return makeRunningValues(true, [], [], laserLockInfo);
         };
 
         this.calculateOffset = function(controllerData) {
-            if (this.distanceHolding || this.distanceRotating) {
+            if (this.distanceHolding) {
                 var targetProps = Entities.getEntityProperties(this.targetObject.entityID,
                                                                [ "position", "rotation", "registrationPoint", "dimensions" ]);
                 return worldPositionToRegistrationFrameMatrix(targetProps, controllerData.rayPicks[this.hand].intersection);
@@ -558,15 +483,15 @@ Script.include("/~/system/libraries/controllers.js");
         };
     }
 
-    var leftFarActionGrabEntity = new FarActionGrabEntity(LEFT_HAND);
-    var rightFarActionGrabEntity = new FarActionGrabEntity(RIGHT_HAND);
+    var leftFarGrabEntity = new FarGrabEntity(LEFT_HAND);
+    var rightFarGrabEntity = new FarGrabEntity(RIGHT_HAND);
 
-    enableDispatcherModule("LeftFarActionGrabEntity", leftFarActionGrabEntity);
-    enableDispatcherModule("RightFarActionGrabEntity", rightFarActionGrabEntity);
+    enableDispatcherModule("LeftFarGrabEntity", leftFarGrabEntity);
+    enableDispatcherModule("RightFarGrabEntity", rightFarGrabEntity);
 
     function cleanup() {
-        disableDispatcherModule("LeftFarActionGrabEntity");
-        disableDispatcherModule("RightFarActionGrabEntity");
+        disableDispatcherModule("LeftFarGrabEntity");
+        disableDispatcherModule("RightFarGrabEntity");
     }
     Script.scriptEnding.connect(cleanup);
 }());

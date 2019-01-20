@@ -92,7 +92,6 @@ public:
 
     void updateMyAvatar(float deltaTime);
     void updateOtherAvatars(float deltaTime);
-    void sendIdentityRequest(const QUuid& avatarID) const;
 
     void setMyAvatarDataPacketsPaused(bool puase);
 
@@ -191,12 +190,13 @@ public:
     Q_INVOKABLE QVariantMap getPalData(const QStringList& specificAvatarIdentifiers = QStringList());
 
     float getMyAvatarSendRate() const { return _myAvatarSendRate.rate(); }
-    int getIdentityRequestsSent() const { return _identityRequestsSent; }
 
     void queuePhysicsChange(const OtherAvatarPointer& avatar);
     void buildPhysicsTransaction(PhysicsEngine::Transaction& transaction);
     void handleProcessedPhysicsTransaction(PhysicsEngine::Transaction& transaction);
     void removeDeadAvatarEntities(const SetOfEntities& deadEntities);
+
+    void accumulateGrabPositions(std::map<QUuid, GrabLocationAccumulator>& grabAccumulators);
 
 public slots:
     /**jsdoc
@@ -214,8 +214,8 @@ private:
 
     void simulateAvatarFades(float deltaTime);
 
-    AvatarSharedPointer newSharedAvatar() override;
-    
+    AvatarSharedPointer newSharedAvatar(const QUuid& sessionUUID) override;
+
     // called only from the AvatarHashMap thread - cannot be called while this thread holds the
     // hash lock, since handleRemovedAvatar needs a write lock on the entity tree and the entity tree
     // frequently grabs a read lock on the hash to get a given avatar by ID
@@ -239,7 +239,6 @@ private:
     float _avatarSimulationTime { 0.0f };
     bool _shouldRender { true };
     bool _myAvatarDataPacketsPaused { false };
-    mutable int _identityRequestsSent { 0 };
 
     mutable std::mutex _spaceLock;
     workload::SpacePointer _space;

@@ -76,6 +76,8 @@ public:
      *       <td>{@link Entities.EntityProperties-PolyLine|EntityProperties-PolyLine}</td></tr>
      *     <tr><td><code>"PolyVox"</code></td><td>A set of textured voxels.</td>
      *       <td>{@link Entities.EntityProperties-PolyVox|EntityProperties-PolyVox}</td></tr>
+     *     <tr><td><code>"Grid"</code></td><td>A grid of lines in a plane.</td>
+     *       <td>{@link Entities.EntityProperties-Grid|EntityProperties-Grid}</td></tr>
      *     <tr><td><code>"Light"</code></td><td>A local lighting effect.</td>
      *       <td>{@link Entities.EntityProperties-Light|EntityProperties-Light}</td></tr>
      *     <tr><td><code>"Zone"</code></td><td>A volume of lighting effects and avatar permissions.</td>
@@ -100,17 +102,21 @@ public:
         Line,
         PolyLine,
         PolyVox,
+        Grid,
         Light,
         Zone,
         Material,
         NUM_TYPES
     } EntityType;
 
+    static bool typeIsValid(EntityType type);
     static const QString& getEntityTypeName(EntityType entityType);
     static EntityTypes::EntityType getEntityTypeFromName(const QString& name);
     static bool registerEntityType(EntityType entityType, const char* name, EntityTypeFactory factoryMethod);
+    static void extractEntityTypeAndID(const unsigned char* data, int dataLength, EntityTypes::EntityType& typeOut, QUuid& idOut);
     static EntityItemPointer constructEntityItem(EntityType entityType, const EntityItemID& entityID, const EntityItemProperties& properties);
-    static EntityItemPointer constructEntityItem(const unsigned char* data, int bytesToRead, ReadBitstreamToTreeParams& args);
+    static EntityItemPointer constructEntityItem(const unsigned char* data, int bytesToRead);
+    static EntityItemPointer constructEntityItem(const QUuid& id, const EntityItemProperties& properties);
 
 private:
     static QMap<EntityType, QString> _typeToNameMap;
