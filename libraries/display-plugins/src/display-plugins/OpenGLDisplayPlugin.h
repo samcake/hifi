@@ -22,6 +22,7 @@
 #include <shared/RateCounter.h>
 
 #include <gpu/Batch.h>
+#include <gpu/Frame.h>
 
 namespace gpu {
     namespace gl {
@@ -98,7 +99,7 @@ protected:
 
     virtual QThread::Priority getPresentPriority() { return QThread::HighPriority; }
     virtual void compositeLayers();
-    virtual void compositeScene();
+    //virtual void compositeScene();
     virtual std::function<void(gpu::Batch&, const gpu::TexturePointer&, bool mirror)> getHUDOperator();
     virtual void compositePointer();
     virtual void compositeExtra() {};
@@ -142,7 +143,12 @@ protected:
     gpu::FramePointer _currentFrame;
     gpu::Frame* _lastFrame { nullptr };
     mat4 _prevRenderView;
-    gpu::FramebufferPointer _compositeFramebuffer;
+    gpu::TexturePointer getCurrentFrameColorBuffer() const { return (_currentFrame && _currentFrame->framebuffer ? _currentFrame->framebuffer->getRenderBuffer(0) : nullptr); }
+
+    ivec2 _compositeViewportSize;
+    ivec2 getCompositeSize() const { return _compositeViewportSize; }
+
+ //   gpu::FramebufferPointer _compositeFramebuffer;
     gpu::PipelinePointer _hudPipeline;
     gpu::PipelinePointer _mirrorHUDPipeline;
     gpu::ShaderPointer _mirrorHUDPS;

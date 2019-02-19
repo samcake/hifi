@@ -408,7 +408,7 @@ void OpenGLDisplayPlugin::uncustomizeContext() {
     _cursorPipeline.reset();
     _hudPipeline.reset();
     _mirrorHUDPipeline.reset();
-    _compositeFramebuffer.reset();
+ //   _compositeFramebuffer.reset();
     withPresentThreadLock([&] {
         _currentFrame.reset();
         _lastFrame = nullptr;
@@ -514,7 +514,9 @@ void OpenGLDisplayPlugin::renderFromTexture(gpu::Batch& batch, const gpu::Textur
     batch.setViewportTransform(viewport);
     batch.setResourceTexture(0, texture);
 #ifndef USE_GLES
-    batch.setPipeline(_presentPipeline);
+//    batch.setPipeline(_presentPipeline);
+    batch.setPipeline(_simplePipeline);
+
 #else
     batch.setPipeline(_simplePipeline);
 #endif
@@ -575,7 +577,8 @@ std::function<void(gpu::Batch&, const gpu::TexturePointer&, bool mirror)> OpenGL
     auto hudPipeline = _hudPipeline;
     auto hudMirrorPipeline = _mirrorHUDPipeline;
     auto hudStereo = isStereo();
-    auto hudCompositeFramebufferSize = _compositeFramebuffer->getSize();
+ //   auto hudCompositeFramebufferSize = _compositeFramebuffer->getSize();
+    auto hudCompositeFramebufferSize = getCompositeSize();
     std::array<glm::ivec4, 2> hudEyeViewports;
     for_each_eye([&](Eye eye) {
         hudEyeViewports[eye] = eyeViewport(eye);
@@ -605,7 +608,7 @@ void OpenGLDisplayPlugin::compositePointer() {
     render([&](gpu::Batch& batch) {
         batch.enableStereo(false);
         batch.setProjectionTransform(mat4());
-        batch.setFramebuffer(_compositeFramebuffer);
+     //   batch.setFramebuffer(_compositeFramebuffer);
         batch.setPipeline(_cursorPipeline);
         batch.setResourceTexture(0, cursorData.texture);
         batch.resetViewTransform();
@@ -616,33 +619,34 @@ void OpenGLDisplayPlugin::compositePointer() {
                 batch.draw(gpu::TRIANGLE_STRIP, 4);
             });
         } else {
-            batch.setViewportTransform(ivec4(uvec2(0), _compositeFramebuffer->getSize()));
+            //    batch.setViewportTransform(ivec4(uvec2(0), _compositeFramebuffer->getSize()));
+            batch.setViewportTransform(ivec4(uvec2(0), getCompositeSize()));
             batch.draw(gpu::TRIANGLE_STRIP, 4);
         }
     });
 }
-
+/*
 void OpenGLDisplayPlugin::compositeScene() {
     render([&](gpu::Batch& batch) {
         batch.enableStereo(false);
-        batch.setFramebuffer(_compositeFramebuffer);
-        batch.setViewportTransform(ivec4(uvec2(), _compositeFramebuffer->getSize()));
-        batch.setStateScissorRect(ivec4(uvec2(), _compositeFramebuffer->getSize()));
+      //  batch.setFramebuffer(_compositeFramebuffer);
+        batch.setViewportTransform(ivec4(uvec2(), getCompositeSize()));
+        batch.setStateScissorRect(ivec4(uvec2(), getCompositeSize()));
         batch.resetViewTransform();
         batch.setProjectionTransform(mat4());
         batch.setPipeline(_simplePipeline);
         batch.setResourceTexture(0, _currentFrame->framebuffer->getRenderBuffer(0));
         batch.draw(gpu::TRIANGLE_STRIP, 4);
     });
-}
+}*/
 
 void OpenGLDisplayPlugin::compositeLayers() {
     updateCompositeFramebuffer();
 
-    {
-        PROFILE_RANGE_EX(render_detail, "compositeScene", 0xff0077ff, (uint64_t)presentCount())
-        compositeScene();
-    }
+    //{
+    //    PROFILE_RANGE_EX(render_detail, "compositeScene", 0xff0077ff, (uint64_t)presentCount())
+    //    compositeScene();
+    //}
 
 #ifdef HIFI_ENABLE_NSIGHT_DEBUG
     if (false) // do not draw the HUD if running nsight debug
@@ -673,7 +677,11 @@ void OpenGLDisplayPlugin::internalPresent() {
         // Note: _displayTexture must currently be the same size as the display.
         uvec2 dims = _displayTexture ? uvec2(_displayTexture->getDimensions()) : getSurfacePixels();
         auto viewport = ivec4(uvec2(0),  dims);
-        renderFromTexture(batch, _displayTexture ? _displayTexture : _compositeFramebuffer->getRenderBuffer(0), viewport, viewport);
+
+//        renderFromTexture(batch, _displayTexture ? _displayTexture : _compositeFramebuffer->getRenderBuffer(0), viewport, viewport);
+        if (_displayTexture || (_currentFrame && _currentFrame->framebuffer)) {
+            renderFromTexture(batch, _displayTexture ? _displayTexture : _currentFrame->framebuffer->getRenderBuffer(0), viewport, viewport);
+        }
      });
     swapBuffers();
     _presentRate.increment();
@@ -778,7 +786,8 @@ bool OpenGLDisplayPlugin::setDisplayTexture(const QString& name) {
 }
 
 QImage OpenGLDisplayPlugin::getScreenshot(float aspectRatio) const {
-    auto size = _compositeFramebuffer->getSize();
+    //auto size = _compositeFramebuffer->getSize();
+    auto size = getCompositeSize();
     if (isHmd()) {
         size.x /= 2;
     }
@@ -796,7 +805,10 @@ QImage OpenGLDisplayPlugin::getScreenshot(float aspectRatio) const {
     auto glBackend = const_cast<OpenGLDisplayPlugin&>(*this).getGLBackend();
     QImage screenshot(bestSize.x, bestSize.y, QImage::Format_ARGB32);
     withOtherThreadContext([&] {
-        glBackend->downloadFramebuffer(_compositeFramebuffer, ivec4(corner, bestSize), screenshot);
+       // glBackend->downloadFramebuffer(_compositeFramebuffer, ivec4(corner, bestSize), screenshot);
+        if (_currentFrame && _currentFrame->framebuffer) {
+            glBackend->downloadFramebuffer(_currentFrame->framebuffer, ivec4(corner, bestSize), screenshot);
+        }
     });
     return screenshot.mirrored(false, true);
 }
@@ -848,7 +860,8 @@ bool OpenGLDisplayPlugin::beginFrameRender(uint32_t frameIndex) {
 }
 
 ivec4 OpenGLDisplayPlugin::eyeViewport(Eye eye) const {
-    uvec2 vpSize = _compositeFramebuffer->getSize();
+ //   uvec2 vpSize = _compositeFramebuffer->getSize();
+    uvec2 vpSize = getCompositeSize();
     vpSize.x /= 2;
     uvec2 vpPos;
     if (eye == Eye::Right) {
@@ -882,10 +895,11 @@ OpenGLDisplayPlugin::~OpenGLDisplayPlugin() {
 }
 
 void OpenGLDisplayPlugin::updateCompositeFramebuffer() {
-    auto renderSize = glm::uvec2(getRecommendedRenderSize());
-    if (!_compositeFramebuffer || _compositeFramebuffer->getSize() != renderSize) {
+    _compositeViewportSize = glm::uvec2(getRecommendedRenderSize());
+ /*   if (!_compositeFramebuffer || _compositeFramebuffer->getSize() != renderSize) {
         _compositeFramebuffer = gpu::FramebufferPointer(gpu::Framebuffer::create("OpenGLDisplayPlugin::composite", gpu::Element::COLOR_RGBA_32, renderSize.x, renderSize.y));
-    }
+    }*/
+    
 }
 
 void OpenGLDisplayPlugin::copyTextureToQuickFramebuffer(NetworkTexturePointer networkTexture, QOpenGLFramebufferObject* target, GLsync* fenceSync) {

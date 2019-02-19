@@ -123,9 +123,9 @@ void HmdDisplayPlugin::uncustomizeContext() {
     _disablePreview = false;
     render([&](gpu::Batch& batch) {
         batch.enableStereo(false);
-        batch.resetViewTransform();
-        batch.setFramebuffer(_compositeFramebuffer);
-        batch.clearColorFramebuffer(gpu::Framebuffer::BUFFER_COLOR0, vec4(0));
+//        batch.resetViewTransform();
+//        batch.setFramebuffer(_compositeFramebuffer);
+//        batch.clearColorFramebuffer(gpu::Framebuffer::BUFFER_COLOR0, vec4(0));
     });
     _hudRenderer = HUDRenderer();
     _previewTexture.reset();
@@ -260,7 +260,12 @@ void HmdDisplayPlugin::internalPresent() {
 
                 viewport.z *= 2;
             }
-            renderFromTexture(batch, _compositeFramebuffer->getRenderBuffer(0), viewport, scissor, fbo);
+         //   renderFromTexture(batch, _compositeFramebuffer->getRenderBuffer(0), viewport, scissor, fbo);
+            if (_currentFrame && _currentFrame->framebuffer) {
+                renderFromTexture(batch, _currentFrame->framebuffer->getRenderBuffer(0), viewport, scissor, fbo);
+            } else {
+                batch.clearColorFramebuffer(gpu::Framebuffer::BUFFER_COLOR0, vec4(0));
+            }
         });
         swapBuffers();
 
@@ -463,7 +468,7 @@ void HmdDisplayPlugin::compositePointer() {
     render([&](gpu::Batch& batch) {
         // FIXME use standard gpu stereo rendering for this.
         batch.enableStereo(false);
-        batch.setFramebuffer(_compositeFramebuffer);
+    //    batch.setFramebuffer(_compositeFramebuffer);
         batch.setPipeline(_cursorPipeline);
         batch.setResourceTexture(0, cursorData.texture);
         batch.resetViewTransform();

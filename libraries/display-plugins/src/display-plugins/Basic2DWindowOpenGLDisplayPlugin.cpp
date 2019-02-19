@@ -138,7 +138,7 @@ void Basic2DWindowOpenGLDisplayPlugin::compositeExtra() {
 
         render([&](gpu::Batch& batch) {
             batch.enableStereo(false);
-            batch.setFramebuffer(_compositeFramebuffer);
+         //   batch.setFramebuffer(_compositeFramebuffer);
             batch.resetViewTransform();
             batch.setProjectionTransform(mat4());
             batch.setPipeline(_cursorPipeline);

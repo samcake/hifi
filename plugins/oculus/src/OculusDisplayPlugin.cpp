@@ -164,8 +164,11 @@ void OculusDisplayPlugin::hmdPresent() {
             batch.resetViewTransform();
             batch.setProjectionTransform(mat4());
             batch.setPipeline(_presentPipeline);
-            batch.setResourceTexture(0, _compositeFramebuffer->getRenderBuffer(0));
-            batch.draw(gpu::TRIANGLE_STRIP, 4);
+            //batch.setResourceTexture(0, _compositeFramebuffer->getRenderBuffer(0));
+            if (_currentFrame && _currentFrame->framebuffer) {
+                batch.setResourceTexture(0, _currentFrame->framebuffer->getRenderBuffer(0));
+                batch.draw(gpu::TRIANGLE_STRIP, 4);
+            }
         });
         glNamedFramebufferTexture(fbo, GL_COLOR_ATTACHMENT0, 0, 0);
     }

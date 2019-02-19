@@ -171,7 +171,7 @@ void ApplicationOverlay::renderDomainConnectionStatusBorder(RenderArgs* renderAr
     }
 }
 
-static const auto COLOR_FORMAT = gpu::Element(gpu::VEC4, gpu::NUINT8, gpu::RGBA);
+static const auto COLOR_FORMAT = gpu::Element::COLOR_SRGBA_32;
 static const auto DEFAULT_SAMPLER = gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_LINEAR);
 static const auto DEPTH_FORMAT = gpu::Element(gpu::SCALAR, gpu::FLOAT, gpu::DEPTH);
 

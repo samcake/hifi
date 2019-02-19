@@ -124,10 +124,10 @@ void Overlays::cleanupOverlaysToDelete() {
 
 void Overlays::render(RenderArgs* renderArgs) {
     PROFILE_RANGE(render_overlays, __FUNCTION__);
-    gpu::Batch& batch = *renderArgs->_batch;
+  //  gpu::Batch& batch = *renderArgs->_batch;
 
-    auto geometryCache = DependencyManager::get<GeometryCache>();
-    auto textureCache = DependencyManager::get<TextureCache>();
+ //   auto geometryCache = DependencyManager::get<GeometryCache>();
+ //   auto textureCache = DependencyManager::get<TextureCache>();
 
     auto size = glm::uvec2(qApp->getUiSize());
     int width = size.x;
@@ -138,12 +138,12 @@ void Overlays::render(RenderArgs* renderArgs) {
     foreach(Overlay::Pointer thisOverlay, _overlays) {
 
         // Reset all batch pipeline settings between overlay
-        geometryCache->useSimpleDrawPipeline(batch);
+  /*      geometryCache->useSimpleDrawPipeline(batch);
         batch.setResourceTexture(0, textureCache->getWhiteTexture()); // FIXME - do we really need to do this??
         batch.setProjectionTransform(legacyProjection);
         batch.setModelTransform(Transform());
         batch.resetViewTransform();
-
+*/
         thisOverlay->render(renderArgs);
     }
 }
