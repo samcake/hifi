@@ -250,8 +250,14 @@ void OculusMobileDisplayPlugin::internalPresent() {
         return;
     }
 
-    auto sourceTexture = getGLBackend()->getTextureID(_compositeFramebuffer->getRenderBuffer(0));
-    glm::uvec2 sourceSize{ _compositeFramebuffer->getWidth(), _compositeFramebuffer->getHeight() };
+    auto currentColorBuffer = getCurrentFrameColorBuffer();
+    if (!currentColorBuffer) {
+        return;
+    }
+    auto sourceTexture = getGLBackend()->getTextureID(currentColorBuffer);
+    //auto sourceTexture = getGLBackend()->getTextureID(_compositeFramebuffer->getRenderBuffer(0));
+   // glm::uvec2 sourceSize{ _compositeFramebuffer->getWidth(), _compositeFramebuffer->getHeight() };
+    glm::uvec2 sourceSize{getCompositeSize()};
     VrHandler::presentFrame(sourceTexture, sourceSize, presentTracking);
     _presentRate.increment();
 }
