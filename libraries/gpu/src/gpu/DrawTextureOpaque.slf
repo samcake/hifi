@@ -14,7 +14,7 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 
-<@include gpu/ShaderConstants.h@>
+<@include gpu/Color.slh@>
 
 LAYOUT(binding=0) uniform sampler2D colorMap;
 

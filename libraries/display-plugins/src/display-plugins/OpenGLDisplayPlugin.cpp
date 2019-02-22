@@ -382,6 +382,9 @@ void OpenGLDisplayPlugin::customizeContext() {
         {
             gpu::ShaderPointer program = gpu::Shader::createProgram(shader::gpu::program::DrawTexture);
             _simplePipeline = gpu::Pipeline::create(program, scissorState);
+        }
+        {
+            gpu::ShaderPointer program = gpu::Shader::createProgram(shader::gpu::program::DrawTextureGammaLinearToSRGB);
             _hudPipeline = gpu::Pipeline::create(program, blendState);
         }
 

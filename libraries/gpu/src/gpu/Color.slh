@@ -30,6 +30,15 @@ vec4 color_sRGBAToLinear(vec4 srgba) {
     return vec4(color_sRGBToLinear(srgba.xyz), srgba.w);
 }
 
+vec3 color_LinearTosRGB(vec3 lrgb) {
+    const vec3 ONE_OVER_22 = vec3(2.2);
+    return pow(lrgb, ONE_OVER_22);
+}
+
+vec4 color_LinearTosRGBA(vec4 lrgba) {
+    return vec4(color_LinearTosRGB(lrgba.xyz), lrgba.w);
+}
+
 vec3 color_LinearToYCoCg(vec3 rgb) {
     // Y = R/4 + G/2 + B/4
     // Co = R/2 - B/2
