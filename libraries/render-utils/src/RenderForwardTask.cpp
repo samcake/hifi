@@ -102,7 +102,7 @@ void RenderForwardTask::build(JobModel& task, const render::Varying& input, rend
 
     // Similar to light stage, background stage has been filled by several potential render items and resolved for the frame in this job
     const auto backgroundInputs = DrawBackgroundStage::Inputs(lightingModel, backgroundFrame).asVarying();
-    task.addJob<DrawBackgroundStage>("DrawBackgroundForward", backgroundInputs);
+//    task.addJob<DrawBackgroundStage>("DrawBackgroundForward", backgroundInputs);
 
     // Draw transparent objects forward
     const auto transparentInputs = DrawForward::Inputs(transparents, lightingModel).asVarying();
@@ -110,13 +110,13 @@ void RenderForwardTask::build(JobModel& task, const render::Varying& input, rend
 
      // Layered
     const auto nullJitter = Varying(glm::vec2(0.0f, 0.0f));
-    const auto inFrontOpaquesInputs = DrawLayered3D::Inputs(inFrontOpaque, lightingModel, nullJitter).asVarying();
+ /*   const auto inFrontOpaquesInputs = DrawLayered3D::Inputs(inFrontOpaque, lightingModel, nullJitter).asVarying();
     const auto inFrontTransparentsInputs = DrawLayered3D::Inputs(inFrontTransparent, lightingModel, nullJitter).asVarying();
     task.addJob<DrawLayered3D>("DrawInFrontOpaque", inFrontOpaquesInputs, true);
     task.addJob<DrawLayered3D>("DrawInFrontTransparent", inFrontTransparentsInputs, false);
-
+*/
     {  // Debug the bounds of the rendered items, still look at the zbuffer
-
+        /*
         task.addJob<DrawBounds>("DrawMetaBounds", metas);
         task.addJob<DrawBounds>("DrawBounds", opaques);
         task.addJob<DrawBounds>("DrawTransparentBounds", transparents);
@@ -124,6 +124,7 @@ void RenderForwardTask::build(JobModel& task, const render::Varying& input, rend
         task.addJob<DrawBounds>("DrawZones", zones);
         const auto debugZoneInputs = DebugZoneLighting::Inputs(deferredFrameTransform, lightFrame, backgroundFrame).asVarying();
         task.addJob<DebugZoneLighting>("DrawZoneStack", debugZoneInputs);
+*/
     }
 
     // Just resolve the msaa
@@ -132,7 +133,7 @@ void RenderForwardTask::build(JobModel& task, const render::Varying& input, rend
     const auto resolvedFramebuffer = task.addJob<ResolveFramebuffer>("Resolve", resolveInputs);
     //auto resolvedFramebuffer = task.addJob<ResolveNewFramebuffer>("Resolve", framebuffer);
 
-#if defined(Q_OS_ANDROID)
+#if 1 || defined(Q_OS_ANDROID)
 #else
     // Lighting Buffer ready for tone mapping
     // Forward rendering on GLES doesn't support tonemapping to and from the same FBO, so we specify 
@@ -143,12 +144,12 @@ void RenderForwardTask::build(JobModel& task, const render::Varying& input, rend
 
     // Layered Overlays
     // Composite the HUD and HUD overlays
-    task.addJob<CompositeHUD>("HUD", resolvedFramebuffer);
+  //  task.addJob<CompositeHUD>("HUD", resolvedFramebuffer);
 
     const auto hudOpaquesInputs = DrawLayered3D::Inputs(hudOpaque, lightingModel, nullJitter).asVarying();
     const auto hudTransparentsInputs = DrawLayered3D::Inputs(hudTransparent, lightingModel, nullJitter).asVarying();
-    task.addJob<DrawLayered3D>("DrawHUDOpaque", hudOpaquesInputs, true);
-    task.addJob<DrawLayered3D>("DrawHUDTransparent", hudTransparentsInputs, false);
+  //  task.addJob<DrawLayered3D>("DrawHUDOpaque", hudOpaquesInputs, true);
+  //  task.addJob<DrawLayered3D>("DrawHUDTransparent", hudTransparentsInputs, false);
 
     // Disable blit because we do tonemapping and compositing directly to the blit FBO
     // Blit!
@@ -162,8 +163,12 @@ void PrepareFramebuffer::configure(const Config& config) {
 void PrepareFramebuffer::run(const RenderContextPointer& renderContext, gpu::FramebufferPointer& framebuffer) {
     glm::uvec2 frameSize(renderContext->args->_viewport.z, renderContext->args->_viewport.w);
 
+    int numLayers = (renderContext->args->isStereo() + 1);
+
     // Resizing framebuffers instead of re-building them seems to cause issues with threaded rendering
-    if (_framebuffer && (_framebuffer->getSize() != frameSize || _framebuffer->getNumSamples() != _numSamples)) {
+    if (_framebuffer && 
+            (_framebuffer->getSize() != frameSize || _framebuffer->getNumLayers() != numLayers ||
+             _framebuffer->getNumSamples() != _numSamples ) ) {
         _framebuffer.reset();
     }
 
@@ -174,13 +179,14 @@ void PrepareFramebuffer::run(const RenderContextPointer& renderContext, gpu::Fra
 
         auto colorFormat = gpu::Element::COLOR_SRGBA_32;
         auto defaultSampler = gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_LINEAR);
+        auto depthFormat = gpu::Element(gpu::SCALAR, gpu::UINT32, gpu::DEPTH_STENCIL);  // Depth24_Stencil8 texel format
+
         auto colorTexture =
-            gpu::Texture::createRenderBufferMultisample(colorFormat, frameSize.x, frameSize.y, numSamples, defaultSampler);
+            gpu::Texture::createRenderBufferMultisampleArray(colorFormat, frameSize.x / numLayers, frameSize.y, numLayers, numSamples, defaultSampler);
         _framebuffer->setRenderBuffer(0, colorTexture);
 
-        auto depthFormat = gpu::Element(gpu::SCALAR, gpu::UINT32, gpu::DEPTH_STENCIL);  // Depth24_Stencil8 texel format
-        auto depthTexture =
-           gpu::Texture::createRenderBufferMultisample(depthFormat, frameSize.x, frameSize.y, numSamples, defaultSampler);
+        auto depthTexture = gpu::Texture::createRenderBufferMultisampleArray(depthFormat, frameSize.x / numLayers, frameSize.y,
+                                                                             numLayers, numSamples, defaultSampler);
         _framebuffer->setDepthStencilBuffer(depthTexture, depthFormat);
     }
 

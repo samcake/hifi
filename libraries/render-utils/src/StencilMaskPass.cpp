@@ -72,7 +72,7 @@ void PrepareStencil::run(const RenderContextPointer& renderContext, const gpu::F
     doInBatch("PrepareStencil::run", args->_context, [&](gpu::Batch& batch) {
         batch.enableStereo(false);
 
-        batch.setViewportTransform(args->_viewport);
+      //  batch.setViewportTransform(args->_viewport);
 
         if (_maskMode < 0) {
             batch.setPipeline(getMeshStencilPipeline());
