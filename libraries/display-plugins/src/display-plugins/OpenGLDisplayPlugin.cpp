@@ -651,7 +651,7 @@ void OpenGLDisplayPlugin::compositeLayers() {
 
     {
         PROFILE_RANGE_EX(render_detail, "compositeScene", 0xff0077ff, (uint64_t)presentCount())
-        compositeScene();
+     //   compositeScene();
     }
 
 #ifdef HIFI_ENABLE_NSIGHT_DEBUG
@@ -667,14 +667,14 @@ void OpenGLDisplayPlugin::compositeLayers() {
 
     {
         PROFILE_RANGE_EX(render_detail, "compositeExtra", 0xff0077ff, (uint64_t)presentCount())
-        compositeExtra();
+   //     compositeExtra();
     }
 
     // Draw the pointer last so it's on top of everything
     auto compositorHelper = DependencyManager::get<CompositorHelper>();
     if (compositorHelper->getReticleVisible()) {
         PROFILE_RANGE_EX(render_detail, "compositePointer", 0xff0077ff, (uint64_t)presentCount())
-            compositePointer();
+//            compositePointer();
     }
 }
 
@@ -683,7 +683,13 @@ void OpenGLDisplayPlugin::internalPresent() {
         // Note: _displayTexture must currently be the same size as the display.
         uvec2 dims = _displayTexture ? uvec2(_displayTexture->getDimensions()) : getSurfacePixels();
         auto viewport = ivec4(uvec2(0),  dims);
-        renderFromTexture(batch, _displayTexture ? _displayTexture : _compositeFramebuffer->getRenderBuffer(0), viewport, viewport);
+      /*  renderFromTexture(batch, _displayTexture ? _displayTexture : _compositeFramebuffer->getRenderBuffer(0), viewport,
+                          viewport);*/
+        renderFromTexture(batch,
+                          (_currentFrame && _currentFrame->framebuffer) ? _currentFrame->framebuffer->getRenderBuffer(0)
+                                                                        : _compositeFramebuffer->getRenderBuffer(0),
+                          viewport,
+                          viewport);
      });
     swapBuffers();
     _presentRate.increment();

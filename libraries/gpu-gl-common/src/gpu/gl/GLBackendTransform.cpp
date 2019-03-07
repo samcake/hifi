@@ -41,7 +41,8 @@ void GLBackend::do_setViewportTransform(const Batch& batch, size_t paramOffset) 
     {
     #ifdef GPU_STEREO_MULTI_VIEWPORT
         ivec4& vp = _transform._viewport;
-        auto sideWidth = vp.z / 2;
+      //  auto sideWidth = vp.z / 2;
+        auto sideWidth = vp.z;
 
         vec4 leftRight[3];
 
@@ -68,14 +69,14 @@ void GLBackend::do_setViewportTransform(const Batch& batch, size_t paramOffset) 
             
         //    ivec4 leftRight[3];
         //    leftRight[0] = vp;
-            vp.z /= 2;
+   //         vp.z /= 2;
          /*   leftRight[1] = vp; // left side
             leftRight[2] = vp; // right side
             leftRight[2].x += vp.z;
             glViewportArrayv(0, 3, (float*) leftRight);
 */
             if (_stereo._pass) {
-                vp.x += vp.z;
+    //            vp.x += vp.z;
             }
         } else {
       //      glViewport(vp.x, vp.y, vp.z, vp.w);
