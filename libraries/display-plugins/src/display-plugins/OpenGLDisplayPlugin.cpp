@@ -674,7 +674,7 @@ void OpenGLDisplayPlugin::compositeLayers() {
     auto compositorHelper = DependencyManager::get<CompositorHelper>();
     if (compositorHelper->getReticleVisible()) {
         PROFILE_RANGE_EX(render_detail, "compositePointer", 0xff0077ff, (uint64_t)presentCount())
-//            compositePointer();
+            compositePointer();
     }
 }
 
