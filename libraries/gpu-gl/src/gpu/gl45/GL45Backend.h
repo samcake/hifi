@@ -49,6 +49,7 @@ public:
 
     static const std::string GL45_VERSION;
     const std::string& getVersion() const override { return GL45_VERSION; }
+    StereoSurfaceLayout getStereoSurfaceLayout() const override { return StereoSurfaceLayout::LAYERED; }
 
     bool supportedTextureFormat(const gpu::Element& format) override;
 

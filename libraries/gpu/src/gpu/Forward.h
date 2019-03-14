@@ -108,6 +108,10 @@ namespace gpu {
         Mat4 _eyeViews[2];
         Mat4 _eyeProjections[2];
     };
+    enum class StereoSurfaceLayout {
+        LAYERED = 0,
+        SIDE_BY_SIDE,
+    };
 
     class Serializer;
     class Deserializer;

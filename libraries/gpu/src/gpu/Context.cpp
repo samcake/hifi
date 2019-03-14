@@ -62,6 +62,10 @@ const std::string& Context::getBackendVersion() const {
     return _backend->getVersion();
 }
 
+StereoSurfaceLayout Context::getStereoSurfaceLayout() const {
+    return _backend->getStereoSurfaceLayout();
+}
+
 void Context::beginFrame(const glm::mat4& renderView, const glm::mat4& renderPose) {
     assert(!_frameActive);
     _frameActive = true;

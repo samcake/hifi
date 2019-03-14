@@ -336,12 +336,16 @@ void GLBackend::do_setStateScissorRect(const Batch& batch, size_t paramOffset) {
     Vec4i rect;
     memcpy(&rect, batch.readData(batch._params[paramOffset]._uint), sizeof(Vec4i));
 
+#ifdef GPU_STEREO_SURFACE_LAYERED
+#elif defined(GPU_STEREO_SURFACE_SIDEBYSIDE) 
     if (_stereo.isStereo()) {
-  /*      rect.z /= 2;
+        rect.z /= 2;
         if (_stereo._pass) {
             rect.x += rect.z;
-        }*/
+        }
     }
+#endif
+
     glScissor(rect.x, rect.y, rect.z, rect.w);
     (void)CHECK_GL_ERROR();
 }

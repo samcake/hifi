@@ -418,7 +418,7 @@ public:
 #endif
 };
 
-#if defined(GPU_STEREO_DRAWCALL_INSTANCED) && !defined(GL_CLIP_DISTANCE0)
+#if defined(GPU_STEREO_VIEWPORT_CLIPPED) && !defined(GL_CLIP_DISTANCE0)
 #define GL_CLIP_DISTANCE0 GL_CLIP_DISTANCE0_EXT
 #endif
 
@@ -447,24 +447,20 @@ void GLBackend::render(const Batch& batch) {
         renderPassTransfer(batch);
     }
 
-//#ifdef GPU_STEREO_DRAWCALL_INSTANCED
 #ifdef GPU_STEREO_VIEWPORT_CLIPPED
     if (_stereo.isStereo()) {
         glEnable(GL_CLIP_DISTANCE0);
     }
 #endif
-//#endif
     {
         GL_PROFILE_RANGE(render_gpu_gl_detail, _stereo.isStereo() ? "Render Stereo" : "Render");
         renderPassDraw(batch);
     }
-//#ifdef GPU_STEREO_DRAWCALL_INSTANCED
 #ifdef GPU_STEREO_VIEWPORT_CLIPPED
     if (_stereo.isStereo()) {
         glDisable(GL_CLIP_DISTANCE0);
     }
 #endif
-//#endif
 
     // Restore the saved stereo state for the next batch
     _stereo._enable = savedStereo;
@@ -487,9 +483,7 @@ void GLBackend::setupStereoSide(int side) {
     glViewport(vp.x + side * vp.z, vp.y, vp.z, vp.w);
 
 #ifdef GPU_STEREO_CAMERA_BUFFER
-#ifdef GPU_STEREO_DRAWCALL_DOUBLED
     glVertexAttribI1i(14, side);
-#endif
 #else
     _transform.bindCurrentCamera(side);
 #endif

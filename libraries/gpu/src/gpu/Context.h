@@ -58,6 +58,7 @@ public:
 
     virtual void shutdown() {}
     virtual const std::string& getVersion() const = 0;
+    virtual StereoSurfaceLayout getStereoSurfaceLayout() const = 0;
 
     void setStereoState(const StereoState& stereo) { _stereo = stereo; }
 
@@ -158,8 +159,7 @@ public:
     ~Context();
 
     void shutdown();
-    const std::string& getBackendVersion() const;
-
+ 
     void beginFrame(const glm::mat4& renderView = glm::mat4(), const glm::mat4& renderPose = glm::mat4());
     void appendFrameBatch(const BatchPointer& batch);
     FramePointer endFrame();
@@ -270,7 +270,11 @@ public:
 
     void processProgramsToSync();
 
-protected:
+    // Some backend dependent capabilitites that we need to be aware of at higher level using gpu
+    const std::string& getBackendVersion() const;
+    StereoSurfaceLayout getStereoSurfaceLayout() const;
+
+ protected:
     Context(const Context& context);
 
     std::shared_ptr<Backend> _backend;

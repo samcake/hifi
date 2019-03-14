@@ -46,6 +46,7 @@ public:
 
     static const std::string GL41_VERSION;
     const std::string& getVersion() const override { return GL41_VERSION; }
+    StereoSurfaceLayout getStereoSurfaceLayout() const override { return StereoSurfaceLayout::SIDE_BY_SIDE; }
 
     bool supportedTextureFormat(const gpu::Element& format) override;
 
