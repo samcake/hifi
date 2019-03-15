@@ -3590,7 +3590,7 @@ void Application::resizeGL() {
     uvec2 renderSize = uvec2(framebufferSize);
     if (_renderResolution != renderSize) {
         _renderResolution = renderSize;
-        DependencyManager::get<FramebufferCache>()->setFrameBufferSize(fromGlm(renderSize));
+    //    DependencyManager::get<FramebufferCache>()->setFrameBufferSize(fromGlm(renderSize), displayPlugin->isStereo());
     }
 
     auto renderResolutionScale = getRenderResolutionScale();

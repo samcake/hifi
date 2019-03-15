@@ -193,6 +193,7 @@ void GraphicsEngine::render_performFrame() {
     glm::mat4  sensorToWorld;
     ViewFrustum viewFrustum;
 
+    uvec2 framebufferSize = displayPlugin->getRecommendedRenderSize();
     bool isStereo;
     glm::mat4  stereoEyeOffsets[2];
     glm::mat4  stereoEyeProjections[2];
@@ -209,7 +210,7 @@ void GraphicsEngine::render_performFrame() {
         HMDSensorPose = _appRenderArgs._headPose;
         eyeToWorld = _appRenderArgs._eyeToWorld;
         sensorToWorld = _appRenderArgs._sensorToWorld;
-        isStereo = _appRenderArgs._isStereo;
+    //    isStereo = _appRenderArgs._isStereo;
         for_each_eye([&](Eye eye) {
             stereoEyeOffsets[eye] = _appRenderArgs._eyeOffsets[eye];
             stereoEyeProjections[eye] = _appRenderArgs._eyeProjections[eye];
@@ -234,12 +235,11 @@ void GraphicsEngine::render_performFrame() {
     }
 
     gpu::FramebufferPointer finalFramebuffer;
-    QSize finalFramebufferSize;
     {
         PROFILE_RANGE(render, "/getOutputFramebuffer");
         // Primary rendering pass
         auto framebufferCache = DependencyManager::get<FramebufferCache>();
-        finalFramebufferSize = framebufferCache->getFrameBufferSize();
+        framebufferCache->setFrameBufferSize(QSize(framebufferSize), isStereo);
         // Final framebuffer that will be handed to the display-plugin
         finalFramebuffer = framebufferCache->getFramebuffer();
     }

@@ -1,0 +1,28 @@
+<@include gpu/Config.slh@>
+<$VERSION_HEADER$>
+//  Generated on <$_SCRIBE_DATE$>
+//
+//  DrawStereoTextureLayeredToSidebyside.frag
+//
+//  Draw texture 0 fetched at texcoord.xy
+//
+//  Created by Sam Gateau on 3/14/2019
+//  Copyright 2019 High Fidelity, Inc.
+//
+//  Distributed under the Apache License, Version 2.0.
+//  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
+//
+
+
+LAYOUT(binding=0) uniform sampler2DArray colorMap;
+
+layout(location=0) in vec2 varTexCoord0;
+layout(location=0) out vec4 outFragColor;
+
+void main(void) {
+    // layered to side by side...
+    int side = int(varTexCoord0.x > 0.5);
+    float u = 2.0 * (varTexCoord0.x - 0.5 * side);
+    outFragColor = texture(colorMap, vec3(u, varTexCoord0.y, side) );
+}
+

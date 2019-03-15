@@ -42,10 +42,24 @@ int gpu_InstanceID() {
     return gl_InstanceID >> 1;
 }
 
+int gpu_drawcallStereoSide() {
+#ifdef GPU_TRANSFORM_STEREO_CAMERA_ATTRIBUTED
+    return _inStereoSide;
+#elif defined(GPU_TRANSFORM_STEREO_CAMERA_INSTANCED)
+    return gl_InstanceID % 2;
+#else 
+    return 0;
+#endif
+}
+
 #else
 
 int gpu_InstanceID() {
     return gl_InstanceID;
+}
+
+int gpu_drawcallStereoSide() {
+    return 0;
 }
 #endif
 #else
@@ -54,8 +68,11 @@ int gpu_InstanceID() {
     return gl_InstanceID;
 }
 
-#endif
+int gpu_drawcallStereoSide() {
+    return 0;
+}
 
+#endif
 #endif
 
 #ifdef GPU_PIXEL_SHADER
@@ -69,12 +86,7 @@ TransformCamera getTransformCamera() {
 #ifdef GPU_TRANSFORM_IS_STEREO
     #ifdef GPU_TRANSFORM_STEREO_CAMERA
         #ifdef GPU_VERTEX_SHADER
-            #ifdef GPU_TRANSFORM_STEREO_CAMERA_ATTRIBUTED
-                _stereoSide = _inStereoSide;
-            #endif
-            #ifdef GPU_TRANSFORM_STEREO_CAMERA_INSTANCED
-                _stereoSide = gl_InstanceID % 2;
-            #endif
+            _stereoSide = gpu_drawcallStereoSide();
         #endif
         return _cameraBlock._camera[_stereoSide];
     #else

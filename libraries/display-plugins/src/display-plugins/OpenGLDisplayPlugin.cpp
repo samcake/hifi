@@ -411,8 +411,8 @@ void OpenGLDisplayPlugin::customizeContext() {
         }
 
         {
-            gpu::ShaderPointer program = gpu::Shader::createProgram(shader::gpu::program::DrawTransformedTexture);
-            _layeredTosidebysidePipeline = gpu::Pipeline::create(program, blendState);
+            gpu::ShaderPointer program = gpu::Shader::createProgram(shader::gpu::program::DrawStereoTextureLayeredToSidebyside);
+            _layeredToSidebysidePipeline = gpu::Pipeline::create(program, blendState);
         }
     }
     updateCompositeFramebuffer();
@@ -645,7 +645,13 @@ void OpenGLDisplayPlugin::compositeScene() {
         batch.setStateScissorRect(ivec4(uvec2(), _compositeFramebuffer->getSize()));
         batch.resetViewTransform();
         batch.setProjectionTransform(mat4());
+        
         batch.setPipeline(_simplePipeline);
+
+        if (_currentFrame->framebuffer->getRenderBuffer(0)->getNumSlices() > 1) {
+            batch.setPipeline(_layeredToSidebysidePipeline);
+        }
+
         batch.setResourceTexture(0, _currentFrame->framebuffer->getRenderBuffer(0));
         batch.draw(gpu::TRIANGLE_STRIP, 4);
     });

@@ -163,12 +163,14 @@ void PrepareFramebuffer::configure(const Config& config) {
 void PrepareFramebuffer::run(const RenderContextPointer& renderContext, gpu::FramebufferPointer& framebuffer) {
     glm::uvec2 frameSize(renderContext->args->_viewport.z, renderContext->args->_viewport.w);
 
-    int numLayers = (renderContext->args->isStereo() + 1);
+    int numLayers = renderContext->args->_blitFramebuffer->getNumLayers();
+    auto framebufferSize = renderContext->args->_blitFramebuffer->getSize();
 
     // Resizing framebuffers instead of re-building them seems to cause issues with threaded rendering
     if (_framebuffer && 
-            (_framebuffer->getSize() != frameSize || _framebuffer->getNumLayers() != numLayers ||
-             _framebuffer->getNumSamples() != _numSamples ) ) {
+            ((_framebuffer->getSize() != frameSize) ||
+             (_framebuffer->getNumLayers() != numLayers) ||
+             (_framebuffer->getNumSamples() != _numSamples))) {
         _framebuffer.reset();
     }
 
@@ -182,12 +184,12 @@ void PrepareFramebuffer::run(const RenderContextPointer& renderContext, gpu::Fra
         auto depthFormat = gpu::Element(gpu::SCALAR, gpu::UINT32, gpu::DEPTH_STENCIL);  // Depth24_Stencil8 texel format
 
         auto colorTexture =
-            gpu::Texture::createRenderBufferMultisampleArray(colorFormat, frameSize.x / numLayers, frameSize.y, numLayers, numSamples, defaultSampler);
-        _framebuffer->setRenderBuffer(0, colorTexture);
+            gpu::Texture::createRenderBufferMultisampleArray(colorFormat, frameSize.x, frameSize.y, numLayers, numSamples, defaultSampler);
+        _framebuffer->setRenderBuffer(0, colorTexture, gpu::TextureView::UNDEFINED_SUBRESOURCE);
 
-        auto depthTexture = gpu::Texture::createRenderBufferMultisampleArray(depthFormat, frameSize.x / numLayers, frameSize.y,
+        auto depthTexture = gpu::Texture::createRenderBufferMultisampleArray(depthFormat, frameSize.x, frameSize.y,
                                                                              numLayers, numSamples, defaultSampler);
-        _framebuffer->setDepthStencilBuffer(depthTexture, depthFormat);
+        _framebuffer->setDepthStencilBuffer(depthTexture, depthFormat, gpu::TextureView::UNDEFINED_SUBRESOURCE);
     }
 
     auto args = renderContext->args;

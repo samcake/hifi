@@ -148,7 +148,7 @@ protected:
     gpu::ShaderPointer _mirrorHUDPS;
     gpu::PipelinePointer _simplePipeline;
 
-    gpu::PipelinePointer _layeredTosidebysidePipeline;
+    gpu::PipelinePointer _layeredToSidebysidePipeline;
 
     gpu::PipelinePointer _presentPipeline;
     gpu::PipelinePointer _cursorPipeline;

@@ -17,14 +17,23 @@
 
 #include "RenderUtilsLogging.h"
 
-void FramebufferCache::setFrameBufferSize(QSize frameBufferSize) {
+void FramebufferCache::setFrameBufferSize(QSize frameBufferSize, bool isStereo) {
+    bool dirty = false;
+
     //If the size changed, we need to delete our FBOs
-    if (_frameBufferSize != frameBufferSize) {
+    if ((_frameBufferSize != frameBufferSize) || (_frameBufferStereo != isStereo)) {
+        _frameBufferStereo = isStereo;
         _frameBufferSize = frameBufferSize;
-        {
-            std::unique_lock<std::mutex> lock(_mutex);
-            _cachedFramebuffers.clear();
+
+        if (isStereo) {
+            _frameBufferSize.setWidth(frameBufferSize.width() / 2);
         }
+        dirty = true;
+    }
+
+    if (dirty) {
+        std::unique_lock<std::mutex> lock(_mutex);
+        _cachedFramebuffers.clear();
     }
 }
 
@@ -38,7 +47,28 @@ void FramebufferCache::createPrimaryFramebuffer() {
 gpu::FramebufferPointer FramebufferCache::getFramebuffer() {
     std::unique_lock<std::mutex> lock(_mutex);
     if (_cachedFramebuffers.empty()) {
-        _cachedFramebuffers.push_back(gpu::FramebufferPointer(gpu::Framebuffer::create("cached", gpu::Element::COLOR_SRGBA_32, _frameBufferSize.width(), _frameBufferSize.height())));
+        
+        auto framebuffer = gpu::Framebuffer::create("cached");
+
+        if (_frameBufferStereo) {
+            auto colorTexture = gpu::TexturePointer(
+            gpu::Texture::createRenderBufferArray(gpu::Element::COLOR_SRGBA_32, _frameBufferSize.width(),
+                                                  _frameBufferSize.height(), 2,
+                                                                 gpu::Texture::SINGLE_MIP,
+                                                                       gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_POINT)));
+            colorTexture->setSource("Framebuffer::colorTexture");
+            framebuffer->setRenderBuffer(0, colorTexture, gpu::TextureView::UNDEFINED_SUBRESOURCE);
+        } else {
+            auto colorTexture = gpu::TexturePointer(
+                gpu::Texture::createRenderBuffer(gpu::Element::COLOR_SRGBA_32, _frameBufferSize.width(),
+                                                        _frameBufferSize.height(), 
+                                                        gpu::Texture::SINGLE_MIP,
+                                                        gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_POINT)));
+            colorTexture->setSource("Framebuffer::colorTexture");
+            framebuffer->setRenderBuffer(0, colorTexture);
+        }
+
+        _cachedFramebuffers.push_back(gpu::FramebufferPointer(framebuffer));
     }
     gpu::FramebufferPointer result = _cachedFramebuffers.front();
     _cachedFramebuffers.pop_front();
