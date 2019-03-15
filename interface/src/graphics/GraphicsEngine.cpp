@@ -193,7 +193,7 @@ void GraphicsEngine::render_performFrame() {
     glm::mat4  sensorToWorld;
     ViewFrustum viewFrustum;
 
-    uvec2 framebufferSize = displayPlugin->getRecommendedRenderSize();
+    auto framebufferSize = displayPlugin->getRecommendedRenderSize();
     bool isStereo;
     glm::mat4  stereoEyeOffsets[2];
     glm::mat4  stereoEyeProjections[2];
@@ -239,7 +239,7 @@ void GraphicsEngine::render_performFrame() {
         PROFILE_RANGE(render, "/getOutputFramebuffer");
         // Primary rendering pass
         auto framebufferCache = DependencyManager::get<FramebufferCache>();
-        framebufferCache->setFrameBufferSize(QSize(framebufferSize), isStereo);
+        framebufferCache->setFrameBufferSize(framebufferSize, isStereo);
         // Final framebuffer that will be handed to the display-plugin
         finalFramebuffer = framebufferCache->getFramebuffer();
     }

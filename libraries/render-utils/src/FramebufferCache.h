@@ -24,8 +24,8 @@ public:
     static const int SHADOW_MAP_SIZE = 2048;
 
     /// Sets the desired texture resolution for the framebuffer objects. 
-    void setFrameBufferSize(QSize frameBufferSize, bool isStereo);
-    const QSize& getFrameBufferSize() const { return _frameBufferSize; } 
+    void setFrameBufferSize(const glm::uvec2& frameBufferSize, bool isStereo);
+    const glm::uvec2& getFrameBufferSize() const { return _frameBufferSize; }
 
     /// Returns a free framebuffer with a single color attachment for temp or intra-frame operations
     gpu::FramebufferPointer getFramebuffer();
@@ -39,7 +39,7 @@ private:
 
     gpu::FramebufferPointer _shadowFramebuffer;
 
-    QSize _frameBufferSize{ 100, 100 };
+    glm::uvec2 _frameBufferSize{ 100, 100 };
     bool _frameBufferStereo { false };
 
     std::mutex _mutex;

@@ -69,14 +69,7 @@ public:
                                 glNamedFramebufferTextureLayer(_id, colorAttachments[unit], gltexture->_texture, 0, b._subresource);
                             }
                         } else {
-                            if (gltexture->_target == GL_TEXTURE_2D) {
-                                glNamedFramebufferTexture(_id, colorAttachments[unit], gltexture->_texture, 0);
-                            } else if (gltexture->_target == GL_TEXTURE_2D_MULTISAMPLE) {
-                                glNamedFramebufferTexture(_id, colorAttachments[unit], gltexture->_texture, 0);
-                            } else {
-                                glNamedFramebufferTextureLayer(_id, colorAttachments[unit], gltexture->_texture, 0,
-                                                               b._subresource);
-                            }
+                            glNamedFramebufferTexture(_id, colorAttachments[unit], gltexture->_texture, 0);
                         }
                         _colorBuffers.push_back(colorAttachments[unit]);
                     } else {
@@ -104,14 +97,17 @@ public:
             }
 
             if (gltexture) {
-                if (gltexture->_target == GL_TEXTURE_2D) {
-                    glNamedFramebufferTexture(_id, attachement, gltexture->_texture, 0);
-                }
-                else if (gltexture->_target == GL_TEXTURE_2D_MULTISAMPLE) {
-                    glNamedFramebufferTexture(_id, attachement, gltexture->_texture, 0);
+                if (!_gpuObject.isLayered()) {
+                    if (gltexture->_target == GL_TEXTURE_2D) {
+                        glNamedFramebufferTexture(_id, attachement, gltexture->_texture, 0);
+                    }
+                    else if (gltexture->_target == GL_TEXTURE_2D_MULTISAMPLE) {
+                        glNamedFramebufferTexture(_id, attachement, gltexture->_texture, 0);
+                    } else {
+                        glNamedFramebufferTextureLayer(_id, attachement, gltexture->_texture, 0, _gpuObject.getDepthStencilBufferSubresource());
+                    }
                 } else {
-                    glNamedFramebufferTextureLayer(_id, attachement, gltexture->_texture, 0,
-                                                   _gpuObject.getDepthStencilBufferSubresource());
+                    glNamedFramebufferTexture(_id, attachement, gltexture->_texture, 0);
                 }
             } else {
                 glNamedFramebufferTexture(_id, attachement, 0, 0);

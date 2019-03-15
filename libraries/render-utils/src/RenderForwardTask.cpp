@@ -184,12 +184,14 @@ void PrepareFramebuffer::run(const RenderContextPointer& renderContext, gpu::Fra
         auto depthFormat = gpu::Element(gpu::SCALAR, gpu::UINT32, gpu::DEPTH_STENCIL);  // Depth24_Stencil8 texel format
 
         auto colorTexture =
-            gpu::Texture::createRenderBufferMultisampleArray(colorFormat, frameSize.x, frameSize.y, numLayers, numSamples, defaultSampler);
-        _framebuffer->setRenderBuffer(0, colorTexture, gpu::TextureView::UNDEFINED_SUBRESOURCE);
+            gpu::Texture::createRenderBufferMultisampleArray(colorFormat, framebufferSize.x, framebufferSize.y, numLayers, numSamples, defaultSampler);
+      //  _framebuffer->setRenderBuffer(0, colorTexture, gpu::TextureView::UNDEFINED_SUBRESOURCE);
+        _framebuffer->setRenderBuffer(0, colorTexture, 0);
 
-        auto depthTexture = gpu::Texture::createRenderBufferMultisampleArray(depthFormat, frameSize.x, frameSize.y,
+        auto depthTexture = gpu::Texture::createRenderBufferMultisampleArray(depthFormat, framebufferSize.x, framebufferSize.y,
                                                                              numLayers, numSamples, defaultSampler);
-        _framebuffer->setDepthStencilBuffer(depthTexture, depthFormat, gpu::TextureView::UNDEFINED_SUBRESOURCE);
+       // _framebuffer->setDepthStencilBuffer(depthTexture, depthFormat, gpu::TextureView::UNDEFINED_SUBRESOURCE);
+        _framebuffer->setDepthStencilBuffer(depthTexture, depthFormat, 0);
     }
 
     auto args = renderContext->args;
