@@ -25,7 +25,7 @@ public:
     ApplicationOverlay();
     ~ApplicationOverlay();
 
-    void renderOverlay(RenderArgs* renderArgs);
+    void renderOverlay(const glm::uvec2& uiSize, RenderArgs* renderArgs);
 
     gpu::TexturePointer getOverlayTexture(); 
 
@@ -34,7 +34,7 @@ private:
     void renderDomainConnectionStatusBorder(RenderArgs* renderArgs);
     void renderQmlUi(RenderArgs* renderArgs);
     void renderOverlays(RenderArgs* renderArgs);
-    void buildFramebufferObject();
+    void buildFramebufferObject(const glm::uvec2& uiSize);
 
     float _alpha{ 1.0f };
     float _trailingAudioLoudness{ 0.0f };

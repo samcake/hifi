@@ -32,6 +32,7 @@ struct AppRenderArgs {
     glm::mat4 _headPose;
     glm::mat4 _sensorToWorld;
     float _sensorToWorldScale{ 1.0f };
+    glm::uvec2 _displayFramebufferSize { 512 };
     bool _isStereo{ false };
 };
 

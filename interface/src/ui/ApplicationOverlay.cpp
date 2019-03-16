@@ -53,13 +53,17 @@ ApplicationOverlay::~ApplicationOverlay() {
 }
 
 // Renders the overlays either to a texture or to the screen
-void ApplicationOverlay::renderOverlay(RenderArgs* renderArgs) {
+void ApplicationOverlay::renderOverlay(const glm::uvec2& uiSize, RenderArgs* renderArgs) {
     PROFILE_RANGE(render, __FUNCTION__);
-    buildFramebufferObject();
+    buildFramebufferObject(uiSize);
     
     if (!_overlayFramebuffer) {
         return; // we can't do anything without our frame buffer.
     }
+
+    // Assign the viewport to render the Hud(overlay) surface
+    // the ApplicationOverlay class assumes it's viewport is setup to be the device size
+    renderArgs->_viewport = glm::ivec4(0, 0, uiSize);
 
     // Execute the batch into our framebuffer
     doInBatch("ApplicationOverlay::render", renderArgs->_context, [&](gpu::Batch& batch) {
@@ -175,10 +179,9 @@ static const auto COLOR_FORMAT = gpu::Element(gpu::VEC4, gpu::NUINT8, gpu::RGBA)
 static const auto DEFAULT_SAMPLER = gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_LINEAR);
 static const auto DEPTH_FORMAT = gpu::Element(gpu::SCALAR, gpu::FLOAT, gpu::DEPTH);
 
-void ApplicationOverlay::buildFramebufferObject() {
+void ApplicationOverlay::buildFramebufferObject(const glm::uvec2& uiSize) {
     PROFILE_RANGE(render, __FUNCTION__);
 
-    auto uiSize = glm::uvec2(qApp->getUiSize());
     if (!_overlayFramebuffer || uiSize != _overlayFramebuffer->getSize()) {
         _overlayFramebuffer = gpu::FramebufferPointer(gpu::Framebuffer::create("ApplicationOverlay"));
     }

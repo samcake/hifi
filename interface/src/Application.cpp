@@ -3590,7 +3590,7 @@ void Application::resizeGL() {
     uvec2 renderSize = uvec2(framebufferSize);
     if (_renderResolution != renderSize) {
         _renderResolution = renderSize;
-        DependencyManager::get<FramebufferCache>()->setFrameBufferSize((renderSize), displayPlugin->isStereo());
+  //      DependencyManager::get<FramebufferCache>()->setFrameBufferSize((renderSize), displayPlugin->isStereo());
     }
 
     auto renderResolutionScale = getRenderResolutionScale();
@@ -6613,6 +6613,7 @@ void Application::updateRenderArgs(float deltaTime) {
         this->updateCamera(appRenderArgs._renderArgs, deltaTime);
         appRenderArgs._eyeToWorld = _myCamera.getTransform();
         appRenderArgs._isStereo = false;
+        appRenderArgs._displayFramebufferSize = getActiveDisplayPlugin()->getRecommendedRenderSize();
 
         {
             auto hmdInterface = DependencyManager::get<HMDScriptingInterface>();

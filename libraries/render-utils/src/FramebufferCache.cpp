@@ -24,9 +24,7 @@ void FramebufferCache::setFrameBufferSize(const glm::uvec2& frameBufferSize, boo
     if ((_frameBufferSize != frameBufferSize) || (_frameBufferStereo != isStereo)) {
         _frameBufferStereo = isStereo;
         _frameBufferSize = frameBufferSize;
-        if (isStereo) {
-            _frameBufferSize.x = (frameBufferSize.x / 2);
-        }
+
         {
             std::unique_lock<std::mutex> lock(_mutex);
             _cachedFramebuffers.clear();

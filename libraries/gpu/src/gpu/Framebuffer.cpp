@@ -248,7 +248,7 @@ bool Framebuffer::assignDepthStencilBuffer(const TexturePointer& texture, const 
 
     // Check for the compatibility of size
     if (texture) {
-        if (!validateTargetCompatibility(*texture)) {
+        if (!validateTargetCompatibility(*texture, subresource)) {
             return false;
         }
 

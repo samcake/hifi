@@ -177,6 +177,7 @@ protected:
 
     uint16 _numLayers = 0;
 
+
     void updateSize(const TexturePointer& texture, uint32 subresource);
     bool assignDepthStencilBuffer(const TexturePointer& texture, const Format& format, uint32 subresource);
 

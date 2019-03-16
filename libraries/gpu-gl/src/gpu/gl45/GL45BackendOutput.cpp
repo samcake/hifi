@@ -52,6 +52,7 @@ public:
                 auto backend = _backend.lock();
                 for (auto& b : _gpuObject.getRenderBuffers()) {
                     surface = b._texture;
+                    auto surfaceSubresource = b._subresource;
                     if (surface) {
                         Q_ASSERT(TextureUsageType::RENDERBUFFER == surface->getUsageType());
                         gltexture = backend->syncGPUObject(surface);
@@ -60,17 +61,48 @@ public:
                     }
 
                     if (gltexture) {
-                        if (!_gpuObject.isLayered()) {
-                            if (gltexture->_target == GL_TEXTURE_2D) {
-                                glNamedFramebufferTexture(_id, colorAttachments[unit], gltexture->_texture, 0);
-                            } else if (gltexture->_target == GL_TEXTURE_2D_MULTISAMPLE) {
-                                glNamedFramebufferTexture(_id, colorAttachments[unit], gltexture->_texture, 0);
-                            } else {
-                                glNamedFramebufferTextureLayer(_id, colorAttachments[unit], gltexture->_texture, 0, b._subresource);
+                        if (surfaceSubresource != gpu::TextureView::UNDEFINED_SUBRESOURCE) {
+                            switch (gltexture->_target) {
+                                case GL_TEXTURE_2D:
+                                    glNamedFramebufferTexture(_id, colorAttachments[unit], gltexture->_texture, 0);
+                                    break;
+                                case GL_TEXTURE_2D_MULTISAMPLE:
+                                    glNamedFramebufferTexture(_id, colorAttachments[unit], gltexture->_texture, 0);
+                                    break;
+                                case GL_TEXTURE_2D_ARRAY:
+                                    glNamedFramebufferTextureLayer(_id, colorAttachments[unit], gltexture->_texture, 0,
+                                                                   (GLuint)surfaceSubresource);
+                                    break;
+                                case GL_TEXTURE_2D_MULTISAMPLE_ARRAY:
+                                    glNamedFramebufferTextureLayer(_id, colorAttachments[unit], gltexture->_texture, 0,
+                                                                   (GLuint)surfaceSubresource);
+                                    break;
+                                default:
+                                    glNamedFramebufferTexture(_id, colorAttachments[unit], 0, 0);
+                                    // not a valid path
+                                    break;
                             }
                         } else {
-                            glNamedFramebufferTexture(_id, colorAttachments[unit], gltexture->_texture, 0);
+                            switch (gltexture->_target) {
+                                case GL_TEXTURE_2D:
+                                    glNamedFramebufferTexture(_id, colorAttachments[unit], gltexture->_texture, 0);
+                                    break;
+                                case GL_TEXTURE_2D_MULTISAMPLE:
+                                    glNamedFramebufferTexture(_id, colorAttachments[unit], gltexture->_texture, 0);
+                                    break;
+                                case GL_TEXTURE_2D_ARRAY:
+                                    glNamedFramebufferTexture(_id, colorAttachments[unit], gltexture->_texture, 0);
+                                    break;
+                                case GL_TEXTURE_2D_MULTISAMPLE_ARRAY:
+                                    glNamedFramebufferTexture(_id, colorAttachments[unit], gltexture->_texture, 0);
+                                    break;
+                                default:
+                                    glNamedFramebufferTexture(_id, colorAttachments[unit], 0, 0);
+                                    // not a valid path
+                                    break;
+                            }
                         }
+
                         _colorBuffers.push_back(colorAttachments[unit]);
                     } else {
                         glNamedFramebufferTexture(_id, colorAttachments[unit], 0, 0);
@@ -90,6 +122,7 @@ public:
 
         if (_gpuObject.getDepthStamp() != _depthStamp) {
             auto surface = _gpuObject.getDepthStencilBuffer();
+            auto surfaceSubresource = _gpuObject.getDepthStencilBufferSubresource();
             auto backend = _backend.lock();
             if (_gpuObject.hasDepthStencil() && surface) {
                 Q_ASSERT(TextureUsageType::RENDERBUFFER == surface->getUsageType());
@@ -97,17 +130,44 @@ public:
             }
 
             if (gltexture) {
-                if (!_gpuObject.isLayered()) {
-                    if (gltexture->_target == GL_TEXTURE_2D) {
-                        glNamedFramebufferTexture(_id, attachement, gltexture->_texture, 0);
-                    }
-                    else if (gltexture->_target == GL_TEXTURE_2D_MULTISAMPLE) {
-                        glNamedFramebufferTexture(_id, attachement, gltexture->_texture, 0);
-                    } else {
-                        glNamedFramebufferTextureLayer(_id, attachement, gltexture->_texture, 0, _gpuObject.getDepthStencilBufferSubresource());
+                if (surfaceSubresource != gpu::TextureView::UNDEFINED_SUBRESOURCE) {
+                    switch (gltexture->_target) {
+                        case GL_TEXTURE_2D:
+                            glNamedFramebufferTexture(_id, attachement, gltexture->_texture, 0);
+                            break;
+                        case GL_TEXTURE_2D_MULTISAMPLE:
+                            glNamedFramebufferTexture(_id, attachement, gltexture->_texture, 0);
+                            break;
+                        case GL_TEXTURE_2D_ARRAY:
+                            glNamedFramebufferTextureLayer(_id, attachement, gltexture->_texture, 0, (GLuint)surfaceSubresource);
+                            break;
+                        case GL_TEXTURE_2D_MULTISAMPLE_ARRAY:
+                            glNamedFramebufferTextureLayer(_id, attachement, gltexture->_texture, 0, (GLuint)surfaceSubresource);
+                            break;
+                        default:
+                            glNamedFramebufferTexture(_id, attachement, 0, 0);
+                            // not a valid path
+                            break;
                     }
                 } else {
-                    glNamedFramebufferTexture(_id, attachement, gltexture->_texture, 0);
+                    switch (gltexture->_target) {
+                        case GL_TEXTURE_2D:
+                            glNamedFramebufferTexture(_id, attachement, gltexture->_texture, 0);
+                            break;
+                        case GL_TEXTURE_2D_MULTISAMPLE:
+                            glNamedFramebufferTexture(_id, attachement, gltexture->_texture, 0);
+                            break;
+                        case GL_TEXTURE_2D_ARRAY:
+                            glNamedFramebufferTexture(_id, attachement, gltexture->_texture, 0);
+                            break;
+                        case GL_TEXTURE_2D_MULTISAMPLE_ARRAY:
+                            glNamedFramebufferTexture(_id, attachement, gltexture->_texture, 0);
+                            break;
+                        default:
+                            glNamedFramebufferTexture(_id, attachement, 0, 0);
+                            // not a valid path
+                            break;
+                    }
                 }
             } else {
                 glNamedFramebufferTexture(_id, attachement, 0, 0);

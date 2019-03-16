@@ -144,7 +144,7 @@ void RenderForwardTask::build(JobModel& task, const render::Varying& input, rend
 
     // Layered Overlays
     // Composite the HUD and HUD overlays
-  //  task.addJob<CompositeHUD>("HUD", resolvedFramebuffer);
+    task.addJob<CompositeHUD>("HUD", resolvedFramebuffer);
 
     const auto hudOpaquesInputs = DrawLayered3D::Inputs(hudOpaque, lightingModel, nullJitter).asVarying();
     const auto hudTransparentsInputs = DrawLayered3D::Inputs(hudTransparent, lightingModel, nullJitter).asVarying();
@@ -185,25 +185,25 @@ void PrepareFramebuffer::run(const RenderContextPointer& renderContext, gpu::Fra
 
         auto colorTexture =
             gpu::Texture::createRenderBufferMultisampleArray(colorFormat, framebufferSize.x, framebufferSize.y, numLayers, numSamples, defaultSampler);
-      //  _framebuffer->setRenderBuffer(0, colorTexture, gpu::TextureView::UNDEFINED_SUBRESOURCE);
-        _framebuffer->setRenderBuffer(0, colorTexture, 0);
+        _framebuffer->setRenderBuffer(0, colorTexture, gpu::TextureView::UNDEFINED_SUBRESOURCE);
+       // _framebuffer->setRenderBuffer(0, colorTexture, 0);
 
-        auto depthTexture = gpu::Texture::createRenderBufferMultisampleArray(depthFormat, framebufferSize.x, framebufferSize.y,
-                                                                             numLayers, numSamples, defaultSampler);
-       // _framebuffer->setDepthStencilBuffer(depthTexture, depthFormat, gpu::TextureView::UNDEFINED_SUBRESOURCE);
-        _framebuffer->setDepthStencilBuffer(depthTexture, depthFormat, 0);
+        auto depthTexture = 
+            gpu::Texture::createRenderBufferMultisampleArray(depthFormat, framebufferSize.x, framebufferSize.y, numLayers, numSamples, defaultSampler);
+        _framebuffer->setDepthStencilBuffer(depthTexture, depthFormat, gpu::TextureView::UNDEFINED_SUBRESOURCE);
+       // _framebuffer->setDepthStencilBuffer(depthTexture, depthFormat, 0);
     }
 
     auto args = renderContext->args;
     gpu::doInBatch("PrepareFramebuffer::run", args->_context, [&](gpu::Batch& batch) {
-        batch.enableStereo(false);
+   //     batch.enableStereo(false);
         batch.setViewportTransform(args->_viewport);
         batch.setStateScissorRect(args->_viewport);
 
         batch.setFramebuffer(_framebuffer);
         batch.clearFramebuffer(gpu::Framebuffer::BUFFER_COLOR0 | gpu::Framebuffer::BUFFER_DEPTH |
             gpu::Framebuffer::BUFFER_STENCIL,
-            vec4(vec3(0), 0), 1.0, 0, true);
+            vec4(vec3(0, 0, 0), 0), 1.0, 0, true);
     });
 
     framebuffer = _framebuffer;

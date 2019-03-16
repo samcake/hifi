@@ -177,7 +177,7 @@ TransformObject getTransformObject() {
 
 #ifdef GPU_TRANSFORM_STEREO_LAYERED
         // Stereo is layered, pick the side here
-        gl_Layer = _stereoSide;
+        gl_Layer = gpu_drawcallStereoSide();
 #endif
 #ifdef GPU_TRANSFORM_STEREO_SPLIT_SCREEN
         vec4 eyeClipEdge[2]= vec4[2](vec4(-1,0,0,1), vec4(1,0,0,1));

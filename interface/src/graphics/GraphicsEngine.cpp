@@ -193,7 +193,7 @@ void GraphicsEngine::render_performFrame() {
     glm::mat4  sensorToWorld;
     ViewFrustum viewFrustum;
 
-    auto framebufferSize = displayPlugin->getRecommendedRenderSize();
+    glm::uvec2 framebufferSize;
     bool isStereo;
     glm::mat4  stereoEyeOffsets[2];
     glm::mat4  stereoEyeProjections[2];
@@ -210,7 +210,8 @@ void GraphicsEngine::render_performFrame() {
         HMDSensorPose = _appRenderArgs._headPose;
         eyeToWorld = _appRenderArgs._eyeToWorld;
         sensorToWorld = _appRenderArgs._sensorToWorld;
-    //    isStereo = _appRenderArgs._isStereo;
+        framebufferSize = _appRenderArgs._displayFramebufferSize;
+        isStereo = _appRenderArgs._isStereo;
         for_each_eye([&](Eye eye) {
             stereoEyeOffsets[eye] = _appRenderArgs._eyeOffsets[eye];
             stereoEyeProjections[eye] = _appRenderArgs._eyeProjections[eye];
@@ -257,9 +258,7 @@ void GraphicsEngine::render_performFrame() {
             PROFILE_RANGE(render, "/renderOverlay");
             PerformanceTimer perfTimer("renderOverlay");
             // NOTE: There is no batch associated with this renderArgs
-            // the ApplicationOverlay class assumes it's viewport is setup to be the device size
-            renderArgs._viewport = glm::ivec4(0, 0, qApp->getDeviceSize());
-            qApp->getApplicationOverlay().renderOverlay(&renderArgs);
+            qApp->getApplicationOverlay().renderOverlay(displayPlugin->getRecommendedUiSize(), &renderArgs);
         }
 
         {
@@ -269,6 +268,7 @@ void GraphicsEngine::render_performFrame() {
 
         {
             PROFILE_RANGE(render, "/runRenderFrame");
+            renderArgs._viewport = { 0, 0, finalFramebuffer->getSize() };
             renderArgs._hudOperator = displayPlugin->getHUDOperator();
             renderArgs._hudTexture = qApp->getApplicationOverlay().getOverlayTexture();
             renderArgs._blitFramebuffer = finalFramebuffer;
