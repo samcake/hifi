@@ -226,6 +226,7 @@ void ResolveFramebuffer::run(const render::RenderContextPointer& renderContext, 
     rectSrc.z = frameSize.x;
     rectSrc.w = frameSize.y;
     gpu::doInBatch("Resolve", args->_context, [&](gpu::Batch& batch) { 
+      //  batch.setFramebuffer(destFbo);    
         batch.blit(srcFbo, rectSrc, destFbo, rectSrc);
     });
 }

@@ -216,14 +216,42 @@ void GL45Backend::do_blit(const Batch& batch, size_t paramOffset) {
         dstvp[i] = batch._params[paramOffset + 6 + i]._int;
     }
 
+    auto fboSrc = syncGPUObject(*srcframebuffer);
+    auto fboDst = syncGPUObject(*dstframebuffer);
+
+
     // Assign dest framebuffer if not bound already
-    auto destFbo = getFramebufferID(dstframebuffer);
-    auto srcFbo = getFramebufferID(srcframebuffer);
+    auto srcFbo = fboSrc->_id; //getFramebufferID(srcframebuffer);
+    auto destFbo = fboDst->_id; //getFramebufferID(dstframebuffer);
     glBlitNamedFramebuffer(srcFbo, destFbo,
         srcvp.x, srcvp.y, srcvp.z, srcvp.w,
         dstvp.x, dstvp.y, dstvp.z, dstvp.w,
-        GL_COLOR_BUFFER_BIT, GL_LINEAR);
+         GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    if (srcframebuffer->isLayered() && dstframebuffer->isLayered()) {
+        auto numLayers = std::max(srcframebuffer->getNumLayers(), dstframebuffer->getNumLayers());
+        std::vector<GLuint> layerBliters(2, 0);
+        glCreateFramebuffers(2, layerBliters.data());
+
+        auto srcSurface = fboSrc->_colorBuffers[0];
+        auto dstSurface = fboDst->_colorBuffers[0];
+        auto srcSurfaceTexture = fboSrc->_gpuObject.getRenderBuffers()[0]._texture;
+        auto srcSurfaceTexturegl = syncGPUObject(srcSurfaceTexture);
+        auto dstSurfaceTexture = fboDst->_gpuObject.getRenderBuffers()[0]._texture;
+        auto dstSurfaceTexturegl = syncGPUObject(dstSurfaceTexture);
+
+        for (int l = 1; l < numLayers; l++) {
+            glNamedFramebufferTextureLayer(layerBliters[0], GL_COLOR_ATTACHMENT0, srcSurfaceTexturegl->_texture, 0, (GLuint)l);
+            glNamedFramebufferTextureLayer(layerBliters[1], GL_COLOR_ATTACHMENT0, dstSurfaceTexturegl->_texture, 0, (GLuint)l);
+            glBlitNamedFramebuffer(layerBliters[0], layerBliters[1],
+                srcvp.x, srcvp.y, srcvp.z, srcvp.w,
+                dstvp.x, dstvp.y, dstvp.z, dstvp.w,
+                GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        }
+        
+        glDeleteFramebuffers(2, layerBliters.data());
+    }
     (void) CHECK_GL_ERROR();
+
 }
 
 } }

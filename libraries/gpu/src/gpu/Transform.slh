@@ -1,5 +1,5 @@
 <!
-//  gpu/TransformState.slh
+//  gpu/Transform.slh
 //
 //  Created by Sam Gateau on 2/10/15.
 //  Copyright 2013 High Fidelity, Inc.
@@ -11,6 +11,90 @@
 <@def GPU_TRANSFORM_STATE_SLH@>
 
 <@include gpu/ShaderConstants.h@>
+
+// gpu shader api for Stereo stage
+// Stereo technique derives from the shader variant, the shader domain, and the platform
+
+// Vertex Shader
+#ifdef GPU_VERTEX_SHADER
+// Stereo variant
+#ifdef GPU_TRANSFORM_IS_STEREO
+// With stereo camera provided
+#ifdef GPU_TRANSFORM_STEREO_CAMERA
+
+// If Stereo side is provided from drawcall input attribute
+#ifdef GPU_TRANSFORM_STEREO_CAMERA_ATTRIBUTED
+layout(location=GPU_ATTR_STEREO_SIDE) in int _inStereoSide;
+#endif
+// the alternative is that it is deduced from the instanceID %2 see below
+
+// gpu_InstanceID()
+// In stereo drawcall mode Instances are drawn twice (left then right) hence the true InstanceID is the gl_InstanceID / 2
+int gpu_InstanceID() {
+#ifdef GPU_TRANSFORM_STEREO_CAMERA_ATTRIBUTED
+    return gl_InstanceID;
+#elif defined(GPU_TRANSFORM_STEREO_CAMERA_INSTANCED)
+    return gl_InstanceID >> 1;
+#else
+    return gl_InstanceID;
+#endif
+}
+
+// gpu_StereoSide()
+// THe side of stereo is 0 for left, 1 for right
+int gpu_StereoSide() {
+#ifdef GPU_TRANSFORM_STEREO_CAMERA_ATTRIBUTED
+    return _inStereoSide;
+#elif defined(GPU_TRANSFORM_STEREO_CAMERA_INSTANCED)
+    return gl_InstanceID % 2;
+#else 
+    return 0;
+#endif
+}
+
+// Stereo is output and passed to next shader domain with this varying
+layout(location = GPU_ATTR_V2F_STEREO_SIDE) flat out int _stereoSide;
+
+// THis api call gpu_outputStereoSIde() must be called explicitely.
+// THis is done in automatically calling transformStereoClipsSpace()
+void gpu_outputStereoSide() {
+    _stereoSide = gpu_StereoSide();
+}
+
+#else  // Non GPU_TRANSFORM_STEREO_CAMERA
+
+int gpu_InstanceID() { return gl_InstanceID; }
+// no gpu_StereoSide () call since that info is not specific to the vertex shader invocation in this case
+
+#endif 
+#else // Non stereo variant GPU_TRANSFORM_IS_STEREO
+// gpu_InstanceID() in non stereo variant
+int gpu_InstanceID() { return gl_InstanceID; }
+#endif 
+#endif // GPU_VERTEX_SHADER
+
+// pixel shader
+#ifdef GPU_PIXEL_SHADER
+// Stereo variant
+#ifdef GPU_TRANSFORM_IS_STEREO
+// With stereo camera provided
+#ifdef GPU_TRANSFORM_STEREO_CAMERA
+
+// Stereo camera is available and the current invocation of the pixel shader is side specific
+layout(location = GPU_ATTR_V2F_STEREO_SIDE) flat in int _stereoSide;
+
+// gpu_StereoSide()
+// THe side of stereo is 0 for left, 1 for right
+int gpu_StereoSide() {
+    return _stereoSide;
+}
+
+#endif
+#endif
+#endif // GPU_PIXEL_SHADER
+
+
+
 <@func declareStandardCameraTransform()@>
 <@include gpu/TransformCamera_shared.slh@>
 
@@ -28,67 +112,10 @@ LAYOUT_STD140(binding=GPU_BUFFER_TRANSFORM_CAMERA) uniform transformCameraBuffer
 #endif
 } _cameraBlock;
 
-#ifdef GPU_VERTEX_SHADER
-#ifdef GPU_TRANSFORM_IS_STEREO
-#ifdef GPU_TRANSFORM_STEREO_CAMERA
-#ifdef GPU_TRANSFORM_STEREO_CAMERA_ATTRIBUTED
-layout(location=GPU_ATTR_STEREO_SIDE) in int _inStereoSide;
-#endif
-
-layout(location=GPU_ATTR_V2F_STEREO_SIDE) flat out int _stereoSide;
-
-// In stereo drawcall mode Instances are drawn twice (left then right) hence the true InstanceID is the gl_InstanceID / 2
-int gpu_InstanceID() {
-    return gl_InstanceID >> 1;
-}
-
-int gpu_drawcallStereoSide() {
-#ifdef GPU_TRANSFORM_STEREO_CAMERA_ATTRIBUTED
-    return _inStereoSide;
-#elif defined(GPU_TRANSFORM_STEREO_CAMERA_INSTANCED)
-    return gl_InstanceID % 2;
-#else 
-    return 0;
-#endif
-}
-
-#else
-
-int gpu_InstanceID() {
-    return gl_InstanceID;
-}
-
-int gpu_drawcallStereoSide() {
-    return 0;
-}
-#endif
-#else
-
-int gpu_InstanceID() {
-    return gl_InstanceID;
-}
-
-int gpu_drawcallStereoSide() {
-    return 0;
-}
-
-#endif
-#endif
-
-#ifdef GPU_PIXEL_SHADER
-#ifdef GPU_TRANSFORM_STEREO_CAMERA
-layout(location=GPU_ATTR_V2F_STEREO_SIDE) flat in int _stereoSide;
-#endif
-#endif
-
-
 TransformCamera getTransformCamera() {
 #ifdef GPU_TRANSFORM_IS_STEREO
     #ifdef GPU_TRANSFORM_STEREO_CAMERA
-        #ifdef GPU_VERTEX_SHADER
-            _stereoSide = gpu_drawcallStereoSide();
-        #endif
-        return _cameraBlock._camera[_stereoSide];
+        return _cameraBlock._camera[gpu_StereoSide()];
     #else
         return _cameraBlock._camera;
     #endif
@@ -171,24 +198,29 @@ TransformObject getTransformObject() {
      <$viewport$> = <$cameraTransform$>._viewport;
 <@endfunc@>
 
-<@func transformStereoClipsSpace(cameraTransform, clipPos)@>
+
+<@func transformStereoClipsSpace(clipPos)@>
     {
 #ifdef GPU_TRANSFORM_IS_STEREO
+#ifdef GPU_VERTEX_SHADER
+
+#ifdef GPU_TRANSFORM_STEREO_CAMERA
+        gpu_outputStereoSide(); // output the _stereoside
 
 #ifdef GPU_TRANSFORM_STEREO_LAYERED
         // Stereo is layered, pick the side here
-        gl_Layer = gpu_drawcallStereoSide();
+        gl_Layer = gpu_StereoSide();
 #endif
 #ifdef GPU_TRANSFORM_STEREO_SPLIT_SCREEN
         vec4 eyeClipEdge[2]= vec4[2](vec4(-1,0,0,1), vec4(1,0,0,1));
         vec2 eyeOffsetScale = vec2(-0.5, +0.5);
-        uint eyeIndex = uint(_stereoSide);
+        uint eyeIndex = uint(gpu_StereoSide());
         gl_ClipDistance[0] = dot(<$clipPos$>, eyeClipEdge[eyeIndex]);
         float newClipPosX = <$clipPos$>.x * 0.5 + eyeOffsetScale[eyeIndex] * <$clipPos$>.w;
         <$clipPos$>.x = newClipPosX;
 #endif
-
-#else
+#endif
+#endif
 #endif
     }
 <@endfunc@>
@@ -215,7 +247,7 @@ TransformObject getTransformObject() {
 <@func transformModelToClipPos(cameraTransform, objectTransform, modelPos, clipPos)@>
     { // transformModelToClipPos
         <$transformModelToMonoClipPos($cameraTransform$, $objectTransform$, $modelPos$, $clipPos$)$>
-        <$transformStereoClipsSpace($cameraTransform$, $clipPos$)$>
+        <$transformStereoClipsSpace($clipPos$)$>
     }
 <@endfunc@>
 
@@ -226,7 +258,7 @@ TransformObject getTransformObject() {
         <$clipPos$> = <$cameraTransform$>._projectionViewUntranslated * eyeWAPos;
         <$eyePos$> = vec4((<$cameraTransform$>._view * vec4(eyeWAPos.xyz, 0.0)).xyz, 1.0);
         
-        <$transformStereoClipsSpace($cameraTransform$, $clipPos$)$>
+        <$transformStereoClipsSpace($clipPos$)$>
     }
 <@endfunc@>
 
@@ -238,7 +270,7 @@ TransformObject getTransformObject() {
         <$clipPos$> = <$cameraTransform$>._projectionViewUntranslated * eyeWAPos;
         <$eyePos$> = vec4((<$cameraTransform$>._view * vec4(eyeWAPos.xyz, 0.0)).xyz, 1.0);
         
-        <$transformStereoClipsSpace($cameraTransform$, $clipPos$)$>
+        <$transformStereoClipsSpace($clipPos$)$>
     }
 <@endfunc@>
 
@@ -256,7 +288,7 @@ TransformObject getTransformObject() {
         vec4 eyeWAPos = <$worldPos$> - vec4(<$cameraTransform$>._viewInverse[3].xyz, 0.0);
         <$clipPos$> = <$cameraTransform$>._projectionViewUntranslated * eyeWAPos;
 
-        <$transformStereoClipsSpace($cameraTransform$, $clipPos$)$>
+        <$transformStereoClipsSpace($clipPos$)$>
     }
 <@endfunc@>
 
@@ -305,7 +337,7 @@ TransformObject getTransformObject() {
     { // transformEyeToClipPos
         <$clipPos$> = <$cameraTransform$>._projection * vec4(<$eyePos$>.xyz, 1.0);
 
-        <$transformStereoClipsSpace($cameraTransform$, $clipPos$)$>
+        <$transformStereoClipsSpace($clipPos$)$>
     }
 <@endfunc@>
 

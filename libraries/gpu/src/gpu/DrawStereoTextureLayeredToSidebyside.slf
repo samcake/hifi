@@ -24,5 +24,6 @@ void main(void) {
     int side = int(varTexCoord0.x > 0.5);
     float u = 2.0 * (varTexCoord0.x - 0.5 * side);
     outFragColor = texture(colorMap, vec3(u, varTexCoord0.y, side) );
+    outFragColor.a = 1.0;
 }
 

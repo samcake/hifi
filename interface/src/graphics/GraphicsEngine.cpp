@@ -212,6 +212,9 @@ void GraphicsEngine::render_performFrame() {
         sensorToWorld = _appRenderArgs._sensorToWorld;
         framebufferSize = _appRenderArgs._displayFramebufferSize;
         isStereo = _appRenderArgs._isStereo;
+        if (isStereo) {
+            framebufferSize.x /= 2;
+        }
         for_each_eye([&](Eye eye) {
             stereoEyeOffsets[eye] = _appRenderArgs._eyeOffsets[eye];
             stereoEyeProjections[eye] = _appRenderArgs._eyeProjections[eye];

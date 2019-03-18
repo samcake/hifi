@@ -107,5 +107,5 @@ void main(void) {
     vec4 offsetPosition;
     <$transformModelToMonoClipPos(cam, obj, pos, offsetPosition)$>
     gl_Position.xy += normalize(offsetPosition.xy-gl_Position.xy) * _parameters.outlineWidth * gl_Position.w;
-    <$transformStereoClipsSpace(cam, gl_Position)$>
+    <$transformStereoClipsSpace(gl_Position)$>
 }

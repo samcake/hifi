@@ -52,13 +52,26 @@ gpu::FramebufferPointer FramebufferCache::getFramebuffer() {
                                                         gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_POINT)));
             colorTexture->setSource("Framebuffer::colorTexture");
             framebuffer->setRenderBuffer(0, colorTexture, gpu::TextureView::UNDEFINED_SUBRESOURCE);
+
+          /*  auto depthFormat = gpu::Element(gpu::SCALAR, gpu::UINT32, gpu::DEPTH_STENCIL);  // Depth24_Stencil8 texel format
+
+            auto depthTexture = gpu::TexturePointer(
+                gpu::Texture::createRenderBufferArray(depthFormat, _frameBufferSize.x, _frameBufferSize.y, 2,
+                    gpu::Texture::SINGLE_MIP,  gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_POINT)));
+            framebuffer->setDepthStencilBuffer(depthTexture, depthFormat, gpu::TextureView::UNDEFINED_SUBRESOURCE);*/
         } else {
             auto colorTexture = gpu::TexturePointer(
-                gpu::Texture::createRenderBuffer(gpu::Element::COLOR_SRGBA_32, _frameBufferSize.x, _frameBufferSize.y, 
+                gpu::Texture::createRenderBuffer(gpu::Element::COLOR_SRGBA_32, _frameBufferSize.x, _frameBufferSize.y,
                                                         gpu::Texture::SINGLE_MIP,
                                                         gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_POINT)));
             colorTexture->setSource("Framebuffer::colorTexture");
             framebuffer->setRenderBuffer(0, colorTexture);
+
+      /*      auto depthFormat = gpu::Element(gpu::SCALAR, gpu::UINT32, gpu::DEPTH_STENCIL);  // Depth24_Stencil8 texel format
+
+            auto depthTexture = gpu::TexturePointer(
+                gpu::Texture::createRenderBuffer(depthFormat, _frameBufferSize.x, _frameBufferSize.y,                    gpu::Texture::SINGLE_MIP, gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_POINT)));
+            framebuffer->setDepthStencilBuffer(depthTexture, depthFormat, gpu::TextureView::UNDEFINED_SUBRESOURCE);*/
         }
 
         _cachedFramebuffers.push_back(gpu::FramebufferPointer(framebuffer));

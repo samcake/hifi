@@ -534,6 +534,8 @@ void OpenGLDisplayPlugin::renderFromTexture(gpu::Batch& batch, const gpu::Textur
     batch.setPipeline(_simplePipeline);
 #endif
     batch.draw(gpu::TRIANGLE_STRIP, 4);
+    batch.setResourceTexture(0, nullptr);
+
     if (copyFbo) {
         gpu::Vec4i copyFboRect(0, 0, copyFbo->getWidth(), copyFbo->getHeight());
         gpu::Vec4i sourceRect(scissor.x, scissor.y, scissor.x + scissor.z, scissor.y + scissor.w);
@@ -597,18 +599,20 @@ std::function<void(gpu::Batch&, const gpu::TexturePointer&, bool mirror)> OpenGL
     });
     return [=](gpu::Batch& batch, const gpu::TexturePointer& hudTexture, bool mirror) {
         if (hudPipeline && hudTexture) {
-            batch.enableStereo(false);
+         //   batch.enableStereo(false);
             batch.setPipeline(mirror ? hudMirrorPipeline : hudPipeline);
             batch.setResourceTexture(0, hudTexture);
-            if (hudStereo) {
-                for_each_eye([&](Eye eye) {
-                    batch.setViewportTransform(hudEyeViewports[eye]);
+       //     if (hudStereo) {
+       //         for_each_eye([&](Eye eye) {
+       //             batch.setViewportTransform(hudEyeViewports[eye]);
                     batch.draw(gpu::TRIANGLE_STRIP, 4);
-                });
-            } else {
-                batch.setViewportTransform(ivec4(uvec2(0), hudCompositeFramebufferSize));
-                batch.draw(gpu::TRIANGLE_STRIP, 4);
-            }
+       //         });
+       //     } else {
+       //         batch.setViewportTransform(ivec4(uvec2(0), hudCompositeFramebufferSize));
+       //         batch.draw(gpu::TRIANGLE_STRIP, 4);
+        //    }
+            batch.setResourceTexture(0, nullptr);
+
         }
     };
 }
@@ -634,6 +638,7 @@ void OpenGLDisplayPlugin::compositePointer() {
             batch.setViewportTransform(ivec4(uvec2(0), _compositeFramebuffer->getSize()));
             batch.draw(gpu::TRIANGLE_STRIP, 4);
         }
+        batch.setResourceTexture(0, nullptr);
     });
 }
 
@@ -646,14 +651,16 @@ void OpenGLDisplayPlugin::compositeScene() {
         batch.resetViewTransform();
         batch.setProjectionTransform(mat4());
         
-        batch.setPipeline(_simplePipeline);
 
         if (_currentFrame->framebuffer->getRenderBuffer(0)->getNumSlices() > 1) {
             batch.setPipeline(_layeredToSidebysidePipeline);
+        } else {
+            batch.setPipeline(_simplePipeline);
         }
 
         batch.setResourceTexture(0, _currentFrame->framebuffer->getRenderBuffer(0));
         batch.draw(gpu::TRIANGLE_STRIP, 4);
+        batch.setResourceTexture(0, nullptr);
     });
 }
 

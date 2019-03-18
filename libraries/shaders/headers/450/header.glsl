@@ -1,4 +1,4 @@
-#extension GL_ARB_shader_viewport_layer_array : require
+#extension GL_ARB_shader_viewport_layer_array : enable
 #define GPU_SSBO_TRANSFORM_OBJECT
 #define BITFIELD int
 #define LAYOUT(X) layout(X)

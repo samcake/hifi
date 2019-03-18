@@ -102,7 +102,7 @@ void RenderForwardTask::build(JobModel& task, const render::Varying& input, rend
 
     // Similar to light stage, background stage has been filled by several potential render items and resolved for the frame in this job
     const auto backgroundInputs = DrawBackgroundStage::Inputs(lightingModel, backgroundFrame).asVarying();
-//    task.addJob<DrawBackgroundStage>("DrawBackgroundForward", backgroundInputs);
+    task.addJob<DrawBackgroundStage>("DrawBackgroundForward", backgroundInputs);
 
     // Draw transparent objects forward
     const auto transparentInputs = DrawForward::Inputs(transparents, lightingModel).asVarying();
@@ -110,11 +110,11 @@ void RenderForwardTask::build(JobModel& task, const render::Varying& input, rend
 
      // Layered
     const auto nullJitter = Varying(glm::vec2(0.0f, 0.0f));
- /*   const auto inFrontOpaquesInputs = DrawLayered3D::Inputs(inFrontOpaque, lightingModel, nullJitter).asVarying();
+    const auto inFrontOpaquesInputs = DrawLayered3D::Inputs(inFrontOpaque, lightingModel, nullJitter).asVarying();
     const auto inFrontTransparentsInputs = DrawLayered3D::Inputs(inFrontTransparent, lightingModel, nullJitter).asVarying();
     task.addJob<DrawLayered3D>("DrawInFrontOpaque", inFrontOpaquesInputs, true);
     task.addJob<DrawLayered3D>("DrawInFrontTransparent", inFrontTransparentsInputs, false);
-*/
+
     {  // Debug the bounds of the rendered items, still look at the zbuffer
         /*
         task.addJob<DrawBounds>("DrawMetaBounds", metas);
@@ -146,8 +146,8 @@ void RenderForwardTask::build(JobModel& task, const render::Varying& input, rend
     // Composite the HUD and HUD overlays
     task.addJob<CompositeHUD>("HUD", resolvedFramebuffer);
 
-    const auto hudOpaquesInputs = DrawLayered3D::Inputs(hudOpaque, lightingModel, nullJitter).asVarying();
-    const auto hudTransparentsInputs = DrawLayered3D::Inputs(hudTransparent, lightingModel, nullJitter).asVarying();
+  //  const auto hudOpaquesInputs = DrawLayered3D::Inputs(hudOpaque, lightingModel, nullJitter).asVarying();
+  //  const auto hudTransparentsInputs = DrawLayered3D::Inputs(hudTransparent, lightingModel, nullJitter).asVarying();
   //  task.addJob<DrawLayered3D>("DrawHUDOpaque", hudOpaquesInputs, true);
   //  task.addJob<DrawLayered3D>("DrawHUDTransparent", hudTransparentsInputs, false);
 
@@ -163,6 +163,7 @@ void PrepareFramebuffer::configure(const Config& config) {
 void PrepareFramebuffer::run(const RenderContextPointer& renderContext, gpu::FramebufferPointer& framebuffer) {
     glm::uvec2 frameSize(renderContext->args->_viewport.z, renderContext->args->_viewport.w);
 
+   // auto fbo = renderContext->args->_blitFramebuffer;
     int numLayers = renderContext->args->_blitFramebuffer->getNumLayers();
     auto framebufferSize = renderContext->args->_blitFramebuffer->getSize();
 
@@ -186,12 +187,10 @@ void PrepareFramebuffer::run(const RenderContextPointer& renderContext, gpu::Fra
         auto colorTexture =
             gpu::Texture::createRenderBufferMultisampleArray(colorFormat, framebufferSize.x, framebufferSize.y, numLayers, numSamples, defaultSampler);
         _framebuffer->setRenderBuffer(0, colorTexture, gpu::TextureView::UNDEFINED_SUBRESOURCE);
-       // _framebuffer->setRenderBuffer(0, colorTexture, 0);
 
         auto depthTexture = 
             gpu::Texture::createRenderBufferMultisampleArray(depthFormat, framebufferSize.x, framebufferSize.y, numLayers, numSamples, defaultSampler);
         _framebuffer->setDepthStencilBuffer(depthTexture, depthFormat, gpu::TextureView::UNDEFINED_SUBRESOURCE);
-       // _framebuffer->setDepthStencilBuffer(depthTexture, depthFormat, 0);
     }
 
     auto args = renderContext->args;
@@ -201,12 +200,14 @@ void PrepareFramebuffer::run(const RenderContextPointer& renderContext, gpu::Fra
         batch.setStateScissorRect(args->_viewport);
 
         batch.setFramebuffer(_framebuffer);
+      //  batch.setFramebuffer(fbo);
         batch.clearFramebuffer(gpu::Framebuffer::BUFFER_COLOR0 | gpu::Framebuffer::BUFFER_DEPTH |
             gpu::Framebuffer::BUFFER_STENCIL,
             vec4(vec3(0, 0, 0), 0), 1.0, 0, true);
     });
 
     framebuffer = _framebuffer;
+  //  framebuffer = fbo;
 }
 
 void PrepareForward::run(const RenderContextPointer& renderContext, const Inputs& inputs) {

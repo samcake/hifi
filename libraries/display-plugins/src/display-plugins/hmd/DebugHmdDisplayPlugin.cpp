@@ -55,26 +55,20 @@ bool DebugHmdDisplayPlugin::internalActivate() {
     }, true, _isAutoRotateEnabled);
 
     _ipd = 0.0327499993f * 2.0f;
-    // Quest 
-    _eyeProjections[0][0] = vec4{ 0.91729, 0.0, -0.17407, 0.0  };
-    _eyeProjections[0][1] = vec4{ 0.0, 0.083354, -0.106141, 0.0 };
-    _eyeProjections[0][2] = vec4{ 0.0, 0.0, -1.0, -0.2 };
-    _eyeProjections[0][3] = vec4{ 0.0, 0.0, -1.0, 0.0 };
-    _eyeProjections[1][0] = vec4{ 0.91729, 0.0, 0.17407, 0.0 };
-    _eyeProjections[1][1] = vec4{ 0.0, 0.083354, -0.106141, 0.0 };
-    _eyeProjections[1][2] = vec4{ 0.0, 0.0, -1.0, -0.2 };
-    _eyeProjections[1][3] = vec4{ 0.0, 0.0, -1.0, 0.0 };
-    // No need to do so here as this will done in Parent::internalActivate
-    //_eyeInverseProjections[0] = glm::inverse(_eyeProjections[0]);
-    //_eyeInverseProjections[1] = glm::inverse(_eyeProjections[1]);
-    _eyeOffsets[0][3] = vec4{ -0.0327499993, 0.0, 0.0149999997, 1.0 };
-    _eyeOffsets[1][3] = vec4{ 0.0327499993, 0.0, 0.0149999997, 1.0 };
+    _eyeProjections[0][0] = vec4{ 0.759056330, 0.000000000, 0.000000000, 0.000000000 }; 
+    _eyeProjections[0][1] = vec4{ 0.000000000, 0.682773232, 0.000000000, 0.000000000 };
+    _eyeProjections[0][2] = vec4{ -0.0580431037, -0.00619550655, -1.00000489, -1.00000000 };
+    _eyeProjections[0][3] = vec4{ 0.000000000, 0.000000000, -0.0800003856, 0.000000000 };
+    _eyeProjections[1][0] = vec4{ 0.752847493, 0.000000000, 0.000000000, 0.000000000 };
+    _eyeProjections[1][1] = vec4{ 0.000000000, 0.678060353, 0.000000000, 0.000000000 };
+    _eyeProjections[1][2] = vec4{ 0.0578232110, -0.00669418881, -1.00000489, -1.000000000 };
+    _eyeProjections[1][3] = vec4{ 0.000000000, 0.000000000, -0.0800003856, 0.000000000 };
     _eyeInverseProjections[0] = glm::inverse(_eyeProjections[0]);
     _eyeInverseProjections[1] = glm::inverse(_eyeProjections[1]);
     _eyeOffsets[0][3] = vec4{ -0.0327499993, 0.0, -0.0149999997, 1.0 };
     _eyeOffsets[1][3] = vec4{ 0.0327499993, 0.0, -0.0149999997, 1.0 };
     // Test HMD per-eye resolution
-    _renderTargetSize = uvec2{ 1214 * 2 , 1344 };
+    _renderTargetSize = uvec2{ 1214 * 2, 1344 };
     // uncomment to capture a quarter size frame
     //_renderTargetSize /= 2;
     _cullingProjection = _eyeProjections[0];
@@ -92,6 +86,7 @@ void DebugHmdDisplayPlugin::updatePresentPose() {
         float pitch = cosf(secTimestampNow()) * 0.25f;
         // Simulates head pose latency correction
         _currentPresentFrameInfo.presentPose =
+            glm::translate(glm::mat4(), glm::vec3(0.0f, 1.76f, 0.0f)) *
             glm::mat4_cast(glm::angleAxis(yaw, Vectors::UP)) *
             glm::mat4_cast(glm::angleAxis(pitch, Vectors::RIGHT)) ;
     }
