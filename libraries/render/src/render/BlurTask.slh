@@ -76,6 +76,7 @@ float getPosLinearDepthFar() {
 
 <$declareBlurUniforms()$>
 
+
 LAYOUT(binding=0) uniform sampler2D sourceMap;
 
 vec4 pixelShaderGaussian(vec2 texcoord, vec2 direction, vec2 pixelStep) {
@@ -108,6 +109,45 @@ vec4 pixelShaderGaussian(vec2 texcoord, vec2 direction, vec2 pixelStep) {
 }
 
 <@endfunc@>
+
+<@func declareBlurGaussianLayered()@>
+
+<$declareBlurUniforms()$>
+
+
+LAYOUT(binding = 0) uniform sampler2DArray sourceMap;
+
+vec4 pixelShaderGaussian(int layer, vec2 texcoord, vec2 direction, vec2 pixelStep) {
+    texcoord = evalTexcoordTransformed(texcoord);
+
+    vec2 finalStep = getFilterScale() * direction * pixelStep;
+    vec4 srcBlurred = vec4(0.0);
+    float totalWeight = 0.f;
+    int numTaps = getFilterNumTaps();
+
+    for (int i = 0; i < numTaps; i++) {
+        vec2 tapInfo = getFilterTap(i);
+        // Fetch color for current sample.
+        vec2 sampleCoord = texcoord + (getFilterTapOffset(tapInfo) * finalStep);
+        if (all(greaterThanEqual(sampleCoord, vec2(0, 0))) && all(lessThanEqual(sampleCoord, vec2(1.0, 1.0)))) {
+            vec4 srcSample = texture(sourceMap, vec3(sampleCoord, float(layer)));
+            float weight = getFilterTapWeight(tapInfo);
+            // Accumulate.
+            srcBlurred += srcSample * weight;
+            totalWeight += weight;
+        }
+    }
+
+    if (totalWeight > 0.0) {
+        srcBlurred /= totalWeight;
+    }
+
+    srcBlurred.a = getOutputAlpha();
+    return srcBlurred;
+}
+
+<@endfunc@>
+
 
 <@func declareBlurGaussianDepthAware()@>
 

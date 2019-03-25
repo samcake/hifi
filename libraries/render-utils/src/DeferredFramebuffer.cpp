@@ -23,9 +23,14 @@ void DeferredFramebuffer::updatePrimaryDepth(const gpu::TexturePointer& depthBuf
         reset = true;
     }
     if (_primaryDepthTexture) {
+        auto newFrameSlices = _primaryDepthTexture->getNumSlices();
         auto newFrameSize = glm::ivec2(_primaryDepthTexture->getDimensions());
         if (_frameSize != newFrameSize) {
             _frameSize = newFrameSize;
+            reset = true;
+        }
+        if (_frameNumLayers != newFrameSlices) {
+            _frameNumLayers = newFrameSlices;
             reset = true;
         }
     }
@@ -50,37 +55,38 @@ void DeferredFramebuffer::allocate() {
     auto linearFormat = gpu::Element::COLOR_RGBA_32;
     auto width = _frameSize.x;
     auto height = _frameSize.y;
+    auto numLayers = _frameNumLayers;
 
     auto defaultSampler = gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_POINT);
 
-    _deferredColorTexture = gpu::Texture::createRenderBuffer(colorFormat, width, height, gpu::Texture::SINGLE_MIP, defaultSampler);
-    _deferredNormalTexture = gpu::Texture::createRenderBuffer(linearFormat, width, height, gpu::Texture::SINGLE_MIP, defaultSampler);
-    _deferredSpecularTexture = gpu::Texture::createRenderBuffer(linearFormat, width, height, gpu::Texture::SINGLE_MIP, defaultSampler);
+    _deferredColorTexture = gpu::Texture::createRenderBufferArray(colorFormat, width, height, numLayers, gpu::Texture::SINGLE_MIP, defaultSampler);
+    _deferredNormalTexture = gpu::Texture::createRenderBufferArray(linearFormat, width, height, numLayers, gpu::Texture::SINGLE_MIP, defaultSampler);
+    _deferredSpecularTexture = gpu::Texture::createRenderBufferArray(linearFormat, width, height, numLayers, gpu::Texture::SINGLE_MIP, defaultSampler);
 
-    _deferredFramebuffer->setRenderBuffer(0, _deferredColorTexture);
-    _deferredFramebuffer->setRenderBuffer(1, _deferredNormalTexture);
-    _deferredFramebuffer->setRenderBuffer(2, _deferredSpecularTexture);
+    _deferredFramebuffer->setRenderBuffer(0, _deferredColorTexture, gpu::TextureView::UNDEFINED_SUBRESOURCE);
+    _deferredFramebuffer->setRenderBuffer(1, _deferredNormalTexture, gpu::TextureView::UNDEFINED_SUBRESOURCE);
+    _deferredFramebuffer->setRenderBuffer(2, _deferredSpecularTexture, gpu::TextureView::UNDEFINED_SUBRESOURCE);
 
-    _deferredFramebufferDepthColor->setRenderBuffer(0, _deferredColorTexture);
+    _deferredFramebufferDepthColor->setRenderBuffer(0, _deferredColorTexture, gpu::TextureView::UNDEFINED_SUBRESOURCE);
 
     auto depthFormat = gpu::Element(gpu::SCALAR, gpu::UINT32, gpu::DEPTH_STENCIL); // Depth24_Stencil8 texel format
     if (!_primaryDepthTexture) {
-        _primaryDepthTexture = gpu::Texture::createRenderBuffer(depthFormat, width, height, gpu::Texture::SINGLE_MIP, defaultSampler);
+        _primaryDepthTexture = gpu::Texture::createRenderBufferArray(depthFormat, width, height, numLayers, gpu::Texture::SINGLE_MIP, defaultSampler);
     }
 
-    _deferredFramebuffer->setDepthStencilBuffer(_primaryDepthTexture, depthFormat);
+    _deferredFramebuffer->setDepthStencilBuffer(_primaryDepthTexture, depthFormat, gpu::TextureView::UNDEFINED_SUBRESOURCE);
 
-    _deferredFramebufferDepthColor->setDepthStencilBuffer(_primaryDepthTexture, depthFormat);
+    _deferredFramebufferDepthColor->setDepthStencilBuffer(_primaryDepthTexture, depthFormat, gpu::TextureView::UNDEFINED_SUBRESOURCE);
 
 
     auto smoothSampler = gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_LINEAR_MIP_POINT, gpu::Sampler::WRAP_CLAMP);
 
-    _lightingTexture = gpu::Texture::createRenderBuffer(gpu::Element(gpu::SCALAR, gpu::FLOAT, gpu::R11G11B10), width, height, gpu::Texture::SINGLE_MIP, smoothSampler);
+    _lightingTexture = gpu::Texture::createRenderBufferArray(gpu::Element(gpu::SCALAR, gpu::FLOAT, gpu::R11G11B10), width, height, numLayers,  gpu::Texture::SINGLE_MIP, smoothSampler);
     _lightingFramebuffer = gpu::FramebufferPointer(gpu::Framebuffer::create("lighting"));
-    _lightingFramebuffer->setRenderBuffer(0, _lightingTexture);
-    _lightingFramebuffer->setDepthStencilBuffer(_primaryDepthTexture, depthFormat);
+    _lightingFramebuffer->setRenderBuffer(0, _lightingTexture, gpu::TextureView::UNDEFINED_SUBRESOURCE);
+    _lightingFramebuffer->setDepthStencilBuffer(_primaryDepthTexture, depthFormat, gpu::TextureView::UNDEFINED_SUBRESOURCE);
 
-    _deferredFramebuffer->setRenderBuffer(3, _lightingTexture);
+    _deferredFramebuffer->setRenderBuffer(3, _lightingTexture, gpu::TextureView::UNDEFINED_SUBRESOURCE);
 
 }
 

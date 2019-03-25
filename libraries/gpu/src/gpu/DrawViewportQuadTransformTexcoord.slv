@@ -36,5 +36,6 @@ void main(void) {
     <$transformModelToWorldPos(obj, tc, tc)$>
 
     gl_Position = pos;
+    <$transformStereoClipsSpace(gl_Position)$>
     varTexCoord0 = tc.xy;
 }

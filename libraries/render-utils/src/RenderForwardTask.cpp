@@ -161,15 +161,13 @@ void PrepareFramebuffer::configure(const Config& config) {
 }
 
 void PrepareFramebuffer::run(const RenderContextPointer& renderContext, gpu::FramebufferPointer& framebuffer) {
-    glm::uvec2 frameSize(renderContext->args->_viewport.z, renderContext->args->_viewport.w);
-
    // auto fbo = renderContext->args->_blitFramebuffer;
     int numLayers = renderContext->args->_blitFramebuffer->getNumLayers();
     auto framebufferSize = renderContext->args->_blitFramebuffer->getSize();
 
     // Resizing framebuffers instead of re-building them seems to cause issues with threaded rendering
     if (_framebuffer && 
-            ((_framebuffer->getSize() != frameSize) ||
+            ((_framebuffer->getSize() != framebufferSize) ||
              (_framebuffer->getNumLayers() != numLayers) ||
              (_framebuffer->getNumSamples() != _numSamples))) {
         _framebuffer.reset();

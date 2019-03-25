@@ -52,6 +52,7 @@ protected:
     gpu::FramebufferPointer _lightingFramebuffer;
 
     glm::ivec2 _frameSize;
+    int32_t _frameNumLayers;
 };
 
 using DeferredFramebufferPointer = std::shared_ptr<DeferredFramebuffer>;

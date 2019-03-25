@@ -59,6 +59,7 @@ protected:
     glm::ivec2 _frameSize;
     glm::ivec2 _halfFrameSize;
     int _resolutionLevel{ 0 };
+    int _frameNumLayers { 0 };
     bool _isStereo{ false };
 };
 
@@ -132,6 +133,7 @@ protected:
     gpu::TexturePointer _lowCurvatureTexture;
 
     glm::ivec2 _frameSize;
+    int _frameNumLayers{ 0 };
     int _resolutionLevel{ 0 };
 };
 

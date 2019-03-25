@@ -114,7 +114,7 @@ public:
 
 private:
 
-    static gpu::FramebufferPointer createFramebuffer(const char* name, const glm::uvec2& size);
+    static gpu::FramebufferPointer createFramebuffer(const char* name, const glm::uvec2& size, int numLayers);
 };
 
 class PrepareDeferred {

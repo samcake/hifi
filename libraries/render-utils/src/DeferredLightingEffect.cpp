@@ -295,19 +295,19 @@ graphics::MeshPointer DeferredLightingEffect::getSpotLightMesh() {
     return _spotLightMesh;
 }
 
-gpu::FramebufferPointer PreparePrimaryFramebuffer::createFramebuffer(const char* name, const glm::uvec2& frameSize) {
+gpu::FramebufferPointer PreparePrimaryFramebuffer::createFramebuffer(const char* name, const glm::uvec2& frameSize, int numLayers) {
     gpu::FramebufferPointer framebuffer = gpu::FramebufferPointer(gpu::Framebuffer::create(name));
     auto colorFormat = gpu::Element::COLOR_SRGBA_32;
 
     auto defaultSampler = gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_LINEAR);
-    auto primaryColorTexture = gpu::Texture::createRenderBuffer(colorFormat, frameSize.x, frameSize.y, gpu::Texture::SINGLE_MIP, defaultSampler);
+    auto primaryColorTexture = gpu::Texture::createRenderBufferArray(colorFormat, frameSize.x, frameSize.y, numLayers, gpu::Texture::SINGLE_MIP, defaultSampler);
 
-    framebuffer->setRenderBuffer(0, primaryColorTexture);
+    framebuffer->setRenderBuffer(0, primaryColorTexture, gpu::TextureView::UNDEFINED_SUBRESOURCE);
 
     auto depthFormat = gpu::Element(gpu::SCALAR, gpu::UINT32, gpu::DEPTH_STENCIL); // Depth24_Stencil8 texel format
-    auto primaryDepthTexture = gpu::Texture::createRenderBuffer(depthFormat, frameSize.x, frameSize.y, gpu::Texture::SINGLE_MIP, defaultSampler);
+    auto primaryDepthTexture = gpu::Texture::createRenderBufferArray(depthFormat, frameSize.x, frameSize.y, numLayers, gpu::Texture::SINGLE_MIP, defaultSampler);
 
-    framebuffer->setDepthStencilBuffer(primaryDepthTexture, depthFormat);
+    framebuffer->setDepthStencilBuffer(primaryDepthTexture, depthFormat, gpu::TextureView::UNDEFINED_SUBRESOURCE);
 
     return framebuffer;
 }
@@ -317,13 +317,14 @@ void PreparePrimaryFramebuffer::configure(const Config& config) {
 }
 
 void PreparePrimaryFramebuffer::run(const RenderContextPointer& renderContext, Output& primaryFramebuffer) {
-    glm::uvec2 frameSize(renderContext->args->_viewport.z, renderContext->args->_viewport.w);
-    glm::uvec2 scaledFrameSize(glm::vec2(frameSize) * _resolutionScale);
+    int numLayers = renderContext->args->_blitFramebuffer->getNumLayers();
+    auto framebufferSize = renderContext->args->_blitFramebuffer->getSize();
+    glm::uvec2 scaledFrameSize(glm::vec2(framebufferSize) * _resolutionScale);
 
-    // Resizing framebuffers instead of re-building them seems to cause issues with threaded 
-    // rendering
-    if (!_primaryFramebuffer || _primaryFramebuffer->getSize() != scaledFrameSize) {
-        _primaryFramebuffer = createFramebuffer("deferredPrimary", scaledFrameSize);
+    // Resizing framebuffers instead of re-building them seems to cause issues with threaded rendering
+    if (!_primaryFramebuffer ||
+        ((_primaryFramebuffer->getSize() != scaledFrameSize) || (_primaryFramebuffer->getNumLayers() != numLayers))) {
+        _primaryFramebuffer = createFramebuffer("deferredPrimary", scaledFrameSize, numLayers);
     }
 
     primaryFramebuffer = _primaryFramebuffer;
@@ -348,7 +349,7 @@ void PrepareDeferred::run(const RenderContextPointer& renderContext, const Input
     outputs.edit1() = _deferredFramebuffer->getLightingFramebuffer();
 
     gpu::doInBatch("PrepareDeferred::run", args->_context, [&](gpu::Batch& batch) {
-        batch.enableStereo(false);
+      //  batch.enableStereo(false);
         batch.setViewportTransform(args->_viewport);
         batch.setStateScissorRect(args->_viewport);
 
