@@ -1,0 +1,49 @@
+<@include gpu/Config.slh@>
+<$VERSION_HEADER$>
+//  Generated on <$_SCRIBE_DATE$>
+//
+//  blurGaussianLayeredV.frag
+//
+//  Created by Sam Gateau on 3/25/19.
+//  Copyright 2019 High Fidelity, Inc.
+//
+//  Distributed under the Apache License, Version 2.0.
+//  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
+//
+<@include BlurTask.slh@>
+<$declareBlurGaussianLayered()$>
+
+<@include gpu/ShaderConstants.h@>
+
+    // pixel shader
+#ifdef GPU_PIXEL_SHADER
+    // Stereo variant
+#ifdef GPU_TRANSFORM_IS_STEREO
+    // With stereo camera provided
+#ifdef GPU_TRANSFORM_STEREO_CAMERA
+
+    // Stereo camera is available and the current invocation of the pixel shader is side specific
+    layout(location = GPU_ATTR_V2F_STEREO_SIDE) flat in int _stereoSide;
+
+// gpu_StereoSide()
+// THe side of stereo is 0 for left, 1 for right
+int gpu_StereoSide() {
+    return _stereoSide;
+}
+
+#endif
+#else
+    // gpu_StereoSide()
+    // THe side of stereo is 0 for left, 1 for right
+    int gpu_StereoSide() { return 0; }
+#endif
+#endif // GPU_PIXEL_SHADER
+
+layout(location=0) in vec2 varTexCoord0;
+
+layout(location=0) out vec4 outFragColor;
+
+void main(void) {
+    outFragColor = pixelShaderGaussian(gpu_StereoSide(), varTexCoord0, vec2(0.0, 1.0), getInvWidthHeight());
+}
+

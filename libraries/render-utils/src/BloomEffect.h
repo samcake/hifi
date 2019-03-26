@@ -129,12 +129,12 @@ class BloomEffect {
 public:
     using Inputs = render::VaryingSet3<DeferredFrameTransformPointer, gpu::FramebufferPointer, BloomStage::FramePointer>;
     using Config = BloomConfig;
-	using JobModel = render::Task::ModelI<BloomEffect, Inputs, Config>;
+    using JobModel = render::Task::ModelI<BloomEffect, Inputs, Config>;
 
-	BloomEffect();
+    BloomEffect();
 
-	void configure(const Config& config);
-	void build(JobModel& task, const render::Varying& inputs, render::Varying& outputs);
+    void configure(const Config& config);
+    void build(JobModel& task, const render::Varying& inputs, render::Varying& outputs);
 
 };
 
