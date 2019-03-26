@@ -90,7 +90,7 @@ vec2 sideToFrameTexcoord(vec2 side, vec2 texcoordPos) {
 LAYOUT(binding=RENDER_UTILS_TEXTURE_SG_NORMAL) uniform sampler2DArray normalMap;
 
 vec3 getRawNormal(vec2 texcoord) {
-    return texture(normalMap, texcoord).xyz;
+    return texture(normalMap, vec3(texcoord, float(gpu_StereoSide()))).xyz;
 }
 
 vec3 getWorldNormal(vec2 texcoord) {

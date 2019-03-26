@@ -11,13 +11,40 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 
+<@include gpu/ShaderConstants.h@>
+
+    // pixel shader
+#ifdef GPU_PIXEL_SHADER
+    // Stereo variant
+#ifdef GPU_TRANSFORM_IS_STEREO
+    // With stereo camera provided
+#ifdef GPU_TRANSFORM_STEREO_CAMERA
+
+    // Stereo camera is available and the current invocation of the pixel shader is side specific
+    layout(location = GPU_ATTR_V2F_STEREO_SIDE) flat in int _stereoSide;
+
+// gpu_StereoSide()
+// THe side of stereo is 0 for left, 1 for right
+int gpu_StereoSide() {
+    return _stereoSide;
+}
+
+#endif
+#else
+    // gpu_StereoSide()
+    // THe side of stereo is 0 for left, 1 for right
+    int gpu_StereoSide() { return 0; }
+#endif
+#endif // GPU_PIXEL_SHADER
+
+
 <@include DeferredTransform.slh@>
 <$declareDeferredFrameTransform()$>
 
 layout(location=0) in vec2 varTexCoord0;
 layout(location=0) out vec4 outFragColor;
 
-LAYOUT(binding=RENDER_UTILS_TEXTURE_TAA_DEPTH) uniform sampler2D depthMap;
+LAYOUT(binding=RENDER_UTILS_TEXTURE_TAA_DEPTH) uniform sampler2DArray depthMap;
 
 
 void main(void) {
@@ -27,7 +54,7 @@ void main(void) {
     ivec4 stereoSide;
     ivec2 framePixelPos = getPixelPosTexcoordPosAndSide(gl_FragCoord.xy, pixelPos, texcoordPos, stereoSide);
     
-    float Zdb = texelFetch(depthMap, ivec2(gl_FragCoord.xy), 0).x;
+    float Zdb = texelFetch(depthMap, ivec3(gl_FragCoord.xy, gpu_StereoSide()), 0).x;
 
     // The position of the pixel fragment in Eye space then in world space
     vec3 eyePos = evalUnjitteredEyePositionFromZdb(stereoSide.x, Zdb, texcoordPos);

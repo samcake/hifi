@@ -209,3 +209,64 @@ vec4 pixelShaderGaussianDepthAware(vec2 texcoord, vec2 direction, vec2 pixelStep
 }
 
 <@endfunc@>
+
+<@func declareBlurGaussianDepthAwareLayered()@>
+
+<$declareBlurUniforms()$>
+
+LAYOUT(binding = 0) uniform sampler2DArray sourceMap;
+LAYOUT(binding = 1) uniform sampler2DArray depthMap;
+
+vec4 pixelShaderGaussianDepthAware(int layer, vec2 texcoord, vec2 direction, vec2 pixelStep) {
+    texcoord = evalTexcoordTransformed(texcoord);
+    float sampleDepth = texture(depthMap, vec3(texcoord, float(layer))).x;
+    if (sampleDepth >= getPosLinearDepthFar()) {
+        discard;
+    }
+    vec4 sampleCenter = texture(sourceMap, vec3(texcoord, float(layer)));
+
+    // Calculate the width scale.
+    float distanceToProjectionWindow = getDepthPerspective();
+
+    float depthThreshold = getDepthThreshold();
+
+    // Calculate the final step to fetch the surrounding pixels.
+    float filterScale = getFilterScale();
+    float scale = distanceToProjectionWindow / sampleDepth;
+
+    vec2 finalStep = filterScale * scale * direction * pixelStep;
+    int numTaps = getFilterNumTaps();
+
+    // Accumulate the center sample
+    vec2 tapInfo = getFilterTap(0);
+    float totalWeight = getFilterTapWeight(tapInfo);
+    vec4 srcBlurred = sampleCenter * totalWeight;
+
+    for (int i = 1; i < numTaps; i++) {
+        tapInfo = getFilterTap(i);
+
+        // Fetch color and depth for current sample.
+        vec2 sampleCoord = texcoord + (getFilterTapOffset(tapInfo) * finalStep);
+        if (all(greaterThanEqual(sampleCoord, vec2(0, 0))) && all(lessThanEqual(sampleCoord, vec2(1.0, 1.0)))) {
+            float srcDepth = texture(depthMap, vec3(sampleCoord, float(layer))).x;
+            vec4 srcSample = texture(sourceMap, vec3(sampleCoord, float(layer)));
+            float weight = getFilterTapWeight(tapInfo);
+
+            // If the difference in depth is huge, we lerp color back.
+            float s = clamp(depthThreshold * distanceToProjectionWindow  * filterScale * abs(srcDepth - sampleDepth), 0.0, 1.0);
+            srcSample = mix(srcSample, sampleCenter, s);
+
+            // Accumulate.
+            srcBlurred += srcSample * weight;
+            totalWeight += weight;
+        }
+    }
+
+    if (totalWeight > 0.0) {
+        srcBlurred /= totalWeight;
+    }
+
+    return srcBlurred;
+}
+
+<@endfunc@>

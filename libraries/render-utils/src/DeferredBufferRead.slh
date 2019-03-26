@@ -11,29 +11,54 @@
 <@if not DEFERRED_BUFFER_READ_SLH@>
 <@def DEFERRED_BUFFER_READ_SLH@>
 
+<@include gpu/ShaderConstants.h@>
 <@include render-utils/ShaderConstants.h@>
 <@include DeferredBuffer.slh@>
 
 // See DeferredShader_MapSlot in DeferredLightingEffect.cpp for constants
 
+    // pixel shader
+#ifdef GPU_PIXEL_SHADER
+    // Stereo variant
+#ifdef GPU_TRANSFORM_IS_STEREO
+    // With stereo camera provided
+#ifdef GPU_TRANSFORM_STEREO_CAMERA
+
+    // Stereo camera is available and the current invocation of the pixel shader is side specific
+    layout(location = GPU_ATTR_V2F_STEREO_SIDE) flat in int _stereoSide;
+
+// gpu_StereoSide()
+// THe side of stereo is 0 for left, 1 for right
+int gpu_StereoSide() {
+    return _stereoSide;
+}
+
+#endif
+#else
+    // gpu_StereoSide()
+    // THe side of stereo is 0 for left, 1 for right
+    int gpu_StereoSide() { return 0; }
+#endif
+#endif // GPU_PIXEL_SHADER
+
 // the albedo texture
-LAYOUT(binding=RENDER_UTILS_TEXTURE_DEFERRRED_COLOR) uniform sampler2D albedoMap;
+LAYOUT(binding=RENDER_UTILS_TEXTURE_DEFERRRED_COLOR) uniform sampler2DArray albedoMap;
 
 // the normal texture
-LAYOUT(binding=RENDER_UTILS_TEXTURE_DEFERRRED_NORMAL) uniform sampler2D normalMap;
+LAYOUT(binding=RENDER_UTILS_TEXTURE_DEFERRRED_NORMAL) uniform sampler2DArray normalMap;
 
 // the specular texture
-LAYOUT(binding=RENDER_UTILS_TEXTURE_DEFERRRED_SPECULAR) uniform sampler2D specularMap;
+LAYOUT(binding=RENDER_UTILS_TEXTURE_DEFERRRED_SPECULAR) uniform sampler2DArray specularMap;
 
 // the depth texture
-LAYOUT(binding=RENDER_UTILS_TEXTURE_DEFERRRED_DEPTH) uniform sampler2D depthMap;
-LAYOUT(binding=RENDER_UTILS_TEXTURE_DEFERRRED_LINEAR_Z_EYE) uniform sampler2D linearZeyeMap;
+LAYOUT(binding=RENDER_UTILS_TEXTURE_DEFERRRED_DEPTH) uniform sampler2DArray depthMap;
+LAYOUT(binding=RENDER_UTILS_TEXTURE_DEFERRRED_LINEAR_Z_EYE) uniform sampler2DArray linearZeyeMap;
 
 // the obscurance texture
-LAYOUT(binding=RENDER_UTILS_TEXTURE_DEFERRED_OBSCURANCE) uniform sampler2D obscuranceMap;
+LAYOUT(binding=RENDER_UTILS_TEXTURE_DEFERRED_OBSCURANCE) uniform sampler2DArray obscuranceMap;
 
 // the lighting texture
-LAYOUT(binding=RENDER_UTILS_TEXTURE_DEFERRED_LIGHTING) uniform sampler2D lightingMap;
+LAYOUT(binding=RENDER_UTILS_TEXTURE_DEFERRED_LIGHTING) uniform sampler2DArray lightingMap;
 
 
 struct DeferredFragment {
@@ -58,11 +83,12 @@ vec3 getFresnelF0(float metallic, vec3 metalF0) {
 }
 <@endif@>
 
-DeferredFragment unpackDeferredFragmentNoPosition(vec2 texcoord) {
+DeferredFragment unpackDeferredFragmentNoPosition(vec2 _texcoord) {
     vec4 normalVal;
     vec4 diffuseVal;
     vec4 specularVal;
-    
+    vec3 texcoord = vec3(_texcoord, float(gpu_StereoSide()));
+
     DeferredFragment frag;
     frag.depthVal = -1.0;
     normalVal = texture(normalMap, texcoord);
@@ -86,9 +112,11 @@ DeferredFragment unpackDeferredFragmentNoPosition(vec2 texcoord) {
 }
 
 
-DeferredFragment unpackDeferredFragmentNoPositionNoAmbient(vec2 texcoord) {
+DeferredFragment unpackDeferredFragmentNoPositionNoAmbient(vec2 _texcoord) {
     vec4 normalVal;
     vec4 diffuseVal;
+
+    vec3 texcoord = vec3(_texcoord, float(gpu_StereoSide()));
 
     DeferredFragment frag;
     frag.depthVal = -1.0;
@@ -117,40 +145,49 @@ DeferredFragment unpackDeferredFragmentNoPositionNoAmbient(vec2 texcoord) {
 <$declareDeferredFrameTransform()$>
 
 vec4 unpackDeferredPosition(float depthValue, vec2 texcoord) {
+
+/*
     float check = float(isStereo());
     float check2 = check * float(texcoord.x > 0.5);
     texcoord.x -= check2 * 0.5;
     int side = int(check2);
     texcoord.x *= 1.0 + check;
+*/
 
-    return vec4(evalEyePositionFromZdb(side, depthValue, texcoord), 1.0);
+    return vec4(evalEyePositionFromZdb(gpu_StereoSide(), depthValue, texcoord), 1.0);
 }
 
 // This method to unpack position is fastesst
-vec4 unpackDeferredPositionFromZdb(vec2 texcoord) {
+vec4 unpackDeferredPositionFromZdb(vec2 _texcoord) {
+    vec3 texcoord = vec3(_texcoord, float(gpu_StereoSide()));
+
     float Zdb = texture(depthMap, texcoord).x;
-    return unpackDeferredPosition(Zdb, texcoord);
+    return unpackDeferredPosition(Zdb, texcoord.xy);
 }
 
-vec4 unpackDeferredPositionFromZeye(vec2 texcoord) {
+vec4 unpackDeferredPositionFromZeye(vec2 _texcoord) {
+    vec3 texcoord = vec3(_texcoord, float(gpu_StereoSide()));
+
     float Zeye = -texture(linearZeyeMap, texcoord).x;
 
+/*
     float check = float(isStereo());
     float check2 = check * float(texcoord.x > 0.5);
     texcoord.x -= check2 * 0.5;
     int side = int(check2);
     texcoord.x *= 1.0 + check;
-
-    return vec4(evalEyePositionFromZeye(side, Zeye, texcoord), 1.0);
+*/
+    return vec4(evalEyePositionFromZeye(gpu_StereoSide(), Zeye, _texcoord), 1.0);
 }
 
-DeferredFragment unpackDeferredFragment(DeferredFrameTransform deferredTransform, vec2 texcoord) {
+DeferredFragment unpackDeferredFragment(DeferredFrameTransform deferredTransform, vec2 _texcoord) {
+    vec3 texcoord = vec3(_texcoord, float(gpu_StereoSide()));
     float depthValue = texture(depthMap, texcoord).r;
 
-    DeferredFragment frag = unpackDeferredFragmentNoPosition(texcoord);
+    DeferredFragment frag = unpackDeferredFragmentNoPosition(_texcoord);
 
     frag.depthVal = depthValue;
-    frag.position = unpackDeferredPosition(frag.depthVal, texcoord);
+    frag.position = unpackDeferredPosition(frag.depthVal, _texcoord);
 
     return frag;
 }
@@ -160,16 +197,18 @@ DeferredFragment unpackDeferredFragment(DeferredFrameTransform deferredTransform
 <@func declareDeferredCurvature()@>
 
 // the curvature texture
-LAYOUT(binding=RENDER_UTILS_TEXTURE_DEFERRED_CURVATURE) uniform sampler2D curvatureMap;
+LAYOUT(binding=RENDER_UTILS_TEXTURE_DEFERRED_CURVATURE) uniform sampler2DArray curvatureMap;
 
-vec4 fetchCurvature(vec2 texcoord) {
+vec4 fetchCurvature(vec2 _texcoord) {
+    vec3 texcoord = vec3(_texcoord, float(gpu_StereoSide()));
     return texture(curvatureMap, texcoord);
 }
 
 // the curvature texture
-LAYOUT(binding=RENDER_UTILS_TEXTURE_DEFERRED_DIFFUSED_CURVATURE) uniform sampler2D diffusedCurvatureMap;
+LAYOUT(binding=RENDER_UTILS_TEXTURE_DEFERRED_DIFFUSED_CURVATURE) uniform sampler2DArray diffusedCurvatureMap;
 
-vec4 fetchDiffusedCurvature(vec2 texcoord) {
+vec4 fetchDiffusedCurvature(vec2 _texcoord) {
+    vec3 texcoord = vec3(_texcoord, float(gpu_StereoSide()));
     return texture(diffusedCurvatureMap, texcoord);
 }
 

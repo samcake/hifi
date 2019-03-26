@@ -44,6 +44,7 @@ protected:
 
     glm::ivec2 _frameSize;
     glm::ivec2 _halfFrameSize;
+    int _frameNumLayers{ 0 };
     int _resolutionLevel{ 0 };
 };
 

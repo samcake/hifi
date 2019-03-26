@@ -330,6 +330,34 @@ gpu::PipelinePointer BlurGaussianDepthAware::getBlurHPipeline() {
     return _blurHPipeline;
 }
 
+gpu::PipelinePointer BlurGaussianDepthAware::getBlurLayeredVPipeline() {
+    if (!_blurLayeredVPipeline) {
+        gpu::ShaderPointer program = gpu::Shader::createProgram(shader::render::program::blurGaussianDepthAwareLayeredV);
+        gpu::StatePointer state = gpu::StatePointer(new gpu::State());
+
+        // Stencil test the curvature pass for objects pixels only, not the background
+        //  state->setStencilTest(true, 0xFF, gpu::State::StencilTest(0, 0xFF, gpu::NOT_EQUAL, gpu::State::STENCIL_OP_KEEP, gpu::State::STENCIL_OP_KEEP, gpu::State::STENCIL_OP_KEEP));
+
+        _blurLayeredVPipeline = gpu::Pipeline::create(program, state);
+    }
+
+    return _blurLayeredVPipeline;
+}
+
+gpu::PipelinePointer BlurGaussianDepthAware::getBlurLayeredHPipeline() {
+    if (!_blurLayeredHPipeline) {
+        gpu::ShaderPointer program = gpu::Shader::createProgram(shader::render::program::blurGaussianDepthAwareLayeredH);
+        gpu::StatePointer state = gpu::StatePointer(new gpu::State());
+
+        // Stencil test the curvature pass for objects pixels only, not the background
+        //    state->setStencilTest(true, 0xFF, gpu::State::StencilTest(0, 0xFF, gpu::NOT_EQUAL, gpu::State::STENCIL_OP_KEEP, gpu::State::STENCIL_OP_KEEP, gpu::State::STENCIL_OP_KEEP));
+
+        _blurLayeredHPipeline = gpu::Pipeline::create(program, state);
+    }
+
+    return _blurLayeredHPipeline;
+}
+
 void BlurGaussianDepthAware::configure(const Config& config) {
     _parameters->setFilterRadiusScale(config.filterScale);
     _parameters->setDepthThreshold(config.depthThreshold);

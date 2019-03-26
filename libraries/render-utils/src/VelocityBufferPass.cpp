@@ -36,10 +36,11 @@ void VelocityFramebuffer::updatePrimaryDepth(const gpu::TexturePointer& depthBuf
     }
     if (_primaryDepthTexture) {
         auto newFrameSize = glm::ivec2(_primaryDepthTexture->getDimensions());
-        if (_frameSize != newFrameSize) {
+        auto newFrameNumLayers = _primaryDepthTexture->getNumSlices();
+        if ((_frameSize != newFrameSize) || (_frameNumLayers != newFrameNumLayers)) {
             _frameSize = newFrameSize;
             _halfFrameSize = newFrameSize >> 1;
-
+            _frameNumLayers = newFrameNumLayers;
             reset = true;
         }
     }
@@ -58,13 +59,14 @@ void VelocityFramebuffer::allocate() {
 
     auto width = _frameSize.x;
     auto height = _frameSize.y;
+    auto numLayers = _frameNumLayers;
 
     // For Velocity Buffer:
-    _velocityTexture = gpu::Texture::createRenderBuffer(gpu::Element(gpu::VEC2, gpu::HALF, gpu::RGB), width, height, gpu::Texture::SINGLE_MIP,
+    _velocityTexture = gpu::Texture::createRenderBufferArray(gpu::Element(gpu::VEC2, gpu::HALF, gpu::RGB), width, height, numLayers, gpu::Texture::SINGLE_MIP,
         gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_LINEAR));
     _velocityFramebuffer = gpu::FramebufferPointer(gpu::Framebuffer::create("velocity"));
-    _velocityFramebuffer->setRenderBuffer(0, _velocityTexture);
-    _velocityFramebuffer->setDepthStencilBuffer(_primaryDepthTexture, _primaryDepthTexture->getTexelFormat());
+    _velocityFramebuffer->setRenderBuffer(0, _velocityTexture, gpu::TextureView::UNDEFINED_SUBRESOURCE);
+    _velocityFramebuffer->setDepthStencilBuffer(_primaryDepthTexture, _primaryDepthTexture->getTexelFormat(), gpu::TextureView::UNDEFINED_SUBRESOURCE);
 }
 
 gpu::FramebufferPointer VelocityFramebuffer::getVelocityFramebuffer() {
@@ -96,10 +98,10 @@ void VelocityBufferPass::run(const render::RenderContextPointer& renderContext, 
     const auto& frameTransform = inputs.get0();
     const auto& deferredFramebuffer = inputs.get1();
 
-    if (!_gpuTimer) {
+/*    if (!_gpuTimer) {
         _gpuTimer = std::make_shared < gpu::RangeTimer>(__FUNCTION__);
     }
-
+*/
     if (!_velocityFramebuffer) {
         _velocityFramebuffer = std::make_shared<VelocityFramebuffer>();
     }
@@ -119,8 +121,8 @@ void VelocityBufferPass::run(const render::RenderContextPointer& renderContext, 
     auto fullViewport = args->_viewport;
 
     gpu::doInBatch("VelocityBufferPass::run", args->_context, [=](gpu::Batch& batch) {
-        _gpuTimer->begin(batch);
-        batch.enableStereo(false);
+      //  _gpuTimer->begin(batch);
+      //  batch.enableStereo(false);
 
         batch.setViewportTransform(fullViewport);
         batch.setProjectionTransform(glm::mat4());
@@ -136,11 +138,11 @@ void VelocityBufferPass::run(const render::RenderContextPointer& renderContext, 
         batch.setResourceTexture(ru::Texture::TaaDepth, depthBuffer);
         batch.draw(gpu::TRIANGLE_STRIP, 4);
 
-        _gpuTimer->end(batch);
+     //   _gpuTimer->end(batch);
     });
 
-    auto config = std::static_pointer_cast<Config>(renderContext->jobConfig);
-    config->setGPUBatchRunTime(_gpuTimer->getGPUAverage(), _gpuTimer->getBatchAverage());
+ //   auto config = std::static_pointer_cast<Config>(renderContext->jobConfig);
+ //   config->setGPUBatchRunTime(_gpuTimer->getGPUAverage(), _gpuTimer->getBatchAverage());
 }
 
 

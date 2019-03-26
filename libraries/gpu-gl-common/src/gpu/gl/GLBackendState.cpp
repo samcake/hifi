@@ -29,7 +29,7 @@ void GLBackend::resetPipelineState(State::Signature nextSignature) {
         }
     }
 
-    // Default line width accross the board
+/*    // Default line width accross the board
     glLineWidth(1.0f);
 #if !defined(USE_GLES)
     // force a few states regardless
@@ -42,7 +42,7 @@ void GLBackend::resetPipelineState(State::Signature nextSignature) {
 
     glEnable(GL_LINE_SMOOTH);
 #endif
-
+*/
 }
 
 void GLBackend::syncPipelineStateCache() {
