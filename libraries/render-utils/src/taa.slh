@@ -16,11 +16,39 @@
 <@include render-utils/ShaderConstants.h@>
 <@include gpu/Color.slh@>
 
-LAYOUT(binding=RENDER_UTILS_TEXTURE_TAA_HISTORY) uniform sampler2D historyMap;
-LAYOUT(binding=RENDER_UTILS_TEXTURE_TAA_SOURCE) uniform sampler2D sourceMap;
-LAYOUT(binding=RENDER_UTILS_TEXTURE_TAA_VELOCITY) uniform sampler2D velocityMap;
-LAYOUT(binding=RENDER_UTILS_TEXTURE_TAA_DEPTH) uniform sampler2D depthMap;
-LAYOUT(binding=RENDER_UTILS_TEXTURE_TAA_NEXT) uniform sampler2D nextMap;
+// pixel shader
+#ifdef GPU_PIXEL_SHADER
+    // Stereo variant
+#ifdef GPU_TRANSFORM_IS_STEREO
+    // With stereo camera provided
+#ifdef GPU_TRANSFORM_STEREO_CAMERA
+
+    // Stereo camera is available and the current invocation of the pixel shader is side specific
+    layout(location = GPU_ATTR_V2F_STEREO_SIDE) flat in int _stereoSide;
+
+// gpu_StereoSide()
+// THe side of stereo is 0 for left, 1 for right
+int gpu_StereoSide() {
+    return _stereoSide;
+}
+
+#endif
+#else
+    // gpu_StereoSide()
+    // THe side of stereo is 0 for left, 1 for right
+    int gpu_StereoSide() { return 0; }
+#endif
+
+vec4 gpu_texture(sampler2DArray s, vec2 uv) {
+    return texture(s, vec3(uv, float(gpu_StereoSide())));
+}
+#endif // GPU_PIXEL_SHADER
+
+LAYOUT(binding=RENDER_UTILS_TEXTURE_TAA_HISTORY) uniform sampler2DArray historyMap;
+LAYOUT(binding=RENDER_UTILS_TEXTURE_TAA_SOURCE) uniform sampler2DArray sourceMap;
+LAYOUT(binding=RENDER_UTILS_TEXTURE_TAA_VELOCITY) uniform sampler2DArray velocityMap;
+LAYOUT(binding=RENDER_UTILS_TEXTURE_TAA_DEPTH) uniform sampler2DArray depthMap;
+LAYOUT(binding=RENDER_UTILS_TEXTURE_TAA_NEXT) uniform sampler2DArray nextMap;
 
 struct TAAParams
 {
@@ -76,8 +104,8 @@ vec2 taa_getRegionFXAA() {
 }
 #define USE_YCOCG 1
 
-vec4 taa_fetchColor(sampler2D map, vec2 uv) {
-    vec4 c = texture(map, uv);
+vec4 taa_fetchColor(sampler2DArray map, vec2 uv) {
+    vec4 c = gpu_texture(map, uv);
     // Apply rapid pseudo tonemapping as TAA is applied to a tonemapped image, using luminance as weight, as proposed in
     // https://de45xmedrsdbp.cloudfront.net/Resources/files/TemporalAA_small-59732822.pdf
     float lum = dot(vec3(0.3,0.5,0.2),c.rgb);
@@ -113,11 +141,11 @@ vec4 taa_fetchNextMap(vec2 uv) {
 }
 
 vec2 taa_fetchVelocityMap(vec2 uv) {
-    return texture(velocityMap, uv).xy;
+    return gpu_texture(velocityMap, uv).xy;
 }
 
 float taa_fetchDepth(vec2 uv) {
-    return -texture(depthMap, vec2(uv), 0.0).x;
+    return -texture(depthMap, vec3(uv, float(gpu_StereoSide())), 0.0).x;
 }
 
 
@@ -444,7 +472,6 @@ vec3 taa_getVelocityColorAboveThreshold(float velocityPixLength) {
     return colorRamp((velocityPixLength - params.debugShowVelocityThreshold)/params.debugShowVelocityThreshold);
 }
 
-
 vec3 taa_evalFXAA(vec2 fragUV) {
 
    // vec2 texelSize = getInvWidthHeight();
@@ -465,11 +492,11 @@ vec3 taa_evalFXAA(vec2 fragUV) {
     // fetch raw RGB values for nearby locations
     // sampling pattern is "five on a die" (each diagonal direction and the center)
     // computing the coordinates for these texture reads could be moved to the vertex shader for speed if needed
-    vec3 rgbNW = texture(sourceMap, fragUV + (vec2(-1.0, -1.0) * texelSize)).xyz;
-    vec3 rgbNE = texture(sourceMap, fragUV + (vec2(+1.0, -1.0) * texelSize)).xyz;
-    vec3 rgbSW = texture(sourceMap, fragUV + (vec2(-1.0, +1.0) * texelSize)).xyz;
-    vec3 rgbSE = texture(sourceMap, fragUV + (vec2(+1.0, +1.0) * texelSize)).xyz;
-    vec3 rgbM  = texture(sourceMap, fragUV).xyz;
+    vec3 rgbNW = gpu_texture(sourceMap, fragUV + (vec2(-1.0, -1.0) * texelSize)).xyz;
+    vec3 rgbNE = gpu_texture(sourceMap, fragUV + (vec2(+1.0, -1.0) * texelSize)).xyz;
+    vec3 rgbSW = gpu_texture(sourceMap, fragUV + (vec2(-1.0, +1.0) * texelSize)).xyz;
+    vec3 rgbSE = gpu_texture(sourceMap, fragUV + (vec2(+1.0, +1.0) * texelSize)).xyz;
+    vec3 rgbM  = gpu_texture(sourceMap, fragUV).xyz;
     
     // convert RGB values to luminance
     vec3 luma = vec3(0.299, 0.587, 0.114);
@@ -497,11 +524,11 @@ vec3 taa_evalFXAA(vec2 fragUV) {
         
     // perform additional texture sampling perpendicular to gradient
     vec3 rgbA = (1.0 / 2.0) * (
-                texture(sourceMap, fragUV + dir * (1.0 / 3.0 - 0.5)).xyz +
-                texture(sourceMap, fragUV + dir * (2.0 / 3.0 - 0.5)).xyz);
+                gpu_texture(sourceMap, fragUV + dir * (1.0 / 3.0 - 0.5)).xyz +
+                gpu_texture(sourceMap, fragUV + dir * (2.0 / 3.0 - 0.5)).xyz);
     vec3 rgbB = rgbA * (1.0 / 2.0) + (1.0 / 4.0) * (
-                texture(sourceMap, fragUV + dir * (0.0 / 3.0 - 0.5)).xyz +
-                texture(sourceMap, fragUV + dir * (3.0 / 3.0 - 0.5)).xyz);
+                gpu_texture(sourceMap, fragUV + dir * (0.0 / 3.0 - 0.5)).xyz +
+                gpu_texture(sourceMap, fragUV + dir * (3.0 / 3.0 - 0.5)).xyz);
     float lumaB = dot(rgbB, luma);
 
     // compare luma of new samples to the luma range of the original neighborhood

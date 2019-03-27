@@ -69,7 +69,7 @@ void DrawHaze::run(const render::RenderContextPointer& renderContext, const Inpu
     auto outputFramebufferSize = glm::ivec2(outputBuffer->getSize());
 
     gpu::doInBatch("DrawHaze::run", args->_context, [&](gpu::Batch& batch) {
-        batch.enableStereo(false);
+      //  batch.enableStereo(false);
         batch.setFramebuffer(outputBuffer);
 
         batch.setViewportTransform(args->_viewport);

@@ -249,7 +249,7 @@ void Antialiasing::run(const render::RenderContextPointer& renderContext, const 
     }
     
     gpu::doInBatch("Antialiasing::run", args->_context, [&](gpu::Batch& batch) {
-        batch.enableStereo(false);
+     //   batch.enableStereo(false);
         batch.setViewportTransform(args->_viewport);
 
         // TAA step
