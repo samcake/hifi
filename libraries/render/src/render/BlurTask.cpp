@@ -210,32 +210,50 @@ BlurGaussian::BlurGaussian() {
     _parameters = std::make_shared<BlurParams>();
 }
 
-gpu::PipelinePointer BlurGaussian::getBlurVPipeline() {
-    if (!_blurVPipeline) {
-        gpu::ShaderPointer program = gpu::Shader::createProgram(shader::render::program::blurGaussianV);
-        gpu::StatePointer state = gpu::StatePointer(new gpu::State());
+gpu::PipelinePointer BlurGaussian::getBlurVPipeline(bool isLayered) {
+    if (isLayered) {
+        if (!_blurLayeredVPipeline) {
+            gpu::ShaderPointer program = gpu::Shader::createProgram(shader::render::program::blurGaussianLayeredV);
+            gpu::StatePointer state = gpu::StatePointer(new gpu::State());
 
-        // Stencil test the curvature pass for objects pixels only, not the background
-      //  state->setStencilTest(true, 0xFF, gpu::State::StencilTest(0, 0xFF, gpu::NOT_EQUAL, gpu::State::STENCIL_OP_KEEP, gpu::State::STENCIL_OP_KEEP, gpu::State::STENCIL_OP_KEEP));
+            _blurLayeredVPipeline = gpu::Pipeline::create(program, state);
+        }
 
-        _blurVPipeline = gpu::Pipeline::create(program, state);
+        return _blurLayeredVPipeline;
     }
+    else {
+        if (!_blurVPipeline) {
+            gpu::ShaderPointer program = gpu::Shader::createProgram(shader::render::program::blurGaussianV);
+            gpu::StatePointer state = gpu::StatePointer(new gpu::State());
 
-    return _blurVPipeline;
+            _blurVPipeline = gpu::Pipeline::create(program, state);
+        }
+
+        return _blurVPipeline;
+    }
 }
 
-gpu::PipelinePointer BlurGaussian::getBlurHPipeline() {
-    if (!_blurHPipeline) {
-        gpu::ShaderPointer program = gpu::Shader::createProgram(shader::render::program::blurGaussianH);
-        gpu::StatePointer state = gpu::StatePointer(new gpu::State());
+gpu::PipelinePointer BlurGaussian::getBlurHPipeline(bool isLayered) {
+    if (isLayered) {
+        if (!_blurLayeredHPipeline) {
+            gpu::ShaderPointer program = gpu::Shader::createProgram(shader::render::program::blurGaussianLayeredH);
+            gpu::StatePointer state = gpu::StatePointer(new gpu::State());
 
-        // Stencil test the curvature pass for objects pixels only, not the background
-       // state->setStencilTest(true, 0xFF, gpu::State::StencilTest(0, 0xFF, gpu::NOT_EQUAL, gpu::State::STENCIL_OP_KEEP, gpu::State::STENCIL_OP_KEEP, gpu::State::STENCIL_OP_KEEP));
+            _blurLayeredHPipeline = gpu::Pipeline::create(program, state);
+        }
 
-        _blurHPipeline = gpu::Pipeline::create(program, state);
+        return _blurLayeredVPipeline;
     }
+    else {
+        if (!_blurHPipeline) {
+            gpu::ShaderPointer program = gpu::Shader::createProgram(shader::render::program::blurGaussianH);
+            gpu::StatePointer state = gpu::StatePointer(new gpu::State());
 
-    return _blurHPipeline;
+            _blurHPipeline = gpu::Pipeline::create(program, state);
+        }
+
+        return _blurHPipeline;
+    }
 }
 
 void BlurGaussian::configure(const Config& config) {
@@ -270,8 +288,9 @@ void BlurGaussian::run(const RenderContextPointer& renderContext, const Inputs& 
     }
     blurredFramebuffer = blurringResources.finalFramebuffer;
 
-    auto blurVPipeline = getBlurVPipeline();
-    auto blurHPipeline = getBlurHPipeline();
+    auto blurVPipeline = getBlurVPipeline(_inOutResources._isArrayFramebuffer);
+    auto blurHPipeline = getBlurHPipeline(_inOutResources._isArrayFramebuffer);
+
     glm::ivec4 viewport { 0, 0, blurredFramebuffer->getWidth(), blurredFramebuffer->getHeight() };
 
     glm::ivec2 textureSize = blurredFramebuffer->getSize();
@@ -313,60 +332,49 @@ BlurGaussianDepthAware::BlurGaussianDepthAware(bool generateOutputFramebuffer, c
 {
 }
 
-gpu::PipelinePointer BlurGaussianDepthAware::getBlurVPipeline() {
-    if (!_blurVPipeline) {
-        gpu::ShaderPointer program = gpu::Shader::createProgram(shader::render::program::blurGaussianDepthAwareV);
-        gpu::StatePointer state = gpu::StatePointer(new gpu::State());
+gpu::PipelinePointer BlurGaussianDepthAware::getBlurVPipeline(bool isLayered) {
+    if (isLayered) {
+        if (!_blurLayeredVPipeline) {
+            gpu::ShaderPointer program = gpu::Shader::createProgram(shader::render::program::blurGaussianDepthAwareLayeredV);
+            gpu::StatePointer state = gpu::StatePointer(new gpu::State());
 
-        // Stencil test the curvature pass for objects pixels only, not the background
-      //  state->setStencilTest(true, 0xFF, gpu::State::StencilTest(0, 0xFF, gpu::NOT_EQUAL, gpu::State::STENCIL_OP_KEEP, gpu::State::STENCIL_OP_KEEP, gpu::State::STENCIL_OP_KEEP));
+            _blurLayeredVPipeline = gpu::Pipeline::create(program, state);
+        }
 
-        _blurVPipeline = gpu::Pipeline::create(program, state);
+        return _blurLayeredVPipeline;
     }
+    else {
+        if (!_blurVPipeline) {
+            gpu::ShaderPointer program = gpu::Shader::createProgram(shader::render::program::blurGaussianDepthAwareV);
+            gpu::StatePointer state = gpu::StatePointer(new gpu::State());
 
-    return _blurVPipeline;
+            _blurVPipeline = gpu::Pipeline::create(program, state);
+        }
+
+        return _blurVPipeline;
+    }
 }
 
-gpu::PipelinePointer BlurGaussianDepthAware::getBlurHPipeline() {
-    if (!_blurHPipeline) {
-        gpu::ShaderPointer program = gpu::Shader::createProgram(shader::render::program::blurGaussianDepthAwareH);
-        gpu::StatePointer state = gpu::StatePointer(new gpu::State());
+gpu::PipelinePointer BlurGaussianDepthAware::getBlurHPipeline(bool isLayered) {
+    if (isLayered) {
+        if (!_blurLayeredHPipeline) {
+            gpu::ShaderPointer program = gpu::Shader::createProgram(shader::render::program::blurGaussianDepthAwareLayeredH);
+            gpu::StatePointer state = gpu::StatePointer(new gpu::State());
 
-        // Stencil test the curvature pass for objects pixels only, not the background
-    //    state->setStencilTest(true, 0xFF, gpu::State::StencilTest(0, 0xFF, gpu::NOT_EQUAL, gpu::State::STENCIL_OP_KEEP, gpu::State::STENCIL_OP_KEEP, gpu::State::STENCIL_OP_KEEP));
+            _blurLayeredHPipeline = gpu::Pipeline::create(program, state);
+        }
 
-        _blurHPipeline = gpu::Pipeline::create(program, state);
+        return _blurLayeredVPipeline;
+    } else {
+        if (!_blurHPipeline) {
+            gpu::ShaderPointer program = gpu::Shader::createProgram(shader::render::program::blurGaussianDepthAwareH);
+            gpu::StatePointer state = gpu::StatePointer(new gpu::State());
+
+            _blurHPipeline = gpu::Pipeline::create(program, state);
+        }
+
+        return _blurHPipeline;
     }
-
-    return _blurHPipeline;
-}
-
-gpu::PipelinePointer BlurGaussianDepthAware::getBlurLayeredVPipeline() {
-    if (!_blurLayeredVPipeline) {
-        gpu::ShaderPointer program = gpu::Shader::createProgram(shader::render::program::blurGaussianDepthAwareLayeredV);
-        gpu::StatePointer state = gpu::StatePointer(new gpu::State());
-
-        // Stencil test the curvature pass for objects pixels only, not the background
-        //  state->setStencilTest(true, 0xFF, gpu::State::StencilTest(0, 0xFF, gpu::NOT_EQUAL, gpu::State::STENCIL_OP_KEEP, gpu::State::STENCIL_OP_KEEP, gpu::State::STENCIL_OP_KEEP));
-
-        _blurLayeredVPipeline = gpu::Pipeline::create(program, state);
-    }
-
-    return _blurLayeredVPipeline;
-}
-
-gpu::PipelinePointer BlurGaussianDepthAware::getBlurLayeredHPipeline() {
-    if (!_blurLayeredHPipeline) {
-        gpu::ShaderPointer program = gpu::Shader::createProgram(shader::render::program::blurGaussianDepthAwareLayeredH);
-        gpu::StatePointer state = gpu::StatePointer(new gpu::State());
-
-        // Stencil test the curvature pass for objects pixels only, not the background
-        //    state->setStencilTest(true, 0xFF, gpu::State::StencilTest(0, 0xFF, gpu::NOT_EQUAL, gpu::State::STENCIL_OP_KEEP, gpu::State::STENCIL_OP_KEEP, gpu::State::STENCIL_OP_KEEP));
-
-        _blurLayeredHPipeline = gpu::Pipeline::create(program, state);
-    }
-
-    return _blurLayeredHPipeline;
 }
 
 void BlurGaussianDepthAware::configure(const Config& config) {

@@ -153,8 +153,6 @@ void RenderDeferredTask::build(JobModel& task, const render::Varying& input, ren
     // Prepare deferred, generate the shared Deferred Frame Transform. Only valid with the scaled frame buffer
     const auto deferredFrameTransform = task.addJob<GenerateDeferredFrameTransform>("DeferredFrameTransform", jitter);
 
-    const auto opaqueRangeTimer = task.addJob<BeginGPURangeTimer>("BeginOpaqueRangeTimer", "DrawOpaques");
-
     const auto prepareDeferredInputs = PrepareDeferred::Inputs(scaledPrimaryFramebuffer, lightingModel).asVarying();
     const auto prepareDeferredOutputs = task.addJob<PrepareDeferred>("PrepareDeferred", prepareDeferredInputs);
     const auto deferredFramebuffer = prepareDeferredOutputs.getN<PrepareDeferred::Outputs>(0);
@@ -166,8 +164,6 @@ void RenderDeferredTask::build(JobModel& task, const render::Varying& input, ren
     // Render opaque objects in DeferredBuffer
     const auto opaqueInputs = DrawStateSortDeferred::Inputs(opaques, lightingModel, jitter).asVarying();
     task.addJob<DrawStateSortDeferred>("DrawOpaqueDeferred", opaqueInputs, shapePlumber);
-
-    task.addJob<EndGPURangeTimer>("OpaqueRangeTimer", opaqueRangeTimer);
 
     // Opaque all rendered
 
@@ -219,20 +215,14 @@ void RenderDeferredTask::build(JobModel& task, const render::Varying& input, ren
     const auto transparentsInputs = RenderTransparentDeferred::Inputs(transparents, hazeFrame, lightFrame, lightingModel, lightClusters, shadowFrame, jitter).asVarying();
     task.addJob<RenderTransparentDeferred>("DrawTransparentDeferred", transparentsInputs, shapePlumber);
 
-    const auto outlineRangeTimer = task.addJob<BeginGPURangeTimer>("BeginHighlightRangeTimer", "Highlight");
-
     const auto outlineInputs = DrawHighlightTask::Inputs(items, deferredFramebuffer, lightingFramebuffer, deferredFrameTransform, jitter).asVarying();
     task.addJob<DrawHighlightTask>("DrawHighlight", outlineInputs);
-
-    task.addJob<EndGPURangeTimer>("HighlightRangeTimer", outlineRangeTimer);
 
     // Layered Over (in front)
     const auto inFrontOpaquesInputs = DrawLayered3D::Inputs(inFrontOpaque, lightingModel, jitter).asVarying();
     const auto inFrontTransparentsInputs = DrawLayered3D::Inputs(inFrontTransparent, lightingModel, jitter).asVarying();
     task.addJob<DrawLayered3D>("DrawInFrontOpaque", inFrontOpaquesInputs, true);
     task.addJob<DrawLayered3D>("DrawInFrontTransparent", inFrontTransparentsInputs, false);
-
-    const auto toneAndPostRangeTimer = task.addJob<BeginGPURangeTimer>("BeginToneAndPostRangeTimer", "PostToneLayeredAntialiasing");
 
     // AA job before bloom to limit flickering
     const auto antialiasingInputs = Antialiasing::Inputs(deferredFrameTransform, lightingFramebuffer, linearDepthTarget, velocityBuffer).asVarying();
@@ -258,15 +248,13 @@ void RenderDeferredTask::build(JobModel& task, const render::Varying& input, ren
     const auto primaryFramebuffer = task.addJob<render::Upsample>("PrimaryBufferUpscale", scaledPrimaryFramebuffer);
 
     // Composite the HUD and HUD overlays
-    task.addJob<CompositeHUD>("HUD", primaryFramebuffer);
+ //   task.addJob<CompositeHUD>("HUD", primaryFramebuffer);
 
     const auto nullJitter = Varying(glm::vec2(0.0f, 0.0f));
     const auto hudOpaquesInputs = DrawLayered3D::Inputs(hudOpaque, lightingModel, nullJitter).asVarying();
     const auto hudTransparentsInputs = DrawLayered3D::Inputs(hudTransparent, lightingModel, nullJitter).asVarying();
     task.addJob<DrawLayered3D>("DrawHUDOpaque", hudOpaquesInputs, true);
     task.addJob<DrawLayered3D>("DrawHUDTransparent", hudTransparentsInputs, false);
-
-    task.addJob<EndGPURangeTimer>("ToneAndPostRangeTimer", toneAndPostRangeTimer);
 
     // Blit!
     task.addJob<Blit>("Blit", primaryFramebuffer);

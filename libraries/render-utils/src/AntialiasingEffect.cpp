@@ -226,8 +226,9 @@ void Antialiasing::run(const render::RenderContextPointer& renderContext, const 
     
     int width = sourceBuffer->getWidth();
     int height = sourceBuffer->getHeight();
+    int numLayers = sourceBuffer->getNumLayers();
 
-    if (_antialiasingBuffers && _antialiasingBuffers->get(0) && _antialiasingBuffers->get(0)->getSize() != uvec2(width, height)) {
+    if (_antialiasingBuffers && _antialiasingBuffers->get(0) && ((_antialiasingBuffers->get(0)->getSize() != uvec2(width, height)) || (_antialiasingBuffers->get(0)->getNumLayers() != numLayers))) {
         _antialiasingBuffers.reset();
         _antialiasingTextures[0].reset();
         _antialiasingTextures[1].reset();
@@ -242,8 +243,8 @@ void Antialiasing::run(const render::RenderContextPointer& renderContext, const 
         for (int i = 0; i < 2; i++) {
             antiAliasingBuffers.emplace_back(gpu::Framebuffer::create("antialiasing"));
             const auto& antiAliasingBuffer = antiAliasingBuffers.back();
-            _antialiasingTextures[i] = gpu::Texture::createRenderBuffer(format, width, height, gpu::Texture::SINGLE_MIP, defaultSampler);
-            antiAliasingBuffer->setRenderBuffer(0, _antialiasingTextures[i]);
+            _antialiasingTextures[i] = gpu::Texture::createRenderBufferArray(format, width, height, numLayers, gpu::Texture::SINGLE_MIP, defaultSampler);
+            antiAliasingBuffer->setRenderBuffer(0, _antialiasingTextures[i], gpu::TextureView::UNDEFINED_SUBRESOURCE);
         }
         _antialiasingBuffers = std::make_shared<gpu::FramebufferSwapChain>(antiAliasingBuffers);
     }

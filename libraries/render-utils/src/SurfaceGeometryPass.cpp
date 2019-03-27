@@ -461,8 +461,8 @@ void SurfaceGeometryPass::run(const render::RenderContextPointer& renderContext,
     outputs.edit3() = lowCurvatureFramebuffer;
 
     auto curvaturePipeline = getCurvaturePipeline(renderContext);
-    auto diffuseVPipeline = _diffusePass.getBlurLayeredVPipeline();
-    auto diffuseHPipeline = _diffusePass.getBlurLayeredHPipeline();
+    auto diffuseVPipeline = _diffusePass.getBlurVPipeline(true);
+    auto diffuseHPipeline = _diffusePass.getBlurHPipeline(true);
 
     _diffusePass.getParameters()->setWidthHeight(curvatureViewport.z, curvatureViewport.w, args->isStereo());
     glm::ivec2 textureSize(curvatureTexture->getDimensions());

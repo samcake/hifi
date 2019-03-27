@@ -10,11 +10,40 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 <@include BloomApply.shared.slh@>
+<@include gpu/ShaderConstants.h@>
 <@include render-utils/ShaderConstants.h@>
 
-LAYOUT(binding=0) uniform sampler2D blurMap0;
-LAYOUT(binding=1) uniform sampler2D blurMap1;
-LAYOUT(binding=2) uniform sampler2D blurMap2;
+    // pixel shader
+#ifdef GPU_PIXEL_SHADER
+    // Stereo variant
+#ifdef GPU_TRANSFORM_IS_STEREO
+    // With stereo camera provided
+#ifdef GPU_TRANSFORM_STEREO_CAMERA
+
+    // Stereo camera is available and the current invocation of the pixel shader is side specific
+    layout(location = GPU_ATTR_V2F_STEREO_SIDE) flat in int _stereoSide;
+
+// gpu_StereoSide()
+// THe side of stereo is 0 for left, 1 for right
+int gpu_StereoSide() {
+    return _stereoSide;
+}
+
+#endif
+#else
+    // gpu_StereoSide()
+    // THe side of stereo is 0 for left, 1 for right
+    int gpu_StereoSide() { return 0; }
+#endif
+
+vec4 gpu_texture(sampler2DArray s, vec2 uv) {
+    return texture(s, vec3(uv, float(gpu_StereoSide())));
+}
+#endif // GPU_PIXEL_SHADER
+
+LAYOUT(binding=0) uniform sampler2DArray blurMap0;
+LAYOUT(binding=1) uniform sampler2DArray blurMap1;
+LAYOUT(binding=2) uniform sampler2DArray blurMap2;
 
 LAYOUT_STD140(binding=RENDER_UTILS_BUFFER_BLOOM_PARAMS) uniform parametersBuffer {
     Parameters parameters;
@@ -24,9 +53,10 @@ layout(location=0) in vec2 varTexCoord0;
 layout(location=0) out vec4 outFragColor;
 
 void main(void) {
-    vec4 blur0 = texture(blurMap0, varTexCoord0);
-    vec4 blur1 = texture(blurMap1, varTexCoord0);
-    vec4 blur2 = texture(blurMap2, varTexCoord0);
+    vec3 uvl = vec3(varTexCoord0, float(gpu_StereoSide()));
+    vec4 blur0 = texture(blurMap0, uvl);
+    vec4 blur1 = texture(blurMap1, uvl);
+    vec4 blur2 = texture(blurMap2, uvl);
 
     outFragColor = vec4(blur0.rgb*parameters._intensities.x + blur1.rgb*parameters._intensities.y + blur2.rgb*parameters._intensities.z, 1.0f);
 }

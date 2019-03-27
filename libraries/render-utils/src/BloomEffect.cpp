@@ -77,7 +77,7 @@ void BloomThreshold::run(const render::RenderContextPointer& renderContext, cons
     _parameters.edit()._threshold = bloom->getBloomThreshold();
 
     gpu::doInBatch("BloomThreshold::run", args->_context, [&](gpu::Batch& batch) {
-        batch.enableStereo(false);
+       // batch.enableStereo(false);
 
         batch.setViewportTransform(viewport);
         batch.setProjectionTransform(glm::mat4());
@@ -133,7 +133,7 @@ void BloomApply::run(const render::RenderContextPointer& renderContext, const In
     parameters._intensities.z = newIntensity;
 
     gpu::doInBatch("BloomApply::run", args->_context, [&](gpu::Batch& batch) {
-        batch.enableStereo(false);
+     //   batch.enableStereo(false);
 
         batch.setFramebuffer(frameBuffer);
 
@@ -172,7 +172,7 @@ void BloomDraw::run(const render::RenderContextPointer& renderContext, const Inp
         }
 
         gpu::doInBatch("BloomDraw::run", args->_context, [&](gpu::Batch& batch) {
-            batch.enableStereo(false);
+         //   batch.enableStereo(false);
 
             batch.setFramebuffer(frameBuffer);
 

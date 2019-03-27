@@ -10,9 +10,34 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 <@include BloomThreshold.shared.slh@>
+<@include gpu/ShaderConstants.h@>
 <@include render-utils/ShaderConstants.h@>
 
-LAYOUT(binding=RENDER_UTILS_TEXTURE_BLOOM_COLOR) uniform sampler2D colorMap;
+// pixel shader
+#ifdef GPU_PIXEL_SHADER
+    // Stereo variant
+#ifdef GPU_TRANSFORM_IS_STEREO
+    // With stereo camera provided
+#ifdef GPU_TRANSFORM_STEREO_CAMERA
+
+    // Stereo camera is available and the current invocation of the pixel shader is side specific
+    layout(location = GPU_ATTR_V2F_STEREO_SIDE) flat in int _stereoSide;
+
+// gpu_StereoSide()
+// THe side of stereo is 0 for left, 1 for right
+int gpu_StereoSide() {
+    return _stereoSide;
+}
+
+#endif
+#else
+    // gpu_StereoSide()
+    // THe side of stereo is 0 for left, 1 for right
+    int gpu_StereoSide() { return 0; }
+#endif
+#endif // GPU_PIXEL_SHADER
+
+LAYOUT(binding=RENDER_UTILS_TEXTURE_BLOOM_COLOR) uniform sampler2DArray colorMap;
 LAYOUT_STD140(binding=RENDER_UTILS_BUFFER_BLOOM_PARAMS) uniform parametersBuffer {
     Parameters parameters;
 };
@@ -21,20 +46,21 @@ layout(location=0) in vec2 varTexCoord0;
 layout(location=0) out vec4 outFragColor;
 
 void main(void) {
+    float layer = float(gpu_StereoSide());
     vec2 startUv = varTexCoord0;
     vec4 maskedColor = vec4(0,0,0,0);
 
     for (int y=0 ; y<parameters._sampleCount ; y++) {
-        vec2 uv = startUv;
+        vec3 uvl = vec3(startUv, layer);
 
         for (int x=0 ; x<parameters._sampleCount ; x++) {
-            vec4 color = texture(colorMap, uv);
+            vec4 color = texture(colorMap, uvl);
             float luminance = (color.r+color.g+color.b) / 3.0;
             float mask = clamp((luminance-parameters._threshold)*0.25, 0.0, 1.0);
 
             color *= mask;
             maskedColor += color;
-            uv.x += parameters._deltaUV.x;
+            uvl.x += parameters._deltaUV.x;
         }
 
         startUv.y += parameters._deltaUV.y;
