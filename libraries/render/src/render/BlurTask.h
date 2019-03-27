@@ -18,10 +18,8 @@
 
 namespace render {
 
-
 class BlurParams {
 public:
-
     void setWidthHeight(int width, int height, bool isStereo);
 
     void setTexcoordTransform(const glm::vec4 texcoordTransformViewport);
@@ -90,27 +88,25 @@ public:
     gpu::FramebufferPointer _outputFramebuffer;
     unsigned int _downsampleFactor{ 1U };
     bool _generateOutputFramebuffer{ false };
+    bool _isArrayFramebuffer { false };
 };
-
 
 class BlurGaussianConfig : public Job::Config {
     Q_OBJECT
-    Q_PROPERTY(bool enabled WRITE setEnabled READ isEnabled NOTIFY dirty) // expose enabled flag
+    Q_PROPERTY(bool enabled WRITE setEnabled READ isEnabled NOTIFY dirty)  // expose enabled flag
     Q_PROPERTY(float filterScale MEMBER filterScale NOTIFY dirty)
     Q_PROPERTY(float mix MEMBER mix NOTIFY dirty)
 public:
-
     BlurGaussianConfig() : Job::Config(true) {}
 
     float filterScale{ 0.2f };
     float mix{ 1.0f };
 
-signals :
+signals:
     void dirty();
 
 protected:
 };
-
 
 class BlurGaussian {
 public:
@@ -126,7 +122,6 @@ public:
     BlurParamsPointer getParameters() const { return _parameters; }
 
 protected:
-
     BlurParamsPointer _parameters;
 
     gpu::PipelinePointer _blurVPipeline;
@@ -140,13 +135,14 @@ protected:
 
 class BlurGaussianDepthAwareConfig : public BlurGaussianConfig {
     Q_OBJECT
-        Q_PROPERTY(float depthThreshold MEMBER depthThreshold NOTIFY dirty) // expose enabled flag
+    Q_PROPERTY(float depthThreshold MEMBER depthThreshold NOTIFY dirty)  // expose enabled flag
 public:
     BlurGaussianDepthAwareConfig() : BlurGaussianConfig() {}
 
     float depthThreshold{ 1.0f };
 signals:
-    void dirty(); 
+    void dirty();
+
 protected:
 };
 
@@ -159,10 +155,12 @@ public:
     BlurGaussianDepthAware(bool generateNewOutput = false, const BlurParamsPointer& params = BlurParamsPointer());
 
     void configure(const Config& config);
-    void run(const RenderContextPointer& renderContext, const Inputs& SourceAndDepth, gpu::FramebufferPointer& blurredFramebuffer);
+    void run(const RenderContextPointer& renderContext,
+             const Inputs& SourceAndDepth,
+             gpu::FramebufferPointer& blurredFramebuffer);
 
     const BlurParamsPointer& getParameters() const { return _parameters; }
- 
+
     gpu::PipelinePointer getBlurVPipeline();
     gpu::PipelinePointer getBlurHPipeline();
     gpu::PipelinePointer getBlurLayeredVPipeline();
@@ -178,6 +176,6 @@ protected:
     BlurParamsPointer _parameters;
 };
 
-}
+}  // namespace render
 
-#endif // hifi_render_BlurTask_h
+#endif  // hifi_render_BlurTask_h

@@ -142,32 +142,41 @@ bool BlurInOutResource::updateResources(const gpu::FramebufferPointer& sourceFra
     }
 
     auto blurBufferSize = sourceFramebuffer->getSize();
+    auto blurBufferNumLayers = sourceFramebuffer->getNumLayers();
+    blurringResources.sourceTexture = sourceFramebuffer->getRenderBuffer(0);
+    auto blurBufferIsArray = blurringResources.sourceTexture->isArray();
     
     blurBufferSize.x /= _downsampleFactor;
     blurBufferSize.y /= _downsampleFactor;
 
-    if (_blurredFramebuffer && _blurredFramebuffer->getSize() != blurBufferSize) {
+    if (_blurredFramebuffer && ((_blurredFramebuffer->getSize() != blurBufferSize) ||
+                                (_blurredFramebuffer->getNumLayers() != blurBufferNumLayers)) ||
+        blurBufferIsArray != _isArrayFramebuffer) {
         _blurredFramebuffer.reset();
     }
 
     if (!_blurredFramebuffer) {
         _blurredFramebuffer = gpu::FramebufferPointer(gpu::Framebuffer::create("blur"));
+        _isArrayFramebuffer = blurBufferIsArray;
 
         // attach depthStencil if present in source
         //if (sourceFramebuffer->hasDepthStencil()) {
         //    _blurredFramebuffer->setDepthStencilBuffer(sourceFramebuffer->getDepthStencilBuffer(), sourceFramebuffer->getDepthStencilBufferFormat());
         //}
         auto blurringSampler = gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_LINEAR_MIP_POINT, gpu::Sampler::WRAP_CLAMP);
-        auto blurringTarget = gpu::Texture::createRenderBuffer(sourceFramebuffer->getRenderBuffer(0)->getTexelFormat(), blurBufferSize.x, blurBufferSize.y, gpu::Texture::SINGLE_MIP, blurringSampler);
-        _blurredFramebuffer->setRenderBuffer(0, blurringTarget);
+        auto blurringTarget =
+            gpu::Texture::createRenderBufferArray(  sourceFramebuffer->getRenderBuffer(0)->getTexelFormat(),
+                                                    blurBufferSize.x, blurBufferSize.y, blurBufferNumLayers,
+                                                    gpu::Texture::SINGLE_MIP, blurringSampler);
+        _blurredFramebuffer->setRenderBuffer(0, blurringTarget, gpu::TextureView::UNDEFINED_SUBRESOURCE);
     } 
 
-    blurringResources.sourceTexture = sourceFramebuffer->getRenderBuffer(0);
     blurringResources.blurringFramebuffer = _blurredFramebuffer;
     blurringResources.blurringTexture = _blurredFramebuffer->getRenderBuffer(0);
 
     if (_generateOutputFramebuffer) {
-        if (_outputFramebuffer && _outputFramebuffer->getSize() != blurBufferSize) {
+        if (_outputFramebuffer && ((_outputFramebuffer->getSize() != blurBufferSize) ||
+                                   (_outputFramebuffer->getNumLayers() != blurBufferNumLayers))) {
             _outputFramebuffer.reset();
         }
 
@@ -181,8 +190,10 @@ bool BlurInOutResource::updateResources(const gpu::FramebufferPointer& sourceFra
                 _outputFramebuffer->setDepthStencilBuffer(sourceFramebuffer->getDepthStencilBuffer(), sourceFramebuffer->getDepthStencilBufferFormat());
             }*/
             auto blurringSampler = gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_LINEAR_MIP_POINT, gpu::Sampler::WRAP_CLAMP);
-            auto blurringTarget = gpu::Texture::createRenderBuffer(sourceFramebuffer->getRenderBuffer(0)->getTexelFormat(), blurBufferSize.x, blurBufferSize.y, gpu::Texture::SINGLE_MIP, blurringSampler);
-            _outputFramebuffer->setRenderBuffer(0, blurringTarget);
+            auto blurringTarget = gpu::Texture::createRenderBufferArray(sourceFramebuffer->getRenderBuffer(0)->getTexelFormat(),
+                 blurBufferSize.x, blurBufferSize.y, blurBufferNumLayers,
+                 gpu::Texture::SINGLE_MIP, blurringSampler);
+            _outputFramebuffer->setRenderBuffer(0, blurringTarget, gpu::TextureView::UNDEFINED_SUBRESOURCE);
         }
 
         // Should be good to use the output Framebuffer as final
@@ -268,7 +279,7 @@ void BlurGaussian::run(const RenderContextPointer& renderContext, const Inputs& 
     _parameters->setTexcoordTransform(gpu::Framebuffer::evalSubregionTexcoordTransformCoefficients(textureSize, viewport));
 
     gpu::doInBatch("BlurGaussian::run", args->_context, [=](gpu::Batch& batch) {
-        batch.enableStereo(false);
+    //    batch.enableStereo(false);
         batch.setViewportTransform(viewport);
 
         batch.setUniformBuffer(BlurTask_ParamsSlot, _parameters->_parametersBuffer);
