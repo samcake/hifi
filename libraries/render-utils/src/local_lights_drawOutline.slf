@@ -33,15 +33,13 @@
 <@include render-utils/ShaderConstants.h@>
 
 
-layout(location=RENDER_UTILS_ATTR_TEXCOORD01) in vec4 _texCoord01;
-#define _texCoord0 _texCoord01.xy
-#define _texCoord1 _texCoord01.zw
+layout(location = 0) in vec2 varTexCoord0;
 layout(location=0) out vec4 _fragColor;
 
 void main(void) {
 
     // Grab the fragment data from the uv
-    vec2 texCoord = _texCoord0.st;
+    vec2 texCoord = varTexCoord0;
 
     vec4 fragPosition = unpackDeferredPositionFromZeye(texCoord);
     DeferredFragment frag = unpackDeferredFragmentNoPosition(texCoord);
