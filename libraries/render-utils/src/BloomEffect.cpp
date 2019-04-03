@@ -222,7 +222,7 @@ void DebugBloom::run(const render::RenderContextPointer& renderContext, const In
     }
 
     gpu::doInBatch("DebugBloom::run", args->_context, [&](gpu::Batch& batch) {
-        batch.enableStereo(false);
+        //batch.enableStereo(false);
 
         batch.setFramebuffer(frameBuffer);
 

@@ -63,7 +63,7 @@ void DeferredFrameTransform::update(RenderArgs* args, glm::vec2 jitter) {
         args->_context->getStereoProjections(projMats);
         args->_context->getStereoViews(eyeViews);
 
-        jitter.x *= 2.0f;
+      //  jitter.x *= 2.0f;
 
         for (int i = 0; i < 2; i++) {
             // Compose the mono Eye space to Stereo clip space Projection Matrix
@@ -77,8 +77,12 @@ void DeferredFrameTransform::update(RenderArgs* args, glm::vec2 jitter) {
             frameTransformBuffer.invProjection[i] = glm::inverse(frameTransformBuffer.projection[i]);
         }
 
-        frameTransformBuffer.stereoInfo = glm::vec4(1.0f, (float)(args->_viewport.z >> 1), 0.0f, 1.0f);
-        frameTransformBuffer.invpixelInfo = glm::vec4(1.0f / (float)(args->_viewport.z >> 1), 1.0f / args->_viewport.w, 0.0f, 0.0f);
+//        frameTransformBuffer.stereoInfo = glm::vec4(1.0f, (float)(args->_viewport.z >> 1), 0.0f, 1.0f);
+//        frameTransformBuffer.invpixelInfo = glm::vec4(1.0f / (float)(args->_viewport.z >> 1), 1.0f / args->_viewport.w, 0.0f, 0.0f);
+
+        frameTransformBuffer.stereoInfo = glm::vec4(1.0f, (float)(args->_viewport.z), 0.0f, 1.0f);
+        frameTransformBuffer.invpixelInfo = glm::vec4(1.0f / (float)(args->_viewport.z), 1.0f / args->_viewport.w, 0.0f, 0.0f);
+
     }
 }
 

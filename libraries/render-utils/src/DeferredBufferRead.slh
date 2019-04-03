@@ -15,6 +15,9 @@
 <@include render-utils/ShaderConstants.h@>
 <@include DeferredBuffer.slh@>
 
+
+<@include LightingModel.slh@>
+
 // See DeferredShader_MapSlot in DeferredLightingEffect.cpp for constants
 
     // pixel shader
@@ -94,7 +97,7 @@ DeferredFragment unpackDeferredFragmentNoPosition(vec2 _texcoord) {
     normalVal = texture(normalMap, texcoord);
     diffuseVal = texture(albedoMap, texcoord);
     specularVal = texture(specularMap, texcoord);
-    frag.obscurance = texture(obscuranceMap, texcoord).x;
+    frag.obscurance = mix(1.0, texture(obscuranceMap, texcoord).x, isAmbientOcclusionEnabled());
 
     // Unpack the normal from the map
     frag.normal = unpackNormal(normalVal.xyz);

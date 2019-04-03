@@ -88,54 +88,56 @@ void AmbientOcclusionFramebuffer::allocate() {
     auto occlusionformat = gpu::Element{ gpu::VEC3, gpu::NUINT8, gpu::RGB };
 #endif
 
+    auto numSlices = _isStereo + 1;
+
     //  Full frame
     {
         auto width = _frameSize.x;
         auto height = _frameSize.y;
         auto sampler = gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_LINEAR, gpu::Sampler::WRAP_CLAMP);
 
-        _occlusionTexture = gpu::Texture::createRenderBuffer(occlusionformat, width, height, gpu::Texture::SINGLE_MIP, sampler);
+        _occlusionTexture = gpu::Texture::createRenderBufferArray(occlusionformat, width, height, numSlices, gpu::Texture::SINGLE_MIP, sampler);
         _occlusionFramebuffer = gpu::FramebufferPointer(gpu::Framebuffer::create("occlusion"));
-        _occlusionFramebuffer->setRenderBuffer(0, _occlusionTexture);
+        _occlusionFramebuffer->setRenderBuffer(0, _occlusionTexture, gpu::TextureView::UNDEFINED_SUBRESOURCE);
 
-        _occlusionBlurredTexture = gpu::Texture::createRenderBuffer(occlusionformat, width, height, gpu::Texture::SINGLE_MIP, sampler);
+        _occlusionBlurredTexture = gpu::Texture::createRenderBufferArray(occlusionformat, width, height, numSlices, gpu::Texture::SINGLE_MIP, sampler);
         _occlusionBlurredFramebuffer = gpu::FramebufferPointer(gpu::Framebuffer::create("occlusionBlurred"));
-        _occlusionBlurredFramebuffer->setRenderBuffer(0, _occlusionBlurredTexture);
+        _occlusionBlurredFramebuffer->setRenderBuffer(0, _occlusionBlurredTexture, gpu::TextureView::UNDEFINED_SUBRESOURCE);
     }
 
     // Lower res frame
     {
         auto sideSize = _frameSize;
-        if (_isStereo) {
+   /*     if (_isStereo) {
             sideSize.x >>= 1;
-        }
+        }*/
         sideSize >>= _resolutionLevel;
-        if (_isStereo) {
+    /*    if (_isStereo) {
             sideSize.x <<= 1;
-        }
+        }*/
         auto width = sideSize.x;
         auto height = sideSize.y;
         auto format = gpu::Element{ gpu::VEC4, gpu::NINT2_10_10_10, gpu::RGBA };
-        _normalTexture = gpu::Texture::createRenderBuffer(format, width, height, gpu::Texture::SINGLE_MIP, 
+        _normalTexture = gpu::Texture::createRenderBufferArray(format, width, height, numSlices, gpu::Texture::SINGLE_MIP, 
                                                           gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_POINT, gpu::Sampler::WRAP_CLAMP));
         _normalFramebuffer = gpu::FramebufferPointer(gpu::Framebuffer::create("ssaoNormals"));
-        _normalFramebuffer->setRenderBuffer(0, _normalTexture);
+        _normalFramebuffer->setRenderBuffer(0, _normalTexture, gpu::TextureView::UNDEFINED_SUBRESOURCE);
     }
 
 #if SSAO_USE_QUAD_SPLIT
     {
         auto splitSize = _frameSize;
-        if (_isStereo) {
+    /*    if (_isStereo) {
             splitSize.x >>= 1;
-        }
+        }*/
         splitSize = divideRoundUp(_frameSize >> _resolutionLevel, SSAO_SPLIT_COUNT);
-        if (_isStereo) {
+       /* if (_isStereo) {
             splitSize.x <<= 1;
-        }
+        }*/
         auto width = splitSize.x;
         auto height = splitSize.y;
 
-        _occlusionSplitTexture = gpu::Texture::createRenderBufferArray(occlusionformat, width, height, SSAO_SPLIT_COUNT*SSAO_SPLIT_COUNT, gpu::Texture::SINGLE_MIP,
+        _occlusionSplitTexture = gpu::Texture::createRenderBufferArray(occlusionformat, width, height, numSlices * SSAO_SPLIT_COUNT*SSAO_SPLIT_COUNT, gpu::Texture::SINGLE_MIP,
                                                                        gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_LINEAR, gpu::Sampler::WRAP_CLAMP));
         for (int i = 0; i < SSAO_SPLIT_COUNT*SSAO_SPLIT_COUNT; i++) {
             _occlusionSplitFramebuffers[i] = gpu::FramebufferPointer(gpu::Framebuffer::create("occlusion"));
@@ -500,7 +502,7 @@ void AmbientOcclusionEffect::updateFramebufferSizes() {
     const auto occlusionFrameSize = sourceFrameSideSize >> resolutionLevel;
     auto normalTextureSize = _framebuffer->getNormalTexture()->getDimensions();
 
-    normalTextureSize.x >>= stereoDivide;
+ //   normalTextureSize.x >>= stereoDivide;
 
     params._sideSizes[0].x = normalTextureSize.x;
     params._sideSizes[0].y = normalTextureSize.y;
@@ -659,8 +661,8 @@ void AmbientOcclusionEffect::run(const render::RenderContextPointer& renderConte
     }
 
     gpu::doInBatch("AmbientOcclusionEffect::run", args->_context, [=](gpu::Batch& batch) {
-		PROFILE_RANGE_BATCH(batch, "SSAO");
-		batch.enableStereo(false);
+        PROFILE_RANGE_BATCH(batch, "SSAO");
+        batch.enableStereo(false);
 
         _gpuTimer->begin(batch);
 

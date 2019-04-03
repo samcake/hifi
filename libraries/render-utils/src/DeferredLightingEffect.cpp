@@ -407,9 +407,6 @@ void RenderDeferredSetup::run(const render::RenderContextPointer& renderContext,
         // FIXME: Different render modes should have different tasks
         if (lightingModel->isAmbientOcclusionEnabled() && ambientOcclusionFramebuffer) {
             batch.setResourceTexture(ru::Texture::DeferredObscurance, ambientOcclusionFramebuffer->getOcclusionTexture());
-        } else {
-            // need to assign the white texture if ao is off
-            batch.setResourceTexture(ru::Texture::DeferredObscurance, textureCache->getWhiteTexture());
         }
 
         // The Deferred Frame Transform buffer

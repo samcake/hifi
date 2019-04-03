@@ -32,12 +32,13 @@ gpu::FramebufferPointer HalfDownsample::getResampledFrameBuffer(const gpu::Frame
 
     resampledFramebufferSize.x /= 2U;
     resampledFramebufferSize.y /= 2U;
+    auto numLayers = sourceFramebuffer->getNumLayers();
 
-    if (!_destinationFrameBuffer || resampledFramebufferSize != _destinationFrameBuffer->getSize()) {
+    if (!_destinationFrameBuffer || (resampledFramebufferSize != _destinationFrameBuffer->getSize()) || (numLayers != _destinationFrameBuffer->getNumLayers())) {
         _destinationFrameBuffer = gpu::FramebufferPointer(gpu::Framebuffer::create("HalfOutput"));
 
         auto sampler = gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_LINEAR_MIP_POINT);
-        auto target = gpu::Texture::createRenderBuffer(sourceFramebuffer->getRenderBuffer(0)->getTexelFormat(), resampledFramebufferSize.x, resampledFramebufferSize.y, gpu::Texture::SINGLE_MIP, sampler);
+        auto target = gpu::Texture::createRenderBufferArray(sourceFramebuffer->getRenderBuffer(0)->getTexelFormat(), resampledFramebufferSize.x, resampledFramebufferSize.y, numLayers, gpu::Texture::SINGLE_MIP, sampler);
         _destinationFrameBuffer->setRenderBuffer(0, target);
     }
     return _destinationFrameBuffer;
@@ -61,7 +62,7 @@ void HalfDownsample::run(const RenderContextPointer& renderContext, const gpu::F
     glm::ivec4 viewport{ 0, 0, bufferSize.x, bufferSize.y };
 
     gpu::doInBatch("HalfDownsample::run", args->_context, [&](gpu::Batch& batch) {
-        batch.enableStereo(false);
+     //   batch.enableStereo(false);
 
         batch.setFramebuffer(resampledFrameBuffer);
 
@@ -88,12 +89,13 @@ gpu::FramebufferPointer Upsample::getResampledFrameBuffer(const gpu::Framebuffer
     }
 
     auto resampledFramebufferSize = glm::uvec2(glm::vec2(sourceFramebuffer->getSize()) * _factor);
+    auto numLayers = sourceFramebuffer->getNumLayers();
 
-    if (!_destinationFrameBuffer || resampledFramebufferSize != _destinationFrameBuffer->getSize()) {
+    if (!_destinationFrameBuffer || resampledFramebufferSize != _destinationFrameBuffer->getSize() || numLayers != _destinationFrameBuffer->getNumLayers()) {
         _destinationFrameBuffer = gpu::FramebufferPointer(gpu::Framebuffer::create("UpsampledOutput"));
 
         auto sampler = gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_LINEAR);
-        auto target = gpu::Texture::createRenderBuffer(sourceFramebuffer->getRenderBuffer(0)->getTexelFormat(), resampledFramebufferSize.x, resampledFramebufferSize.y, gpu::Texture::SINGLE_MIP, sampler);
+        auto target = gpu::Texture::createRenderBufferArray(sourceFramebuffer->getRenderBuffer(0)->getTexelFormat(), resampledFramebufferSize.x, resampledFramebufferSize.y, numLayers, gpu::Texture::SINGLE_MIP, sampler);
         _destinationFrameBuffer->setRenderBuffer(0, target);
     }
     return _destinationFrameBuffer;
@@ -117,7 +119,7 @@ void Upsample::run(const RenderContextPointer& renderContext, const gpu::Framebu
         glm::ivec4 viewport{ 0, 0, bufferSize.x, bufferSize.y };
 
         gpu::doInBatch("Upsample::run", args->_context, [&](gpu::Batch& batch) {
-            batch.enableStereo(false);
+       //     batch.enableStereo(false);
 
             batch.setFramebuffer(resampledFrameBuffer);
 

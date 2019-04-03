@@ -166,7 +166,7 @@ void DrawHighlightMask::run(const render::RenderContextPointer& renderContext, c
         // Needs to be distinct from the other batch because using the clear call 
         // while stereo is enabled triggers a warning
         gpu::doInBatch("DrawHighlightMask::run::begin", args->_context, [&](gpu::Batch& batch) {
-            batch.enableStereo(false);
+        //    batch.enableStereo(false);
             batch.setFramebuffer(resources->getDepthFramebuffer());
             batch.clearDepthStencilFramebuffer(1.0f, 0);
         });

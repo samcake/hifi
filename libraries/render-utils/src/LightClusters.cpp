@@ -646,7 +646,7 @@ void DebugLightClusters::run(const render::RenderContextPointer& renderContext, 
 
     
     gpu::doInBatch(nullptr, args->_context, [&](gpu::Batch& batch) { 
-        batch.enableStereo(false);
+      //  batch.enableStereo(false);
 
         // Assign the camera transform
         batch.setViewportTransform(args->_viewport);

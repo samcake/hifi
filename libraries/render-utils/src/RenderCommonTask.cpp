@@ -71,7 +71,7 @@ void DrawLayered3D::run(const RenderContextPointer& renderContext, const Inputs&
     // while stereo is enabled triggers a warning
     if (_opaquePass) {
         gpu::doInBatch("DrawLayered3D::run::clear", args->_context, [&](gpu::Batch& batch) {
-            batch.enableStereo(false);
+         //   batch.enableStereo(false);
             batch.clearFramebuffer(gpu::Framebuffer::BUFFER_DEPTH, glm::vec4(), 1.f, 0, false);
         });
     }

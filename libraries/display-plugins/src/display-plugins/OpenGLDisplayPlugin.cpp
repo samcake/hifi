@@ -556,7 +556,7 @@ void OpenGLDisplayPlugin::renderFromTexture(gpu::Batch& batch, const gpu::Textur
     batch.draw(gpu::TRIANGLE_STRIP, 4);
     batch.setResourceTexture(0, nullptr);
 
-    if (copyFbo) {
+    if (copyFbo && destFbo) {
         gpu::Vec4i copyFboRect(0, 0, copyFbo->getWidth(), copyFbo->getHeight());
         gpu::Vec4i sourceRect(scissor.x, scissor.y, scissor.x + scissor.z, scissor.y + scissor.w);
         float aspectRatio = (float)scissor.w / (float) scissor.z; // height/width
