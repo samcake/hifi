@@ -662,7 +662,7 @@ void AmbientOcclusionEffect::run(const render::RenderContextPointer& renderConte
 
     gpu::doInBatch("AmbientOcclusionEffect::run", args->_context, [=](gpu::Batch& batch) {
         PROFILE_RANGE_BATCH(batch, "SSAO");
-        batch.enableStereo(false);
+        //batch.enableStereo(false);
 
         _gpuTimer->begin(batch);
 
@@ -895,7 +895,7 @@ void DebugAmbientOcclusion::run(const render::RenderContextPointer& renderContex
     auto debugPipeline = getDebugPipeline();
     
     gpu::doInBatch("DebugAmbientOcclusion::run", args->_context, [=](gpu::Batch& batch) {
-        batch.enableStereo(false);
+      //  batch.enableStereo(false);
 
         batch.setViewportTransform(sourceViewport);
         batch.setProjectionTransform(glm::mat4());

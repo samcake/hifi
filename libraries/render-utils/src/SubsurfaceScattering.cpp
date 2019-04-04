@@ -489,7 +489,7 @@ void DebugSubsurfaceScattering::run(const render::RenderContextPointer& renderCo
     }
     
     gpu::doInBatch("DebugSubsurfaceScattering::run", args->_context, [=](gpu::Batch& batch) {
-        batch.enableStereo(false);
+       // batch.enableStereo(false);
 
 
         auto viewportSize = std::min(args->_viewport.z, args->_viewport.w) >> 1;

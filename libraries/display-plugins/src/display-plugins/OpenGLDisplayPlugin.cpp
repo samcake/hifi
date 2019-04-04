@@ -383,54 +383,27 @@ void OpenGLDisplayPlugin::customizeContext() {
 #ifdef Q_OS_ANDROID
             gpu::ShaderPointer program = gpu::Shader::createProgram(shader::gpu::program::DrawTextureGammaLinearToSRGB);
 #else
+            gpu::ShaderPointer program = gpu::Shader::createProgram(shader::gpu::program::DrawTexture);
+#endif 
+           _simplePipeline = gpu::Pipeline::create(program, scissorState);
+        }
+        {
+#ifdef Q_OS_ANDROID
+            gpu::ShaderPointer program = gpu::Shader::createProgram(shader::gpu::program::DrawTextureGammaLinearToSRGB);
+#else
             gpu::ShaderPointer program = gpu::Shader::createProgram(shader::gpu::program::DrawTextureGammaSRGBToLinear);
 #endif
             _presentPipeline = gpu::Pipeline::create(program, scissorState);
         }
 
-        
-        // HUD operator
         {
-            gpu::PipelinePointer hudPipeline;
-            {
-                gpu::ShaderPointer program = gpu::Shader::createProgram(shader::gpu::program::DrawTexture);
-                hudPipeline = gpu::Pipeline::create(program, blendState);
-            }
-
-            gpu::PipelinePointer hudMirrorPipeline;
-            {
-                gpu::ShaderPointer program = gpu::Shader::createProgram(shader::gpu::program::DrawTextureMirroredX);
-                hudMirrorPipeline = gpu::Pipeline::create(program, blendState);
-            }
-
-
-            _hudOperator = [=](gpu::Batch& batch, const gpu::TexturePointer& hudTexture, const gpu::FramebufferPointer& compositeFramebuffer, bool mirror) {
-                auto hudStereo = isStereo();
-                auto hudCompositeFramebufferSize = compositeFramebuffer->getSize();
-                std::array<glm::ivec4, 2> hudEyeViewports;
-                for_each_eye([&](Eye eye) {
-                    hudEyeViewports[eye] = eyeViewport(eye);
-                });
-                if (hudPipeline && hudTexture) {
-                  //  batch.enableStereo(false);
-                    batch.setPipeline(mirror ? hudMirrorPipeline : hudPipeline);
-                    batch.setResourceTexture(0, hudTexture);
-                /*    if (hudStereo) {
-                        for_each_eye([&](Eye eye) {
-                            batch.setViewportTransform(hudEyeViewports[eye]);
-                            batch.draw(gpu::TRIANGLE_STRIP, 4);
-                        });
-                    } else {
-                        batch.setViewportTransform(ivec4(uvec2(0), hudCompositeFramebufferSize));
-                  */      batch.draw(gpu::TRIANGLE_STRIP, 4);
-                //    }
-                    batch.setResourceTexture(0, nullptr);
-
-                }
-            };
-
+            gpu::ShaderPointer program = gpu::Shader::createProgram(shader::gpu::program::DrawTexture);
+            _hudPipeline = gpu::Pipeline::create(program, blendState);
         }
-
+        {
+            gpu::ShaderPointer program = gpu::Shader::createProgram(shader::gpu::program::DrawTextureMirroredX);
+            _mirrorHUDPipeline = gpu::Pipeline::create(program, blendState);
+        }
 
         {
             gpu::ShaderPointer program = gpu::Shader::createProgram(shader::gpu::program::DrawTransformedTexture);
@@ -442,12 +415,15 @@ void OpenGLDisplayPlugin::customizeContext() {
             _layeredToSidebysidePipeline = gpu::Pipeline::create(program, blendState);
         }
     }
+    updateCompositeFramebuffer();
 }
 
 void OpenGLDisplayPlugin::uncustomizeContext() {
     _presentPipeline.reset();
     _cursorPipeline.reset();
-    _hudOperator = DEFAULT_HUD_OPERATOR;
+    _hudPipeline.reset();
+    _mirrorHUDPipeline.reset();
+    _compositeFramebuffer.reset();
     withPresentThreadLock([&] {
         _currentFrame.reset();
         _lastFrame = nullptr;
@@ -539,24 +515,30 @@ void OpenGLDisplayPlugin::captureFrame(const std::string& filename) const {
     });
 }
 
+void OpenGLDisplayPlugin::renderFromTexture(gpu::Batch& batch, const gpu::TexturePointer& texture, const glm::ivec4& viewport, const glm::ivec4& scissor) {
+    renderFromTexture(batch, texture, viewport, scissor, nullptr);
+}
 
-void OpenGLDisplayPlugin::renderFromTexture(gpu::Batch& batch, const gpu::TexturePointer& texture, const glm::ivec4& viewport, const glm::ivec4& scissor, const gpu::FramebufferPointer& destFbo, const gpu::FramebufferPointer& copyFbo /*=gpu::FramebufferPointer()*/) {
+void OpenGLDisplayPlugin::renderFromTexture(gpu::Batch& batch, const gpu::TexturePointer& texture, const glm::ivec4& viewport, const glm::ivec4& scissor, const gpu::FramebufferPointer& copyFbo /*=gpu::FramebufferPointer()*/) {
+    auto fbo = gpu::FramebufferPointer();
     batch.enableStereo(false);
     batch.resetViewTransform();
-    batch.setFramebuffer(destFbo);
+    batch.setFramebuffer(fbo);
     batch.clearColorFramebuffer(gpu::Framebuffer::BUFFER_COLOR0, vec4(0));
     batch.setStateScissorRect(scissor);
     batch.setViewportTransform(viewport);
     batch.setResourceTexture(0, texture);
+
     if (texture->getNumSlices() > 1) {
         batch.setPipeline(_layeredToSidebysidePipeline);
     } else {
         batch.setPipeline(_presentPipeline);
     }
+
     batch.draw(gpu::TRIANGLE_STRIP, 4);
     batch.setResourceTexture(0, nullptr);
 
-    if (copyFbo && destFbo) {
+    if (copyFbo) {
         gpu::Vec4i copyFboRect(0, 0, copyFbo->getWidth(), copyFbo->getHeight());
         gpu::Vec4i sourceRect(scissor.x, scissor.y, scissor.x + scissor.z, scissor.y + scissor.w);
         float aspectRatio = (float)scissor.w / (float) scissor.z; // height/width
@@ -580,7 +562,7 @@ void OpenGLDisplayPlugin::renderFromTexture(gpu::Batch& batch, const gpu::Textur
         batch.setViewportTransform(copyFboRect);
         batch.setStateScissorRect(copyFboRect);
         batch.clearColorFramebuffer(gpu::Framebuffer::BUFFER_COLOR0, {0.0f, 0.0f, 0.0f, 1.0f});
-        batch.blit(destFbo, sourceRect, copyFbo, copyRect);
+        batch.blit(fbo, sourceRect, copyFbo, copyRect);
     }
 }
 
@@ -608,7 +590,7 @@ void OpenGLDisplayPlugin::updateFrameData() {
     });
 }
 
-/*<<<<<<< HEAD
+
 std::function<void(gpu::Batch&, const gpu::TexturePointer&, bool mirror)> OpenGLDisplayPlugin::getHUDOperator() {
     auto hudPipeline = _hudPipeline;
     auto hudMirrorPipeline = _mirrorHUDPipeline;
@@ -620,7 +602,8 @@ std::function<void(gpu::Batch&, const gpu::TexturePointer&, bool mirror)> OpenGL
     });
     return [=](gpu::Batch& batch, const gpu::TexturePointer& hudTexture, bool mirror) {
         if (hudPipeline && hudTexture) {
-         //   batch.enableStereo(false);
+
+      //   batch.enableStereo(false);
             batch.setPipeline(mirror ? hudMirrorPipeline : hudPipeline);
             batch.setResourceTexture(0, hudTexture);
        //     if (hudStereo) {
@@ -633,20 +616,17 @@ std::function<void(gpu::Batch&, const gpu::TexturePointer&, bool mirror)> OpenGL
        //         batch.draw(gpu::TRIANGLE_STRIP, 4);
         //    }
             batch.setResourceTexture(0, nullptr);
-
         }
     };
 }
 
 void OpenGLDisplayPlugin::compositePointer() {
-=======*/
-void OpenGLDisplayPlugin::compositePointer(const gpu::FramebufferPointer& compositeFramebuffer) {
     auto& cursorManager = Cursor::Manager::instance();
     const auto& cursorData = _cursorsData[cursorManager.getCursor()->getIcon()];
     auto cursorTransform = DependencyManager::get<CompositorHelper>()->getReticleTransform(glm::mat4());
     render([&](gpu::Batch& batch) {
         batch.setProjectionTransform(mat4());
-        batch.setFramebuffer(compositeFramebuffer);
+        batch.setFramebuffer(_compositeFramebuffer);
         batch.setPipeline(_cursorPipeline);
         batch.setResourceTexture(0, cursorData.texture);
         batch.resetViewTransform();
@@ -657,14 +637,13 @@ void OpenGLDisplayPlugin::compositePointer(const gpu::FramebufferPointer& compos
                 batch.draw(gpu::TRIANGLE_STRIP, 4);
             });
         } else {
-            batch.setViewportTransform(ivec4(uvec2(0), compositeFramebuffer->getSize()));
+            batch.setViewportTransform(ivec4(uvec2(0), _compositeFramebuffer->getSize()));
             batch.draw(gpu::TRIANGLE_STRIP, 4);
         }
         batch.setResourceTexture(0, nullptr);
     });
 }
 
-/*<<<<<<< HEAD
 void OpenGLDisplayPlugin::compositeScene() {
     render([&](gpu::Batch& batch) {
         batch.enableStereo(false);
@@ -673,7 +652,6 @@ void OpenGLDisplayPlugin::compositeScene() {
         batch.setStateScissorRect(ivec4(uvec2(), _compositeFramebuffer->getSize()));
         batch.resetViewTransform();
         batch.setProjectionTransform(mat4());
-        
 
         if (_currentFrame->framebuffer->getRenderBuffer(0)->getNumSlices() > 1) {
             batch.setPipeline(_layeredToSidebysidePipeline);
@@ -695,8 +673,6 @@ void OpenGLDisplayPlugin::compositeLayers() {
         compositeScene();
     }
 
-=======*/
-void OpenGLDisplayPlugin::compositeLayers(const gpu::FramebufferPointer& compositeFramebuffer) {
 #ifdef HIFI_ENABLE_NSIGHT_DEBUG
     if (false) // do not draw the HUD if running nsight debug
 #endif
@@ -710,36 +686,23 @@ void OpenGLDisplayPlugin::compositeLayers(const gpu::FramebufferPointer& composi
 
     {
         PROFILE_RANGE_EX(render_detail, "compositeExtra", 0xff0077ff, (uint64_t)presentCount())
-
-        compositeExtra(compositeFramebuffer);
+        compositeExtra();
     }
 
     // Draw the pointer last so it's on top of everything
     auto compositorHelper = DependencyManager::get<CompositorHelper>();
     if (compositorHelper->getReticleVisible()) {
         PROFILE_RANGE_EX(render_detail, "compositePointer", 0xff0077ff, (uint64_t)presentCount())
-            compositePointer(compositeFramebuffer);
+            compositePointer();
     }
 }
 
-void OpenGLDisplayPlugin::internalPresent(const gpu::FramebufferPointer& compositeFramebuffer) {
+void OpenGLDisplayPlugin::internalPresent() {
     render([&](gpu::Batch& batch) {
         // Note: _displayTexture must currently be the same size as the display.
         uvec2 dims = _displayTexture ? uvec2(_displayTexture->getDimensions()) : getSurfacePixels();
         auto viewport = ivec4(uvec2(0),  dims);
-
-        gpu::TexturePointer finalTexture;
-        if (_displayTexture) {
-            finalTexture = _displayTexture;
-        } else if (compositeFramebuffer) {
-            finalTexture = compositeFramebuffer->getRenderBuffer(0);
-        } else {
-            qCWarning(displayPlugins) << "No valid texture for output";
-        }
-            
-        if (finalTexture) {
-            renderFromTexture(batch, finalTexture, viewport, viewport);
-        } 
+        renderFromTexture(batch, _displayTexture ? _displayTexture : _compositeFramebuffer->getRenderBuffer(0), viewport, viewport);
      });
     swapBuffers();
     _presentRate.increment();
@@ -756,7 +719,7 @@ void OpenGLDisplayPlugin::present() {
     }
     incrementPresentCount();
 
-    if (_currentFrame && _currentFrame->framebuffer) {
+    if (_currentFrame) {
         auto correction = getViewCorrection();
         getGLBackend()->setCameraCorrection(correction, _prevRenderView);
         _prevRenderView = correction * _currentFrame->view;
@@ -776,18 +739,18 @@ void OpenGLDisplayPlugin::present() {
         // Write all layers to a local framebuffer
         {
             PROFILE_RANGE_EX(render, "composite", 0xff00ffff, frameId)
-            compositeLayers(_currentFrame->framebuffer);
+            compositeLayers();
         }
 
         // Take the composite framebuffer and send it to the output device
         {
             PROFILE_RANGE_EX(render, "internalPresent", 0xff00ffff, frameId)
-            internalPresent(_currentFrame->framebuffer);
+            internalPresent();
         }
 
         gpu::Backend::freeGPUMemSize.set(gpu::gl::getFreeDedicatedMemory());
     } else if (alwaysPresent()) {
-        internalPresent(nullptr);
+        internalPresent();
     }
     _movingAveragePresent.addSample((float)(usecTimestampNow() - startPresent));
 }
@@ -844,12 +807,7 @@ bool OpenGLDisplayPlugin::setDisplayTexture(const QString& name) {
 }
 
 QImage OpenGLDisplayPlugin::getScreenshot(float aspectRatio) const {
-    if (!_currentFrame || !_currentFrame->framebuffer) {
-        return QImage();
-    }
-
-    auto compositeFramebuffer = _currentFrame->framebuffer;
-    auto size = compositeFramebuffer->getSize();
+    auto size = _compositeFramebuffer->getSize();
     if (isHmd()) {
         size.x /= 2;
     }
@@ -867,7 +825,7 @@ QImage OpenGLDisplayPlugin::getScreenshot(float aspectRatio) const {
     auto glBackend = const_cast<OpenGLDisplayPlugin&>(*this).getGLBackend();
     QImage screenshot(bestSize.x, bestSize.y, QImage::Format_ARGB32);
     withOtherThreadContext([&] {
-        glBackend->downloadFramebuffer(compositeFramebuffer, ivec4(corner, bestSize), screenshot);
+        glBackend->downloadFramebuffer(_compositeFramebuffer, ivec4(corner, bestSize), screenshot);
     });
     return screenshot.mirrored(false, true);
 }
@@ -919,7 +877,7 @@ bool OpenGLDisplayPlugin::beginFrameRender(uint32_t frameIndex) {
 }
 
 ivec4 OpenGLDisplayPlugin::eyeViewport(Eye eye) const {
-    auto vpSize = glm::uvec2(getRecommendedRenderSize());
+    uvec2 vpSize = _compositeFramebuffer->getSize();
     vpSize.x /= 2;
     uvec2 vpPos;
     if (eye == Eye::Right) {
@@ -950,6 +908,14 @@ void OpenGLDisplayPlugin::render(std::function<void(gpu::Batch& batch)> f) {
 }
 
 OpenGLDisplayPlugin::~OpenGLDisplayPlugin() {
+}
+
+void OpenGLDisplayPlugin::updateCompositeFramebuffer() {
+    auto renderSize = glm::uvec2(getRecommendedRenderSize());
+    if (!_compositeFramebuffer || _compositeFramebuffer->getSize() != renderSize) {
+        _compositeFramebuffer = gpu::FramebufferPointer(gpu::Framebuffer::create("OpenGLDisplayPlugin::composite", gpu::Element::COLOR_RGBA_32, renderSize.x, renderSize.y));
+       // _compositeFramebuffer = gpu::FramebufferPointer(gpu::Framebuffer::create("OpenGLDisplayPlugin::composite", gpu::Element::COLOR_SRGBA_32, renderSize.x, renderSize.y));
+    }
 }
 
 void OpenGLDisplayPlugin::copyTextureToQuickFramebuffer(NetworkTexturePointer networkTexture, QOpenGLFramebufferObject* target, GLsync* fenceSync) {

@@ -317,7 +317,7 @@ void DrawHighlight::run(const render::RenderContextPointer& renderContext, const
 
                 auto primaryFramebuffer = inputs.get4();
                 gpu::doInBatch("DrawHighlight::run", args->_context, [&](gpu::Batch& batch) {
-                    batch.enableStereo(false);
+                   // batch.enableStereo(false);
                     batch.setFramebuffer(destinationFrameBuffer);
 
                     batch.setViewportTransform(args->_viewport);
