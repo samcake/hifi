@@ -39,6 +39,7 @@ protected:
     gpu::TexturePointer _depthStencilTexture;
 
     glm::ivec2 _frameSize;
+    uint32_t _frameNumLayers{ 0 };
 
     void allocateColorBuffer(const gpu::FramebufferPointer& primaryFrameBuffer);
     void allocateDepthBuffer(const gpu::FramebufferPointer& primaryFrameBuffer);

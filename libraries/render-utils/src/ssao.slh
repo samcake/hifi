@@ -168,6 +168,11 @@ float getAngleDitheringSplit() {
     return isDitheringEnabled() * frameParams._angleInfo.x;
 }
 
+float getAngleDitheringPixelPos(in ivec2 pixelPos) {
+    // Hash function used in the AlchemyAO paper
+    return isDitheringEnabled() *  float((3 * pixelPos.x ^ pixelPos.y + pixelPos.x * pixelPos.y) * 10);
+}
+
 float getAngleDithering(in ivec2 pixelPos) {
 #if SSAO_USE_QUAD_SPLIT
     return getAngleDitheringSplit();
@@ -175,11 +180,6 @@ float getAngleDithering(in ivec2 pixelPos) {
     // Hash function used in the AlchemyAO paper
     return getAngleDitheringPixelPos(pixelPos);
 #endif
-}
-
-float getAngleDitheringPixelPos(in ivec2 pixelPos) {
-    // Hash function used in the AlchemyAO paper
-    return isDitheringEnabled() *  float((3 * pixelPos.x ^ pixelPos.y + pixelPos.x * pixelPos.y) * 10);
 }
 
 float evalDiskRadius(float Zeye, vec2 sideImageSize) {

@@ -46,11 +46,13 @@ HighlightResources::HighlightResources() {
 
 void HighlightResources::update(const gpu::FramebufferPointer& primaryFrameBuffer) {
     auto newFrameSize = glm::ivec2(primaryFrameBuffer->getSize());
+    auto newFrameNumLayers = primaryFrameBuffer->getNumLayers();
 
     // If the buffer size changed, we need to delete our FBOs and recreate them at the
     // new correct dimensions.
-    if (_frameSize != newFrameSize) {
+    if ((_frameSize != newFrameSize) || (_frameNumLayers != newFrameNumLayers)) {
         _frameSize = newFrameSize;
+        _frameNumLayers = newFrameNumLayers;
         allocateDepthBuffer(primaryFrameBuffer);
         allocateColorBuffer(primaryFrameBuffer);
     } else {
@@ -63,22 +65,22 @@ void HighlightResources::update(const gpu::FramebufferPointer& primaryFrameBuffe
 
         // The primaryFrameBuffer render buffer can change
         if (_colorFrameBuffer->getRenderBuffer(0) != primaryFrameBuffer->getRenderBuffer(0)) {
-            _colorFrameBuffer->setRenderBuffer(0, primaryFrameBuffer->getRenderBuffer(0));
+            _colorFrameBuffer->setRenderBuffer(0, primaryFrameBuffer->getRenderBuffer(0), gpu::TextureView::UNDEFINED_SUBRESOURCE);
         }
     }
 }
 
 void HighlightResources::allocateColorBuffer(const gpu::FramebufferPointer& primaryFrameBuffer) {
     _colorFrameBuffer = gpu::FramebufferPointer(gpu::Framebuffer::create("primaryWithStencil"));
-    _colorFrameBuffer->setRenderBuffer(0, primaryFrameBuffer->getRenderBuffer(0));
-    _colorFrameBuffer->setStencilBuffer(_depthStencilTexture, _depthStencilTexture->getTexelFormat());
+    _colorFrameBuffer->setRenderBuffer(0, primaryFrameBuffer->getRenderBuffer(0), gpu::TextureView::UNDEFINED_SUBRESOURCE);
+    _colorFrameBuffer->setStencilBuffer(_depthStencilTexture, _depthStencilTexture->getTexelFormat(), gpu::TextureView::UNDEFINED_SUBRESOURCE);
 }
 
 void HighlightResources::allocateDepthBuffer(const gpu::FramebufferPointer& primaryFrameBuffer) {
     auto depthFormat = gpu::Element(gpu::SCALAR, gpu::UINT32, gpu::DEPTH_STENCIL);
-    _depthStencilTexture = gpu::TexturePointer(gpu::Texture::createRenderBuffer(depthFormat, _frameSize.x, _frameSize.y));
+    _depthStencilTexture = gpu::TexturePointer(gpu::Texture::createRenderBufferArray(depthFormat, _frameSize.x, _frameSize.y, _frameNumLayers));
     _depthFrameBuffer = gpu::FramebufferPointer(gpu::Framebuffer::create("highlightDepth"));
-    _depthFrameBuffer->setDepthStencilBuffer(_depthStencilTexture, depthFormat);
+    _depthFrameBuffer->setDepthStencilBuffer(_depthStencilTexture, depthFormat, gpu::TextureView::UNDEFINED_SUBRESOURCE);
 }
 
 gpu::FramebufferPointer HighlightResources::getDepthFramebuffer() {
