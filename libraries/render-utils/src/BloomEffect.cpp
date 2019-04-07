@@ -50,18 +50,19 @@ void BloomThreshold::run(const render::RenderContextPointer& renderContext, cons
 
     auto inputBuffer = inputFrameBuffer->getRenderBuffer(0);
     auto bufferSize = gpu::Vec2u(inputBuffer->getDimensions());
+    auto bufferNumLayers = inputBuffer->getNumSlices();
     const auto downSamplingFactor = _parameters.get()._sampleCount;
 
     // Downsample resolution
     bufferSize.x /= downSamplingFactor;
     bufferSize.y /= downSamplingFactor;
 
-    if (!_outputBuffer || _outputBuffer->getSize() != bufferSize) {
-        auto colorTexture = gpu::TexturePointer(gpu::Texture::createRenderBuffer(inputBuffer->getTexelFormat(), bufferSize.x, bufferSize.y,
+    if (!_outputBuffer || (_outputBuffer->getSize() != bufferSize) || (_outputBuffer->getNumLayers() != bufferNumLayers)) {
+        auto colorTexture = gpu::TexturePointer(gpu::Texture::createRenderBufferArray(inputBuffer->getTexelFormat(), bufferSize.x, bufferSize.y, bufferNumLayers,
                                                 gpu::Texture::SINGLE_MIP, gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_LINEAR_MIP_POINT, gpu::Sampler::WRAP_CLAMP)));
 
         _outputBuffer = gpu::FramebufferPointer(gpu::Framebuffer::create("BloomThreshold"));
-        _outputBuffer->setRenderBuffer(0, colorTexture);
+        _outputBuffer->setRenderBuffer(0, colorTexture, gpu::TextureView::UNDEFINED_SUBRESOURCE);
 
         _parameters.edit()._deltaUV = { 1.0f / bufferSize.x, 1.0f / bufferSize.y };
     }
@@ -163,7 +164,7 @@ void BloomDraw::run(const render::RenderContextPointer& renderContext, const Inp
         const auto framebufferSize = frameBuffer->getSize();
 
         if (!_pipeline) {
-            gpu::ShaderPointer program = gpu::Shader::createProgram(shader::gpu::program::drawTransformUnitQuadTextureOpaque);
+            gpu::ShaderPointer program = gpu::Shader::createProgram(shader::gpu::program::drawTransformUnitQuadStereoTextureOpaque);
             gpu::StatePointer state = gpu::StatePointer(new gpu::State());
             state->setDepthTest(gpu::State::DepthTest(false, false));
             state->setBlendFunction(true, gpu::State::ONE, gpu::State::BLEND_OP_ADD, gpu::State::ONE,
