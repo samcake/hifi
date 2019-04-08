@@ -110,32 +110,66 @@ public:
                     }
 
                     if (gltexture) {
-                        if (gltexture->_target == GL_TEXTURE_2D) {
-                            glFramebufferTexture2D(GL_FRAMEBUFFER, colorAttachments[unit], GL_TEXTURE_2D, gltexture->_texture, 0);
+                         if (surfaceSubresource != gpu::TextureView::UNDEFINED_SUBRESOURCE) {
+                            switch (gltexture->_target) {
+                                case GL_TEXTURE_2D:
+                                    glFramebufferTexture(GL_FRAMEBUFFER, colorAttachments[unit], gltexture->_texture, 0);
 #if 0
-                            if (glTextureFoveationParametersQCOM && focalPoint.x != -1.0f) {
-                                static GLint FOVEATION_QUERY = 0;
-                                static std::once_flag once;
-                                std::call_once(once, [&]{
-                                    glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_FOVEATED_FEATURE_QUERY_QCOM, &FOVEATION_QUERY);
-                                });
-                                static const float foveaArea = 4.0f;
-                                static const float gain = 16.0f;
-                                GLESBackend::GLESTexture* glestexture = static_cast<GLESBackend::GLESTexture*>(gltexture);
-                                glestexture->withPreservedTexture([=]{
-                                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_FOVEATED_FEATURE_BITS_QCOM, GL_FOVEATION_ENABLE_BIT_QCOM | GL_FOVEATION_SCALED_BIN_METHOD_BIT_QCOM);
-                                    glTextureFoveationParametersQCOM(_id, 0, 0, -focalPoint.x, focalPoint.y, gain * 2.0f, gain, foveaArea);
-                                    glTextureFoveationParametersQCOM(_id, 0, 1, focalPoint.x, focalPoint.y, gain * 2.0f, gain, foveaArea);
-                                });
+                                    if (glTextureFoveationParametersQCOM && focalPoint.x != -1.0f) {
+                                        static GLint FOVEATION_QUERY = 0;
+                                        static std::once_flag once;
+                                        std::call_once(once, [&]{
+                                            glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_FOVEATED_FEATURE_QUERY_QCOM, &FOVEATION_QUERY);
+                                        });
+                                        static const float foveaArea = 4.0f;
+                                        static const float gain = 16.0f;
+                                        GLESBackend::GLESTexture* glestexture = static_cast<GLESBackend::GLESTexture*>(gltexture);
+                                        glestexture->withPreservedTexture([=]{
+                                            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_FOVEATED_FEATURE_BITS_QCOM, GL_FOVEATION_ENABLE_BIT_QCOM | GL_FOVEATION_SCALED_BIN_METHOD_BIT_QCOM);
+                                            glTextureFoveationParametersQCOM(_id, 0, 0, -focalPoint.x, focalPoint.y, gain * 2.0f, gain, foveaArea);
+                                            glTextureFoveationParametersQCOM(_id, 0, 1, focalPoint.x, focalPoint.y, gain * 2.0f, gain, foveaArea);
+                                        });
 
-                            }
+                                    }
 #endif
-                        } else if (gltexture->_target == GL_TEXTURE_2D_MULTISAMPLE) {
-                            glFramebufferTexture2D(GL_FRAMEBUFFER, colorAttachments[unit], GL_TEXTURE_2D_MULTISAMPLE, gltexture->_texture, 0);
+                                    break;
+                                case GL_TEXTURE_2D_MULTISAMPLE:
+                                    glFramebufferTexture(GL_FRAMEBUFFER, colorAttachments[unit], gltexture->_texture, 0);
+                                    break;
+                                case GL_TEXTURE_2D_ARRAY:
+                                    glFramebufferTextureLayer(GL_FRAMEBUFFER, colorAttachments[unit], gltexture->_texture, 0,
+                                                                   (GLuint)surfaceSubresource);
+                                    break;
+                                case GL_TEXTURE_2D_MULTISAMPLE_ARRAY:
+                                    glFramebufferTextureLayer(GL_FRAMEBUFFER, colorAttachments[unit], gltexture->_texture, 0,
+                                                                   (GLuint)surfaceSubresource);
+                                    break;
+                                default:
+                                    glFramebufferTexture(GL_FRAMEBUFFER, colorAttachments[unit], 0, 0);
+                                    // not a valid path
+                                    break;
+                            }
                         } else {
-                            glFramebufferTextureLayer(GL_FRAMEBUFFER, colorAttachments[unit], gltexture->_texture, 0,
-                                                      b._subresource);
+                            switch (gltexture->_target) {
+                                case GL_TEXTURE_2D:
+                                    glFramebufferTexture(GL_FRAMEBUFFER, colorAttachments[unit], gltexture->_texture, 0);
+                                    break;
+                                case GL_TEXTURE_2D_MULTISAMPLE:
+                                    glFramebufferTexture(GL_FRAMEBUFFER, colorAttachments[unit], gltexture->_texture, 0);
+                                    break;
+                                case GL_TEXTURE_2D_ARRAY:
+                                    glFramebufferTexture(GL_FRAMEBUFFER, colorAttachments[unit], gltexture->_texture, 0);
+                                    break;
+                                case GL_TEXTURE_2D_MULTISAMPLE_ARRAY:
+                                    glFramebufferTexture(GL_FRAMEBUFFER, colorAttachments[unit], gltexture->_texture, 0);
+                                    break;
+                                default:
+                                    glFramebufferTexture(GL_FRAMEBUFFER, colorAttachments[unit], 0, 0);
+                                    // not a valid path
+                                    break;
+                            }
                         }
+
                         _colorBuffers.push_back(colorAttachments[unit]);
                     } else {
                         glFramebufferTexture2D(GL_FRAMEBUFFER, colorAttachments[unit], GL_TEXTURE_2D, 0, 0);
@@ -162,13 +196,44 @@ public:
             }
 
             if (gltexture) {
-                if (gltexture->_target == GL_TEXTURE_2D) {
-                    glFramebufferTexture2D(GL_FRAMEBUFFER, attachement, GL_TEXTURE_2D, gltexture->_texture, 0);
-                } else if (gltexture->_target == GL_TEXTURE_2D_MULTISAMPLE) {
-                    glFramebufferTexture2D(GL_FRAMEBUFFER, attachement, GL_TEXTURE_2D_MULTISAMPLE, gltexture->_texture, 0);
+                if (surfaceSubresource != gpu::TextureView::UNDEFINED_SUBRESOURCE) {
+                    switch (gltexture->_target) {
+                        case GL_TEXTURE_2D:
+                            glFramebufferTexture(GL_FRAMEBUFFER, attachement, gltexture->_texture, 0);
+                            break;
+                        case GL_TEXTURE_2D_MULTISAMPLE:
+                            glFramebufferTexture(GL_FRAMEBUFFER, attachement, gltexture->_texture, 0);
+                            break;
+                        case GL_TEXTURE_2D_ARRAY:
+                            glFramebufferTextureLayer(GL_FRAMEBUFFER, attachement, gltexture->_texture, 0, (GLuint)surfaceSubresource);
+                            break;
+                        case GL_TEXTURE_2D_MULTISAMPLE_ARRAY:
+                            glFramebufferTextureLayer(GL_FRAMEBUFFER, attachement, gltexture->_texture, 0, (GLuint)surfaceSubresource);
+                            break;
+                        default:
+                            glFramebufferTexture(GL_FRAMEBUFFER, attachement, 0, 0);
+                            // not a valid path
+                            break;
+                    }
                 } else {
-                    glFramebufferTextureLayer(GL_FRAMEBUFFER, attachement, gltexture->_texture, 0,
-                                              _gpuObject.getDepthStencilBufferSubresource());
+                    switch (gltexture->_target) {
+                        case GL_TEXTURE_2D:
+                            glFramebufferTexture(GL_FRAMEBUFFER, attachement, gltexture->_texture, 0);
+                            break;
+                        case GL_TEXTURE_2D_MULTISAMPLE:
+                            glFramebufferTexture(GL_FRAMEBUFFER, attachement, gltexture->_texture, 0);
+                            break;
+                        case GL_TEXTURE_2D_ARRAY:
+                            glFramebufferTexture(GL_FRAMEBUFFER, attachement, gltexture->_texture, 0);
+                            break;
+                        case GL_TEXTURE_2D_MULTISAMPLE_ARRAY:
+                            glFramebufferTexture(GL_FRAMEBUFFER, attachement, gltexture->_texture, 0);
+                            break;
+                        default:
+                            glFramebufferTexture(GL_FRAMEBUFFER, attachement, 0, 0);
+                            // not a valid path
+                            break;
+                    }
                 }
             } else {
                 glFramebufferTexture2D(GL_FRAMEBUFFER, attachement, GL_TEXTURE_2D, 0, 0);
@@ -223,19 +288,56 @@ void GLESBackend::do_blit(const Batch& batch, size_t paramOffset) {
         dstvp[i] = batch._params[paramOffset + 6 + i]._int;
     }
 
-    // Assign dest framebuffer if not bound already
-    auto newDrawFBO = getFramebufferID(dstframebuffer);
-    if (_output._drawFBO != newDrawFBO) {
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, newDrawFBO);
-    }
+    auto fboSrc = syncGPUObject(*srcframebuffer);
+    auto fboDst = syncGPUObject(*dstframebuffer);
 
+    // Assign dest framebuffer if not bound already
+    auto srcFbo = fboSrc->_id; //getFramebufferID(srcframebuffer);
+    auto destFbo = fboDst->_id; //getFramebufferID(dstframebuffer);
+    auto newDrawFbo = destFbo;
+
+    // Assign dst to draw if not draw aleady
+    if (_output._drawFBO != destFbo) {
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, destFbo);
+    }
     // always bind the read fbo
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, getFramebufferID(srcframebuffer));
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, srcFbo);
 
     // Blit!
     glBlitFramebuffer(srcvp.x, srcvp.y, srcvp.z, srcvp.w, 
         dstvp.x, dstvp.y, dstvp.z, dstvp.w,
         GL_COLOR_BUFFER_BIT, GL_LINEAR);
+
+    // Deal with extra layers
+    if (srcframebuffer->isLayered() && dstframebuffer->isLayered()) {
+        auto numLayers = std::max(srcframebuffer->getNumLayers(), dstframebuffer->getNumLayers());
+        std::vector<GLuint> layerBliters(2, 0);
+        glCreateFramebuffers(2, layerBliters.data());
+
+        auto srcSurface = fboSrc->_colorBuffers[0];
+        auto dstSurface = fboDst->_colorBuffers[0];
+        auto srcSurfaceTexture = fboSrc->_gpuObject.getRenderBuffers()[0]._texture;
+        auto srcSurfaceTexturegl = syncGPUObject(srcSurfaceTexture);
+        auto dstSurfaceTexture = fboDst->_gpuObject.getRenderBuffers()[0]._texture;
+        auto dstSurfaceTexturegl = syncGPUObject(dstSurfaceTexture);
+
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, layerBliters[0]);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, layerBliters[1]);
+
+        for (int l = 1; l < numLayers; l++) {
+            glFramebufferTextureLayer(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, srcSurfaceTexturegl->_texture, 0, (GLuint)l);
+            glFramebufferTextureLayer(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, dstSurfaceTexturegl->_texture, 0, (GLuint)l);
+            glBlitFramebuffer(
+                srcvp.x, srcvp.y, srcvp.z, srcvp.w,
+                dstvp.x, dstvp.y, dstvp.z, dstvp.w,
+                GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        }
+        
+        newDrawFbo = layerBliters[1];
+
+        // Restore state
+        glDeleteFramebuffers(2, layerBliters.data());
+    }
 
     // Always clean the read fbo to 0
     glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);

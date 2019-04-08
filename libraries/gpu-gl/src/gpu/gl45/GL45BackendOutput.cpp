@@ -185,7 +185,6 @@ public:
         // Now check for completness
         _status = glCheckNamedFramebufferStatus(_id, GL_DRAW_FRAMEBUFFER);
 
-        // restore the current framebuffer
         checkStatus();
     }
 
@@ -250,8 +249,8 @@ void GL45Backend::do_blit(const Batch& batch, size_t paramOffset) {
         
         glDeleteFramebuffers(2, layerBliters.data());
     }
-    (void) CHECK_GL_ERROR();
 
+    (void) CHECK_GL_ERROR();
 }
 
 } }

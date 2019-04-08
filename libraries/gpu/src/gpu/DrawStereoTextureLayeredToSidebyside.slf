@@ -15,15 +15,17 @@
 
 
 LAYOUT(binding=0) uniform sampler2DArray colorMap;
+//LAYOUT(binding=0) uniform sampler2D colorMap;
 
 layout(location=0) in vec2 varTexCoord0;
 layout(location=0) out vec4 outFragColor;
 
 void main(void) {
     // layered to side by side...
-    int side = int(varTexCoord0.x > 0.5);
+    float side = float(varTexCoord0.x > 0.5);
     float u = 2.0 * (varTexCoord0.x - 0.5 * side);
     outFragColor = texture(colorMap, vec3(u, varTexCoord0.y, side) );
+  //  outFragColor = texture(colorMap, varTexCoord0);
     outFragColor.a = 1.0;
 }
 

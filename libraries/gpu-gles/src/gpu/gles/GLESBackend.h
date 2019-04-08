@@ -44,6 +44,7 @@ public:
     
     static const std::string GLES_VERSION;
     const std::string& getVersion() const override { return GLES_VERSION; }
+    StereoSurfaceLayout getStereoSurfaceLayout() const override { return StereoSurfaceLayout::LAYERED; }
 
     class GLESTexture : public GLTexture {
         using Parent = GLTexture;
