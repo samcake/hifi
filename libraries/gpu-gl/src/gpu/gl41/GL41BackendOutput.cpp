@@ -249,7 +249,7 @@ void GL41Backend::do_blit(const Batch& batch, size_t paramOffset) {
     if (srcframebuffer->isLayered() && dstframebuffer->isLayered()) {
         auto numLayers = std::max(srcframebuffer->getNumLayers(), dstframebuffer->getNumLayers());
         std::vector<GLuint> layerBliters(2, 0);
-        glCreateFramebuffers(2, layerBliters.data());
+        glGenFramebuffers(2, layerBliters.data());
 
         auto srcSurface = fboSrc->_colorBuffers[0];
         auto dstSurface = fboDst->_colorBuffers[0];

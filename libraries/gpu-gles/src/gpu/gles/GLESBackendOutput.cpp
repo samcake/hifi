@@ -102,6 +102,7 @@ public:
                 auto backend = _backend.lock();
                 for (auto& b : _gpuObject.getRenderBuffers()) {
                     surface = b._texture;
+                    auto surfaceSubresource = b._subresource;
                     if (surface) {
                         Q_ASSERT(TextureUsageType::RENDERBUFFER == surface->getUsageType());
                         gltexture = backend->syncGPUObject(surface);
@@ -189,6 +190,7 @@ public:
 
         if (_gpuObject.getDepthStamp() != _depthStamp) {
             auto backend = _backend.lock();
+            auto surfaceSubresource = _gpuObject.getDepthStencilBufferSubresource();
             auto surface = _gpuObject.getDepthStencilBuffer();
             if (_gpuObject.hasDepthStencil() && surface) {
                 Q_ASSERT(TextureUsageType::RENDERBUFFER == surface->getUsageType());
@@ -312,7 +314,7 @@ void GLESBackend::do_blit(const Batch& batch, size_t paramOffset) {
     if (srcframebuffer->isLayered() && dstframebuffer->isLayered()) {
         auto numLayers = std::max(srcframebuffer->getNumLayers(), dstframebuffer->getNumLayers());
         std::vector<GLuint> layerBliters(2, 0);
-        glCreateFramebuffers(2, layerBliters.data());
+        glGenFramebuffers(2, layerBliters.data());
 
         auto srcSurface = fboSrc->_colorBuffers[0];
         auto dstSurface = fboDst->_colorBuffers[0];
@@ -343,7 +345,7 @@ void GLESBackend::do_blit(const Batch& batch, size_t paramOffset) {
     glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 
     // Restore draw fbo if changed
-    if (_output._drawFBO != newDrawFBO) {
+    if (_output._drawFBO != newDrawFbo) {
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _output._drawFBO);
     }
 
