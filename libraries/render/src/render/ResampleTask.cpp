@@ -39,7 +39,7 @@ gpu::FramebufferPointer HalfDownsample::getResampledFrameBuffer(const gpu::Frame
 
         auto sampler = gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_LINEAR_MIP_POINT);
         auto target = gpu::Texture::createRenderBufferArray(sourceFramebuffer->getRenderBuffer(0)->getTexelFormat(), resampledFramebufferSize.x, resampledFramebufferSize.y, numLayers, gpu::Texture::SINGLE_MIP, sampler);
-        _destinationFrameBuffer->setRenderBuffer(0, target);
+        _destinationFrameBuffer->setRenderBuffer(0, target, gpu::TextureView::UNDEFINED_SUBRESOURCE);
     }
     return _destinationFrameBuffer;
 }
@@ -52,7 +52,7 @@ void HalfDownsample::run(const RenderContextPointer& renderContext, const gpu::F
     resampledFrameBuffer = getResampledFrameBuffer(sourceFramebuffer);
 
     if (!_pipeline) {
-        gpu::ShaderPointer program = gpu::Shader::createProgram(shader::gpu::program::drawTransformUnitQuadTextureOpaque);
+        gpu::ShaderPointer program = gpu::Shader::createProgram(shader::gpu::program::drawTransformUnitQuadStereoTextureOpaque);
         gpu::StatePointer state = gpu::StatePointer(new gpu::State());
         state->setDepthTest(gpu::State::DepthTest(false, false));
         _pipeline = gpu::Pipeline::create(program, state);
@@ -96,7 +96,7 @@ gpu::FramebufferPointer Upsample::getResampledFrameBuffer(const gpu::Framebuffer
 
         auto sampler = gpu::Sampler(gpu::Sampler::FILTER_MIN_MAG_LINEAR);
         auto target = gpu::Texture::createRenderBufferArray(sourceFramebuffer->getRenderBuffer(0)->getTexelFormat(), resampledFramebufferSize.x, resampledFramebufferSize.y, numLayers, gpu::Texture::SINGLE_MIP, sampler);
-        _destinationFrameBuffer->setRenderBuffer(0, target);
+        _destinationFrameBuffer->setRenderBuffer(0, target, gpu::TextureView::UNDEFINED_SUBRESOURCE);
     }
     return _destinationFrameBuffer;
 }
@@ -109,7 +109,7 @@ void Upsample::run(const RenderContextPointer& renderContext, const gpu::Framebu
     resampledFrameBuffer = getResampledFrameBuffer(sourceFramebuffer);
     if (resampledFrameBuffer != sourceFramebuffer) {
         if (!_pipeline) {
-            gpu::ShaderPointer program = gpu::Shader::createProgram(shader::gpu::program::drawTransformUnitQuadTextureOpaque);
+            gpu::ShaderPointer program = gpu::Shader::createProgram(shader::gpu::program::drawTransformUnitQuadStereoTextureOpaque);
             gpu::StatePointer state = gpu::StatePointer(new gpu::State());
             state->setDepthTest(gpu::State::DepthTest(false, false));
             _pipeline = gpu::Pipeline::create(program, state);
