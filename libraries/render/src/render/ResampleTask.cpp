@@ -111,7 +111,6 @@ void Upsample::run(const RenderContextPointer& renderContext, const gpu::Framebu
         if (!_pipeline) {
             gpu::ShaderPointer program = gpu::Shader::createProgram(shader::gpu::program::drawTransformUnitQuadStereoTextureOpaque);
             gpu::StatePointer state = gpu::StatePointer(new gpu::State());
-            state->setDepthTest(gpu::State::DepthTest(false, false));
             _pipeline = gpu::Pipeline::create(program, state);
         }
 
@@ -119,8 +118,6 @@ void Upsample::run(const RenderContextPointer& renderContext, const gpu::Framebu
         glm::ivec4 viewport{ 0, 0, bufferSize.x, bufferSize.y };
 
         gpu::doInBatch("Upsample::run", args->_context, [&](gpu::Batch& batch) {
-       //     batch.enableStereo(false);
-
             batch.setFramebuffer(resampledFrameBuffer);
 
             batch.setViewportTransform(viewport);
