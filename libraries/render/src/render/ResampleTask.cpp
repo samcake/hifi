@@ -52,9 +52,8 @@ void HalfDownsample::run(const RenderContextPointer& renderContext, const gpu::F
     resampledFrameBuffer = getResampledFrameBuffer(sourceFramebuffer);
 
     if (!_pipeline) {
-        gpu::ShaderPointer program = gpu::Shader::createProgram(shader::gpu::program::drawTransformUnitQuadStereoTextureOpaque);
+        gpu::ShaderPointer program = gpu::Shader::createProgram(shader::gpu::program::DrawViewportStereoTextureOpaque);
         gpu::StatePointer state = gpu::StatePointer(new gpu::State());
-        state->setDepthTest(gpu::State::DepthTest(false, false));
         _pipeline = gpu::Pipeline::create(program, state);
     }
 
@@ -62,16 +61,9 @@ void HalfDownsample::run(const RenderContextPointer& renderContext, const gpu::F
     glm::ivec4 viewport{ 0, 0, bufferSize.x, bufferSize.y };
 
     gpu::doInBatch("HalfDownsample::run", args->_context, [&](gpu::Batch& batch) {
-     //   batch.enableStereo(false);
-
         batch.setFramebuffer(resampledFrameBuffer);
-
         batch.setViewportTransform(viewport);
-        batch.setProjectionTransform(glm::mat4());
-        batch.resetViewTransform();
         batch.setPipeline(_pipeline);
-
-        batch.setModelTransform(gpu::Framebuffer::evalSubregionTexcoordTransform(bufferSize, viewport));
         batch.setResourceTexture(0, sourceFramebuffer->getRenderBuffer(0));
         batch.draw(gpu::TRIANGLE_STRIP, 4);
     });
@@ -109,7 +101,7 @@ void Upsample::run(const RenderContextPointer& renderContext, const gpu::Framebu
     resampledFrameBuffer = getResampledFrameBuffer(sourceFramebuffer);
     if (resampledFrameBuffer != sourceFramebuffer) {
         if (!_pipeline) {
-            gpu::ShaderPointer program = gpu::Shader::createProgram(shader::gpu::program::drawTransformUnitQuadStereoTextureOpaque);
+            gpu::ShaderPointer program = gpu::Shader::createProgram(shader::gpu::program::DrawViewportStereoTextureOpaque);
             gpu::StatePointer state = gpu::StatePointer(new gpu::State());
             _pipeline = gpu::Pipeline::create(program, state);
         }
@@ -119,13 +111,8 @@ void Upsample::run(const RenderContextPointer& renderContext, const gpu::Framebu
 
         gpu::doInBatch("Upsample::run", args->_context, [&](gpu::Batch& batch) {
             batch.setFramebuffer(resampledFrameBuffer);
-
             batch.setViewportTransform(viewport);
-            batch.setProjectionTransform(glm::mat4());
-            batch.resetViewTransform();
             batch.setPipeline(_pipeline);
-
-            batch.setModelTransform(gpu::Framebuffer::evalSubregionTexcoordTransform(bufferSize, viewport));
             batch.setResourceTexture(0, sourceFramebuffer->getRenderBuffer(0));
             batch.draw(gpu::TRIANGLE_STRIP, 4);
         });

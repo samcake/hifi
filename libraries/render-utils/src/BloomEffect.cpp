@@ -164,7 +164,7 @@ void BloomDraw::run(const render::RenderContextPointer& renderContext, const Inp
         const auto framebufferSize = frameBuffer->getSize();
 
         if (!_pipeline) {
-            gpu::ShaderPointer program = gpu::Shader::createProgram(shader::gpu::program::drawTransformUnitQuadStereoTextureOpaque);
+            gpu::ShaderPointer program = gpu::Shader::createProgram(shader::gpu::program::DrawViewportStereoTextureOpaque);
             gpu::StatePointer state = gpu::StatePointer(new gpu::State());
             state->setDepthTest(gpu::State::DepthTest(false, false));
             state->setBlendFunction(true, gpu::State::ONE, gpu::State::BLEND_OP_ADD, gpu::State::ONE,
@@ -173,16 +173,9 @@ void BloomDraw::run(const render::RenderContextPointer& renderContext, const Inp
         }
 
         gpu::doInBatch("BloomDraw::run", args->_context, [&](gpu::Batch& batch) {
-         //   batch.enableStereo(false);
-
             batch.setFramebuffer(frameBuffer);
-
             batch.setViewportTransform(args->_viewport);
-            batch.setProjectionTransform(glm::mat4());
-            batch.resetViewTransform();
             batch.setPipeline(_pipeline);
-
-            batch.setModelTransform(gpu::Framebuffer::evalSubregionTexcoordTransform(framebufferSize, args->_viewport));
             batch.setResourceTexture(0, bloomFrameBuffer->getRenderBuffer(0));
             batch.draw(gpu::TRIANGLE_STRIP, 4);
         });
@@ -223,8 +216,6 @@ void DebugBloom::run(const render::RenderContextPointer& renderContext, const In
     }
 
     gpu::doInBatch("DebugBloom::run", args->_context, [&](gpu::Batch& batch) {
-        //batch.enableStereo(false);
-
         batch.setFramebuffer(frameBuffer);
 
         batch.setViewportTransform(args->_viewport);

@@ -444,7 +444,7 @@ gpu::PipelinePointer _showLUTPipeline;
 
 gpu::PipelinePointer DebugSubsurfaceScattering::getShowLUTPipeline() {
     if (!_showLUTPipeline) {
-        gpu::ShaderPointer program = gpu::Shader::createProgram(shader::gpu::program::drawUnitQuatTextureOpaque);
+        gpu::ShaderPointer program = gpu::Shader::createProgram(shader::gpu::program::DrawViewportTextureOpaque);
         gpu::StatePointer state = gpu::StatePointer(new gpu::State());
         _showLUTPipeline = gpu::Pipeline::create(program, state);
     }
