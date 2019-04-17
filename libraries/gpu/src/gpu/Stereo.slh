@@ -97,6 +97,12 @@ int gpu_StereoSide() {
     return 0;
 }
 #endif
+
+// Fetch an eye texture potentially stereo
+vec4 gpu_sideTexture(sampler2DArray s, vec2 uv) {
+    return texture(s, vec3(uv, float(gpu_StereoSide())));
+}
+
 #endif // GPU_PIXEL_SHADER
 
 <@endif@>

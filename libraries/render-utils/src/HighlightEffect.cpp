@@ -71,6 +71,7 @@ void HighlightResources::update(const gpu::FramebufferPointer& primaryFrameBuffe
 }
 
 void HighlightResources::allocateColorBuffer(const gpu::FramebufferPointer& primaryFrameBuffer) {
+    
     _colorFrameBuffer = gpu::FramebufferPointer(gpu::Framebuffer::create("primaryWithStencil"));
     _colorFrameBuffer->setRenderBuffer(0, primaryFrameBuffer->getRenderBuffer(0), gpu::TextureView::UNDEFINED_SUBRESOURCE);
     _colorFrameBuffer->setStencilBuffer(_depthStencilTexture, _depthStencilTexture->getTexelFormat(), gpu::TextureView::UNDEFINED_SUBRESOURCE);
