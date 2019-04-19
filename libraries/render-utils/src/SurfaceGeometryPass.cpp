@@ -191,9 +191,6 @@ void LinearDepthPass::run(const render::RenderContextPointer& renderContext, con
 
     gpu::doInBatch("LinearDepthPass::run", args->_context, [=](gpu::Batch& batch) {
         PROFILE_RANGE_BATCH(batch, "LinearDepthPass");
-   //     _gpuTimer->begin(batch);
-
-   //     batch.enableStereo(false);
 
         batch.setProjectionTransform(glm::mat4());
         batch.resetViewTransform();
@@ -205,7 +202,6 @@ void LinearDepthPass::run(const render::RenderContextPointer& renderContext, con
         batch.setFramebuffer(linearDepthFBO);
         batch.clearColorFramebuffer(gpu::Framebuffer::BUFFER_COLOR0, glm::vec4(clearLinearDepth, 0.0f, 0.0f, 0.0f));
         batch.setPipeline(linearDepthPipeline);
-        batch.setModelTransform(gpu::Framebuffer::evalSubregionTexcoordTransform(_linearDepthFramebuffer->getDepthFrameSize(), depthViewport));
         batch.setResourceTexture(ru::Texture::SurfaceGeometryDepth, depthBuffer);
         batch.draw(gpu::TRIANGLE_STRIP, 4);
 
@@ -215,14 +211,8 @@ void LinearDepthPass::run(const render::RenderContextPointer& renderContext, con
         batch.setResourceTexture(ru::Texture::SurfaceGeometryDepth, linearDepthTexture);
         batch.setResourceTexture(ru::Texture::SurfaceGeometryNormal, normalTexture);
         batch.setPipeline(downsamplePipeline);
-        batch.setModelTransform(gpu::Framebuffer::evalSubregionTexcoordTransform(_linearDepthFramebuffer->getDepthFrameSize() >> 1, halfViewport));
         batch.draw(gpu::TRIANGLE_STRIP, 4);
-
-     //   _gpuTimer->end(batch);
     });
-
-  //  auto config = std::static_pointer_cast<Config>(renderContext->jobConfig);
-//    config->setGPUBatchRunTime(_gpuTimer->getGPUAverage(), _gpuTimer->getBatchAverage());
 }
 
 
@@ -472,9 +462,6 @@ void SurfaceGeometryPass::run(const render::RenderContextPointer& renderContext,
 
  
     gpu::doInBatch("SurfaceGeometryPass::run", args->_context, [=](gpu::Batch& batch) {
-    //    _gpuTimer->begin(batch);
-    //    batch.enableStereo(false);
-
         batch.setProjectionTransform(glm::mat4());
         batch.resetViewTransform();
 
@@ -529,13 +516,7 @@ void SurfaceGeometryPass::run(const render::RenderContextPointer& renderContext,
         batch.setResourceTexture(ru::Texture::BlurSource, nullptr);
         batch.setResourceTexture(ru::Texture::BlurDepth, nullptr);
         batch.setUniformBuffer(ru::Buffer::BlurParams, nullptr);
-
-  //      _gpuTimer->end(batch);
     });
-       
- 
- //   auto config = std::static_pointer_cast<Config>(renderContext->jobConfig);
- //   config->setGPUBatchRunTime(_gpuTimer->getGPUAverage(), _gpuTimer->getBatchAverage());
 }
 
 const gpu::PipelinePointer& SurfaceGeometryPass::getCurvaturePipeline(const render::RenderContextPointer& renderContext) {

@@ -78,14 +78,8 @@ void BloomThreshold::run(const render::RenderContextPointer& renderContext, cons
     _parameters.edit()._threshold = bloom->getBloomThreshold();
 
     gpu::doInBatch("BloomThreshold::run", args->_context, [&](gpu::Batch& batch) {
-       // batch.enableStereo(false);
-
         batch.setViewportTransform(viewport);
-        batch.setProjectionTransform(glm::mat4());
-        batch.resetViewTransform();
-        batch.setModelTransform(gpu::Framebuffer::evalSubregionTexcoordTransform(bufferSize, viewport));
         batch.setPipeline(_pipeline);
-
         batch.setFramebuffer(_outputBuffer);
         batch.setResourceTexture(render_utils::slot::texture::BloomColor, inputBuffer);
         batch.setUniformBuffer(render_utils::slot::buffer::BloomParams, _parameters);
@@ -134,16 +128,9 @@ void BloomApply::run(const render::RenderContextPointer& renderContext, const In
     parameters._intensities.z = newIntensity;
 
     gpu::doInBatch("BloomApply::run", args->_context, [&](gpu::Batch& batch) {
-     //   batch.enableStereo(false);
-
         batch.setFramebuffer(frameBuffer);
-
         batch.setViewportTransform(viewport);
-        batch.setProjectionTransform(glm::mat4());
-        batch.resetViewTransform();
         batch.setPipeline(_pipeline);
-
-        batch.setModelTransform(gpu::Framebuffer::evalSubregionTexcoordTransform(framebufferSize, viewport));
         batch.setResourceTexture(BLUR0_SLOT, blur0FB->getRenderBuffer(0));
         batch.setResourceTexture(BLUR1_SLOT, blur1FB->getRenderBuffer(0));
         batch.setResourceTexture(BLUR2_SLOT, blur2FB->getRenderBuffer(0));

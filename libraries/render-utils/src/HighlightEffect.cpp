@@ -169,7 +169,6 @@ void DrawHighlightMask::run(const render::RenderContextPointer& renderContext, c
         // Needs to be distinct from the other batch because using the clear call 
         // while stereo is enabled triggers a warning
         gpu::doInBatch("DrawHighlightMask::run::begin", args->_context, [&](gpu::Batch& batch) {
-        //    batch.enableStereo(false);
             batch.setFramebuffer(resources->getDepthFramebuffer());
             batch.clearDepthStencilFramebuffer(1.0f, 0);
         });
@@ -320,13 +319,8 @@ void DrawHighlight::run(const render::RenderContextPointer& renderContext, const
 
                 auto primaryFramebuffer = inputs.get4();
                 gpu::doInBatch("DrawHighlight::run", args->_context, [&](gpu::Batch& batch) {
-                   // batch.enableStereo(false);
                     batch.setFramebuffer(destinationFrameBuffer);
-
                     batch.setViewportTransform(args->_viewport);
-                    batch.setProjectionTransform(glm::mat4());
-                    batch.resetViewTransform();
-                    batch.setModelTransform(gpu::Framebuffer::evalSubregionTexcoordTransform(framebufferSize, args->_viewport));
                     batch.setPipeline(pipeline);
 
                     batch.setUniformBuffer(ru::Buffer::HighlightParams, _configuration);

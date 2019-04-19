@@ -69,14 +69,9 @@ void DrawHaze::run(const render::RenderContextPointer& renderContext, const Inpu
     auto outputFramebufferSize = glm::ivec2(outputBuffer->getSize());
 
     gpu::doInBatch("DrawHaze::run", args->_context, [&](gpu::Batch& batch) {
-      //  batch.enableStereo(false);
         batch.setFramebuffer(outputBuffer);
 
         batch.setViewportTransform(args->_viewport);
-        batch.setProjectionTransform(glm::mat4());
-        batch.resetViewTransform();
-        batch.setModelTransform(gpu::Framebuffer::evalSubregionTexcoordTransform(outputFramebufferSize, args->_viewport));
-
         batch.setPipeline(_hazePipeline);
         batch.setUniformBuffer(ru::Buffer::HazeParams, haze->getHazeParametersBuffer());
 
