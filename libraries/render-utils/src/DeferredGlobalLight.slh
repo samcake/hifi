@@ -81,7 +81,6 @@ vec3 albedo, vec3 fresnel, float metallic, float roughness
     color += ambientDiffuse;
     color += ambientSpecular;
 
-
     // Directional
     vec3 directionalDiffuse;
     vec3 directionalSpecular;
@@ -136,7 +135,7 @@ vec3 evalSkyboxGlobalColor(mat4 invViewMat, float shadowAttenuation, float obscu
     ,scattering, midNormalCurvature, lowNormalCurvature
 <@endif@>
     );
-    color += directionalDiffuse;
+    color += directionalDiffuse * obscurance;
     color += directionalSpecular;
 
     // Attenuate the light if haze effect selected
