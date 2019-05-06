@@ -34,6 +34,7 @@
     
     vec3 lightDirection = getLightDirection(light);
     vec3 lightIrradiance = getLightIrradiance(light);
+    float lightObscuranceBlend = getLightObscuranceBlend(light);
 
     vec3 color = vec3(0.0);
 
@@ -85,7 +86,7 @@ vec3 albedo, vec3 fresnel, float metallic, float roughness
 <@if supportScattering@>
     ,scattering, midNormalCurvature, lowNormalCurvature
 <@endif@> );
-    color += directionalDiffuse;
+    color += directionalDiffuse * mix(1.0, obscurance, lightObscuranceBlend);
     color += directionalSpecular;
 
     return color;
@@ -131,7 +132,7 @@ vec3 evalSkyboxGlobalColor(mat4 invViewMat, float shadowAttenuation, float obscu
     ,scattering, midNormalCurvature, lowNormalCurvature
 <@endif@>
     );
-    color += directionalDiffuse;
+    color += directionalDiffuse * mix(1.0, obscurance, lightObscuranceBlend);
     color += directionalSpecular;
 
     // FIXME - temporarily removed until we support it for forward...
@@ -196,7 +197,7 @@ vec3 evalGlobalLightingAlphaBlended(mat4 invViewMat, float shadowAttenuation, fl
     vec3 directionalDiffuse;
     vec3 directionalSpecular;
     evalLightingDirectional(directionalDiffuse, directionalSpecular, lightDirection, lightIrradiance, surfaceWS, metallic, fresnel, albedo, shadowAttenuation);
-    color += directionalDiffuse;
+    color += directionalDiffuse * mix(1.0, obscurance, lightObscuranceBlend);
     color += evalSpecularWithOpacity(ambientSpecular + directionalSpecular, opacity);
 
     return color;
@@ -222,7 +223,7 @@ vec3 evalGlobalLightingAlphaBlendedWithHaze(
     vec3 directionalDiffuse;
     vec3 directionalSpecular;
     evalLightingDirectional(directionalDiffuse, directionalSpecular, lightDirection, lightIrradiance, surfaceWS, metallic, fresnel, albedo, shadowAttenuation);
-    color += directionalDiffuse;
+    color += directionalDiffuse * mix(1.0, obscurance, lightObscuranceBlend);
     color += evalSpecularWithOpacity(ambientSpecular + directionalSpecular, opacity);
 
     // Haze

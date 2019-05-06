@@ -55,7 +55,7 @@ public:
         float falloffRadius { 0.1f };
         float cutoffRadius { 0.1f };
         float falloffSpot { 1.f };
-        float spare1;
+        float obscuranceBlend { 1.0f };
 
         vec3 getColor() const { return color; }
         float getIntensity() const { return intensity; }
@@ -63,6 +63,7 @@ public:
         float getFalloffRadius() const { return falloffRadius; }
         float getCutoffRadius() const { return cutoffRadius; }
         float getFalloffSpot() const { return falloffSpot; }
+        float getObscuranceBlend() const { return obscuranceBlend; }
     };
 
 
@@ -120,6 +121,9 @@ public:
 
     float getIntensity() const { return _lightSchemaBuffer->irradiance.intensity; }
     void setIntensity(float intensity);
+
+    float getObscuranceBlend() const { return _lightSchemaBuffer->irradiance.obscuranceBlend; }
+    void setObscuranceBlend(float obscuranceBlend);
 
     bool isRanged() const { return (getType() == POINT) || (getType() == SPOT); }
  

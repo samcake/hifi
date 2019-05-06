@@ -15,7 +15,7 @@
 
 struct LightIrradiance {
     vec4 colorIntensity;
-    // falloffRadius, cutoffRadius, falloffSpot, spare
+    // falloffRadius, cutoffRadius, falloffSpot, obscuranceBlend
     vec4 attenuation;
 };
 
@@ -26,6 +26,7 @@ vec3 lightIrradiance_getIrradiance(LightIrradiance li) { return li.colorIntensit
 float lightIrradiance_getFalloffRadius(LightIrradiance li) { return li.attenuation.x; }
 float lightIrradiance_getCutoffRadius(LightIrradiance li) { return li.attenuation.y; }
 float lightIrradiance_getFalloffSpot(LightIrradiance li) { return li.attenuation.z; }
+float lightIrradiance_getObscuranceBlend(LightIrradiance li) { return li.attenuation.w; }
 
 
 // Light is the light source its self, d is the light's distance calculated as length(unnormalized light vector).

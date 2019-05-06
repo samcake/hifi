@@ -99,6 +99,10 @@ void Light::setIntensity(float intensity) {
     updateLightRadius();
 }
 
+void Light::setObscuranceBlend(float obscuranceBlend) {
+    _lightSchemaBuffer.edit().irradiance.obscuranceBlend = obscuranceBlend;
+}
+
 void Light::setFalloffRadius(float radius) {
     if (radius <= 0.0f) {
         radius = 0.1f;

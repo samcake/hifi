@@ -29,6 +29,7 @@ vec3 getLightDirection(Light l) { return lightVolume_getDirection(l.volume); }
 vec3 getLightColor(Light l) { return lightIrradiance_getColor(l.irradiance); }
 float getLightIntensity(Light l) { return lightIrradiance_getIntensity(l.irradiance); }
 vec3 getLightIrradiance(Light l) { return lightIrradiance_getIrradiance(l.irradiance); }
+float getLightObscuranceBlend(Light l) { return lightIrradiance_getObscuranceBlend(l.irradiance); }
 
 // Ambient lighting needs extra info provided from a different Buffer
 <@include graphics/SphericalHarmonics.shared.slh@>
