@@ -75,6 +75,24 @@ public:
 
     float exposure{ 0.0f };
     int curve{ ToneMappingEffect::Gamma22 };
+
+    BEGIN_PROP_ANNOTATIONS()
+        PROP_ANNOTATION_SCALAR(exposure, -4, 4, EV)\
+        PROP_ANNOTATION_ENUM(curve, "[\'RGB\', \'sRGB\', \'Reinhard\', \'Filmic\']")
+    END_PROP_ANNOTATIONS()
+/*
+//QString getPropertyAnnotationContent() const override {
+    //    return BEGIN_PROP_ANNOTATIONS()\
+    //    static QString annotations{ "\
+     //       PROP_ANNOTATION_SCALAR(exposure, -4, 4, EV)\
+     //       PROP_ANNOTATION_ENUM(curve, ['RGB', 'sRGB', 'Reinhard', 'Filmic'])\
+     //       
+            //\"exposure\":{\"type\": \"scalar\", \"range\": [-4, 4], \"unit\": \"EV\" },\
+            //\"curve\": {\"type\": \"enum\", \"enums\": [\"RGB\", \"sRGB\", \"Reinhard\", \"Filmic\"] }
+      //  };
+      //  return annotations;
+   // }
+*/
 signals:
     void dirty();
 };

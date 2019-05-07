@@ -38,6 +38,15 @@ void JobConfig::setPresetList(const QJsonObject& object) {
     }
 }
 
+QString JobConfig::getPropertyAnnotations() const {
+    static QString annotations{ getPropertyAnnotationContent() };
+    return annotations;
+}
+
+QString JobConfig::getPropertyAnnotationContent() const {
+    return QString("");
+}
+
 void TaskConfig::connectChildConfig(QConfigPointer childConfig, const std::string& name) {
     childConfig->setParent(this);
     childConfig->setObjectName(name.c_str());

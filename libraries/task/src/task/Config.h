@@ -154,6 +154,13 @@ public:
      */
     Q_INVOKABLE virtual QObject* getSubConfig(int i) const { return nullptr; }
 
+    /**jsdoc
+    * @function Render.getPropertyAnnotations()
+    * @returns {string}
+    */
+    Q_INVOKABLE QString getPropertyAnnotations() const;
+    virtual QString getPropertyAnnotationContent() const;
+
 public slots:
 
     /**jsdoc
@@ -263,5 +270,14 @@ public slots:
 };
 
 }
+
+// Helper Macros to define the PropertyAnnotations:
+#define BEGIN_PROP_ANNOTATIONS() QString getPropertyAnnotationContent() const override { static QString annotations{
+
+#define PROP_ANNOTATION_BOOL(name)                      "\'#name\':{\'type\': \'boolean\'},"
+#define PROP_ANNOTATION_SCALAR(name, min, max, unit)    "\'#name\':{\'type': \'scalar\', \'range\': [min, max], \'unit\': \'#unit\' },"
+#define PROP_ANNOTATION_ENUM(name, enums)               "\'#name\':{\'type\': \'enum\', \'enums\': #enums },"
+
+#define END_PROP_ANNOTATIONS()     }; return annotations; }
 
 #endif // hifi_task_Config_h
