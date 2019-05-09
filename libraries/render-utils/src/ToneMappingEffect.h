@@ -62,6 +62,24 @@ private:
     void init(RenderArgs* args);
 };
 
+
+#define LBEGIN_PROP_ANNOTATIONS()                            \
+    QString getPropertyAnnotationContent() const override { \
+        static QString annotations {
+
+#define LPROP_ANNOTATION_BOOL(name) "\'#name\':{\'type\': \'boolean\'},"
+
+#define LPROP_ANNOTATION_SCALAR(name, min, max, unit) "\'#name\':{\'type': \'scalar\', \'range\': [#min, #max], \'unit\': \'#unit\' },"
+
+#define LPROP_ANNOTATION_ENUM(name, enums) "\'#name\':{\'type\': \'enum\', \'enums\': #enums },"
+
+#define LEND_PROP_ANNOTATIONS() \
+    }                          \
+    ;                          \
+    return annotations;        \
+    }
+
+
 class ToneMappingConfig : public render::Job::Config {
     Q_OBJECT
     Q_PROPERTY(float exposure MEMBER exposure WRITE setExposure);
@@ -76,10 +94,10 @@ public:
     float exposure{ 0.0f };
     int curve{ ToneMappingEffect::Gamma22 };
 
-    BEGIN_PROP_ANNOTATIONS()
-        PROP_ANNOTATION_SCALAR(exposure, -4, 4, EV)\
-        PROP_ANNOTATION_ENUM(curve, "[\'RGB\', \'sRGB\', \'Reinhard\', \'Filmic\']")
-    END_PROP_ANNOTATIONS()
+    LBEGIN_PROP_ANNOTATIONS()
+        LPROP_ANNOTATION_SCALAR(exposure, -4, 4, EV)\
+        LPROP_ANNOTATION_ENUM(curve, "[\'RGB\', \'sRGB\', \'Reinhard\', \'Filmic\']")
+    LEND_PROP_ANNOTATIONS()
 /*
 //QString getPropertyAnnotationContent() const override {
     //    return BEGIN_PROP_ANNOTATIONS()\

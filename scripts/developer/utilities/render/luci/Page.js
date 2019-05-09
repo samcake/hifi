@@ -27,9 +27,6 @@ Page.prototype.killView = function () {
     print("Page: Kill window for page:" + JSON.stringify(this));
     if (this.window) { 
         print("Page: Kill window for page:" + this.title);
-        //this.window.closed.disconnect(function () {
-        //    this.killView();
-        //});
         this.window.close();
         this.window = false;
     }
@@ -42,6 +39,9 @@ Page.prototype.createView = function () {
         this.window = Desktop.createWindow(Script.resolvePath(this.qml), {
             title: this.title,
             presentationMode: Desktop.PresentationMode.NATIVE,
+         //   presentationWindowInfo: {
+              //  dockArea: Desktop.DockArea.RIGHT
+         //   },
             size: {x: this.width, y: this.height}
         });
         this.onViewCreated(this.window);
