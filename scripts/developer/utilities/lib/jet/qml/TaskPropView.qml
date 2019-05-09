@@ -83,11 +83,23 @@ Prop.PropGroup {
 
     function populatePropItems() {
         var propsModel = []
+        var annotations = JSON.parse(rootConfig.getConfig(jobPath).getPropertyAnnotations());
+
         var props = Jet.job_propKeys(rootConfig.getConfig(jobPath));
       //  console.log(JSON.stringify(props));
         if (showProps) {
             for (var p in props) {
-                propsModel.push({"object": rootConfig.getConfig(jobPath), "property":props[p] })
+                var o = {};
+
+                if (props[p] in annotations) {
+                    o = annotations[props[p]];
+                    console.log(JSON.stringify(o));
+                }
+                o["object"] = rootConfig.getConfig(jobPath);
+                o["property"] = props[p];
+                
+               // propsModel.push({"object": rootConfig.getConfig(jobPath), "property":props[p] })
+                propsModel.push(o)
             }
             root.updatePropItems(root.propItemsPanel, propsModel);
         }

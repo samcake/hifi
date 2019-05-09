@@ -63,54 +63,27 @@ private:
 };
 
 
-#define LBEGIN_PROP_ANNOTATIONS()                            \
-    QString getPropertyAnnotationContent() const override { \
-        static QString annotations {
-
-#define LPROP_ANNOTATION_BOOL(name) "\'#name\':{\'type\': \'boolean\'},"
-
-#define LPROP_ANNOTATION_SCALAR(name, min, max, unit) "\'#name\':{\'type': \'scalar\', \'range\': [#min, #max], \'unit\': \'#unit\' },"
-
-#define LPROP_ANNOTATION_ENUM(name, enums) "\'#name\':{\'type\': \'enum\', \'enums\': #enums },"
-
-#define LEND_PROP_ANNOTATIONS() \
-    }                          \
-    ;                          \
-    return annotations;        \
-    }
-
 
 class ToneMappingConfig : public render::Job::Config {
     Q_OBJECT
     Q_PROPERTY(float exposure MEMBER exposure WRITE setExposure);
     Q_PROPERTY(int curve MEMBER curve WRITE setCurve);
+
 public:
+    Annotation& appendConfigPropAnnotation(Annotation& annotation) const override {
+        return render::Job::Config::appendConfigPropAnnotation(annotation).
+            propScalar("exposure", -4, 4, "EV").
+            propEnum("curve", {"RGB", "sRGB", "Reinhard", "Filmic"});
+    }
+
     ToneMappingConfig() : render::Job::Config(true) {}
 
     void setExposure(float newExposure) { exposure = newExposure; emit dirty(); }
     void setCurve(int newCurve) { curve = std::max((int)ToneMappingEffect::None, std::min((int)ToneMappingEffect::Filmic, newCurve)); emit dirty(); }
 
-
     float exposure{ 0.0f };
     int curve{ ToneMappingEffect::Gamma22 };
 
-    LBEGIN_PROP_ANNOTATIONS()
-        LPROP_ANNOTATION_SCALAR(exposure, -4, 4, EV)\
-        LPROP_ANNOTATION_ENUM(curve, "[\'RGB\', \'sRGB\', \'Reinhard\', \'Filmic\']")
-    LEND_PROP_ANNOTATIONS()
-/*
-//QString getPropertyAnnotationContent() const override {
-    //    return BEGIN_PROP_ANNOTATIONS()\
-    //    static QString annotations{ "\
-     //       PROP_ANNOTATION_SCALAR(exposure, -4, 4, EV)\
-     //       PROP_ANNOTATION_ENUM(curve, ['RGB', 'sRGB', 'Reinhard', 'Filmic'])\
-     //       
-            //\"exposure\":{\"type\": \"scalar\", \"range\": [-4, 4], \"unit\": \"EV\" },\
-            //\"curve\": {\"type\": \"enum\", \"enums\": [\"RGB\", \"sRGB\", \"Reinhard\", \"Filmic\"] }
-      //  };
-      //  return annotations;
-   // }
-*/
 signals:
     void dirty();
 };

@@ -13,6 +13,7 @@
 #define hifi_task_Config_h
 
 #include <chrono>
+#include <sstream>
 
 #include <QtCore/qobject.h>
 #include <QtCore/qjsondocument.h>
@@ -83,6 +84,22 @@ protected:
     Setting::Handle<QString> _preset;
 };
 
+// Annotation class provide meta information of the Config members
+// Used for for self reflection UI and better debugging information
+class Annotation {
+    std::stringstream _stream;
+    bool _firstProp{ true};
+    Annotation& beginProp(const std::string& name, const std::string& type);
+public:
+    Annotation() {}
+    std::string build() const { return _stream.str(); }
+    std::string buildJSONString() const;
+
+    Annotation& propScalar(const std::string& name, float min, float max, const std::string& unit);
+    Annotation& propEnum(const std::string& name, std::initializer_list<std::string> enums);
+
+};
+
 // A default Config is always on; to create an enableable Config, use the ctor JobConfig(bool enabled)
 class JobConfig : public QObject {
     Q_OBJECT
@@ -95,9 +112,9 @@ protected:
     friend class TaskConfig;
 
     bool _isEnabled{ true };
-
 public:
     using Persistent = PersistentConfig<JobConfig>;
+    using Annotation = Annotation;
 
     JobConfig() = default;
     JobConfig(bool enabled): _isEnabled{ enabled }  {}
@@ -159,7 +176,7 @@ public:
     * @returns {string}
     */
     Q_INVOKABLE QString getPropertyAnnotations() const;
-    virtual QString getPropertyAnnotationContent() const;
+    virtual Annotation& appendConfigPropAnnotation(Annotation& annotation) const;
 
 public slots:
 
@@ -270,14 +287,5 @@ public slots:
 };
 
 }
-
-// Helper Macros to define the PropertyAnnotations:
-#define BEGIN_PROP_ANNOTATIONS() QString getPropertyAnnotationContent() const override { static QString annotations{
-
-#define PROP_ANNOTATION_BOOL(name)                      "\'#name\':{\'type\': \'boolean\'},"
-#define PROP_ANNOTATION_SCALAR(name, min, max, unit)    "\'#name\':{\'type': \'scalar\', \'range\': [min, max], \'unit\': \'#unit\' },"
-#define PROP_ANNOTATION_ENUM(name, enums)               "\'#name\':{\'type\': \'enum\', \'enums\': #enums },"
-
-#define END_PROP_ANNOTATIONS()     }; return annotations; }
 
 #endif // hifi_task_Config_h

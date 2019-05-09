@@ -18,6 +18,44 @@
 
 using namespace task;
 
+std::string Annotation::buildJSONString() const {
+    std::stringstream jsonString;
+    jsonString << "{ " << build() << " }";
+    return jsonString.str();
+}
+
+Annotation& Annotation::beginProp(const std::string& name, const std::string& type) {
+    if (!_firstProp) {
+        _stream << ", ";
+    }
+    _firstProp = false;
+
+    _stream << "\"" << name << "\":{ \"type\":\"" << type << "\"";
+    return (*this);
+}
+
+Annotation& Annotation::propScalar(const std::string& name, float min, float max, const std::string& unit) {
+    beginProp(name, "scalar");
+    _stream << ", \"min\":" << min << ", \"max\":" << max << ", \"unit\":\"" << unit << "\" }";
+    return (*this);
+}
+
+Annotation& Annotation::propEnum(const std::string& name, std::initializer_list<std::string> enums) {
+    beginProp(name, "enum");
+    _stream << ", \"enums\":[ ";
+    int i = 0;
+    for (auto value : enums) {
+        _stream << "\"" << value << "\"";
+        i++;
+        if (i < enums.size()) {
+            _stream << ", ";
+        }
+    }
+    _stream << " ] }";
+    return (*this);
+}
+
+
 JobConfig::~JobConfig() {
     
 }
@@ -39,12 +77,14 @@ void JobConfig::setPresetList(const QJsonObject& object) {
 }
 
 QString JobConfig::getPropertyAnnotations() const {
-    static QString annotations{ getPropertyAnnotationContent() };
+   /* static*/ QString annotations{ appendConfigPropAnnotation(Annotation()).buildJSONString().c_str() };
     return annotations;
 }
 
-QString JobConfig::getPropertyAnnotationContent() const {
-    return QString("");
+
+Annotation& JobConfig::appendConfigPropAnnotation(Annotation& annotation) const {
+    // nothing specific
+    return annotation;
 }
 
 void TaskConfig::connectChildConfig(QConfigPointer childConfig, const std::string& name) {

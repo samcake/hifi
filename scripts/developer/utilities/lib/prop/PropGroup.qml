@@ -48,6 +48,7 @@ PropFolderPanel {
                             })
                         } break;
                         case 'number':
+                        case 'scalar':
                         case 'PropScalar': {
                             var component = Qt.createComponent("PropScalar.qml");
                             component.createObject(propItemsContainer, {
@@ -59,6 +60,7 @@ PropFolderPanel {
                                 "integer": (proItem["integral"] !== undefined ? proItem.integral : false),
                             })
                         } break;
+                        case 'enum':
                         case 'PropEnum': {
                             var component = Qt.createComponent("PropEnum.qml");
                             component.createObject(propItemsContainer, {
