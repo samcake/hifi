@@ -77,8 +77,9 @@ void JobConfig::setPresetList(const QJsonObject& object) {
 }
 
 QString JobConfig::getPropertyAnnotations() const {
-   /* static*/ QString annotations{ appendConfigPropAnnotation(Annotation()).buildJSONString().c_str() };
-    return annotations;
+    Annotation annotation;
+    QString annotationJSONString{ appendConfigPropAnnotation(annotation).buildJSONString().c_str() };
+    return annotationJSONString;
 }
 
 
