@@ -10,8 +10,6 @@
 
 import QtQuick 2.7
 
-import controlsUit 1.0 as HifiControls
-
 PropItem {
     Global { id: global }
     id: root
@@ -56,7 +54,7 @@ PropItem {
         }
     }
 
-    HifiControls.Slider {
+    PropSlider {
         id: sliderControl
         stepSize: root.integral ? 1.0 : 0.0
         anchors.left: valueLabel.right

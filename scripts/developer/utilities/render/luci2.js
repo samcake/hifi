@@ -68,7 +68,7 @@ function openView() {
         pages.clear();
     }
 
-    pages.addPage('Luci', 'Luci', '../luci.qml', 300, 420, openLuciWindow, closeLuciWindow);
+    pages.addPage('Luci', 'Luci', '../luci.qml', 350, 420, openLuciWindow, closeLuciWindow);
     pages.addPage('openEngineLODView', 'Render LOD', '../lod.qml', 300, 400);
     pages.addPage('openMaterialInspectorView', 'Material Inspector', '../materialInspector.qml', 300, 400, MaterialInspector.setWindow, MaterialInspector.setWindow);
 

@@ -6,6 +6,7 @@ PropSplitter 1.0 style/PiSplitter.qml
 PropComboBox 1.0 style/PiComboBox.qml
 PropCanvasIcon 1.0 style/PiCanvasIcon.qml
 PropCheckBox 1.0 style/PiCheckBox.qml
+PropSlider 1.0 style/PiSlider.qml
 PropFolderPanel 1.0 style/PiFolderPanel.qml
 
 PropItem  1.0 PropItem.qml

@@ -34,6 +34,7 @@ Rectangle {
             width: render.width
             Prop.PropFolderPanel {
                 label: "Shading Model"
+                isUnfold: true
                 panelFrameData: Component {
                     ShadingModel {}
                 }
@@ -89,12 +90,20 @@ Rectangle {
             }
             Jet.TaskPropView {
                 id: "le"
-                jobPath: ""
+                jobPath: "RenderMainView.LightingModel"
                 label: "Le Render Engine"
 
               //  anchors.left: parent.left
               //  anchors.right: parent.right 
             }
+       /*     Jet.TaskPropView {
+                id: "le"
+                jobPath: ""
+                label: "Le Render Engine"
+
+              //  anchors.left: parent.left
+              //  anchors.right: parent.right 
+            }*/
         }
     }
 }
