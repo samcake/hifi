@@ -39,9 +39,9 @@ Page.prototype.createView = function () {
         this.window = Desktop.createWindow(Script.resolvePath(this.qml), {
             title: this.title,
             presentationMode: Desktop.PresentationMode.NATIVE,
-         //   presentationWindowInfo: {
-              //  dockArea: Desktop.DockArea.RIGHT
-         //   },
+            presentationWindowInfo: {
+                dockArea: Desktop.DockArea.RIGHT
+            },
             size: {x: this.width, y: this.height}
         });
         this.onViewCreated(this.window);
