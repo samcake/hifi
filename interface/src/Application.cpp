@@ -331,6 +331,7 @@ static const unsigned int THROTTLED_SIM_FRAMERATE = 15;
 static const int THROTTLED_SIM_FRAME_PERIOD_MS = MSECS_PER_SECOND / THROTTLED_SIM_FRAMERATE;
 static const int ENTITY_SERVER_ADDED_TIMEOUT = 5000;
 static const int ENTITY_SERVER_CONNECTION_TIMEOUT = 5000;
+static const int WATCHDOG_TIMER_TIMEOUT = 100;
 
 static const float INITIAL_QUERY_RADIUS = 10.0f;  // priority radius for entities before physics enabled
 
@@ -1138,6 +1139,18 @@ Application::Application(int& argc, char** argv, QElapsedTimer& startupTimer, bo
         auto deadlockWatchdogThread = new DeadlockWatchdogThread();
         deadlockWatchdogThread->setMainThreadID(QThread::currentThreadId());
         deadlockWatchdogThread->start();
+
+
+        // Main thread timer to keep the watchdog updated
+        QTimer* watchdogUpdateTimer = new QTimer(this);
+        connect(watchdogUpdateTimer, &QTimer::timeout, [this] { updateHeartbeat(); });
+        connect(this, &QCoreApplication::aboutToQuit, [watchdogUpdateTimer] {
+            watchdogUpdateTimer->stop();
+            watchdogUpdateTimer->deleteLater();
+        });
+        watchdogUpdateTimer->setSingleShot(false);
+        watchdogUpdateTimer->setInterval(WATCHDOG_TIMER_TIMEOUT); // 100ms, Qt::CoarseTimer acceptable
+        watchdogUpdateTimer->start();
     }
 
     // Set File Logger Session UUID
@@ -2696,7 +2709,7 @@ void Application::cleanupBeforeQuit() {
         auto nodeList = DependencyManager::get<NodeList>();
 
         // send the domain a disconnect packet, force stoppage of domain-server check-ins
-        nodeList->getDomainHandler().disconnect();
+        nodeList->getDomainHandler().disconnect("Quitting");
         nodeList->setIsShuttingDown(true);
 
         // tell the packet receiver we're shutting down, so it can drop packets
@@ -4990,9 +5003,6 @@ void setupCpuMonitorThread() {
 void Application::idle() {
     PerformanceTimer perfTimer("idle");
 
-    // Update the deadlock watchdog
-    updateHeartbeat();
-
 #if !defined(DISABLE_QML)
     auto offscreenUi = getOffscreenUI();
 
@@ -5539,7 +5549,7 @@ void Application::pauseUntilLoginDetermined() {
     cameraModeChanged();
 
     // disconnect domain handler.
-    nodeList->getDomainHandler().disconnect();
+    nodeList->getDomainHandler().disconnect("Pause until login determined");
 
     // From now on, it's permissible to call resumeAfterLoginDialogActionTaken()
     _resumeAfterLoginDialogActionTaken_SafeToRun = true;
@@ -5919,7 +5929,7 @@ void Application::reloadResourceCaches() {
     DependencyManager::get<TextureCache>()->refreshAll();
     DependencyManager::get<recording::ClipCache>()->refreshAll();
 
-    DependencyManager::get<NodeList>()->reset();  // Force redownload of .fst models
+    DependencyManager::get<NodeList>()->reset("Reloading resources");  // Force redownload of .fst models
 
     DependencyManager::get<ScriptEngines>()->reloadAllScripts();
     getOffscreenUI()->clearCache();
@@ -9370,7 +9380,7 @@ void Application::showUrlHandler(const QUrl& url) {
 void Application::beforeEnterBackground() {
     auto nodeList = DependencyManager::get<NodeList>();
     nodeList->setSendDomainServerCheckInEnabled(false);
-    nodeList->reset(true);
+    nodeList->reset("Entering background", true);
     clearDomainOctreeDetails();
 }
 
