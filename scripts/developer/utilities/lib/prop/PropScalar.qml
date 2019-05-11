@@ -28,7 +28,7 @@ PropItem {
     property bool showValue: true  
 
        
-    signal valueChanged(real value)
+    //signal valueChanged(real value)
 
     Component.onCompleted: {
         valueVar = root.valueVarGetter();
@@ -47,7 +47,7 @@ PropItem {
         text: sliderControl.value.toFixed(root.integral ? 0 : root.numDigits)
 
         background: Rectangle {
-            color: global.color
+            color: global.colorBack
             border.color: global.colorBorderLight
             border.width: global.valueBorderWidth
             radius: global.valueBorderRadius

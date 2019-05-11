@@ -32,7 +32,7 @@ PropItem {
         anchors.verticalCenter: root.verticalCenter
         height: global.slimHeight
 
-        currentIndex: root.valueVarGetter()
+      //  currentIndex: root.valueVarGetter()
         onCurrentIndexChanged: { root.valueVarSetter(currentIndex); }
     }    
 }

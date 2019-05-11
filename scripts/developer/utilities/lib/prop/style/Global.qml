@@ -24,10 +24,12 @@ Item {
     readonly property real horizontalMargin: 4
 
     readonly property color color: hifi.colors.baseGray
+    readonly property color colorBack: hifi.colors.baseGray
     readonly property color colorBackShadow: hifi.colors.baseGrayShadow
     readonly property color colorBackHighlight: hifi.colors.baseGrayHighlight
     readonly property color colorBorderLight: hifi.colors.lightGray
     readonly property color colorBorderHighight: hifi.colors.blueHighlight
+    readonly property color colorBorderLighter: hifi.colors.faintGray
 
     readonly property color colorOrangeAccent: "#FF6309"
     readonly property color colorRedAccent: "#C62147"
@@ -43,6 +45,11 @@ Item {
 
     readonly property real iconWidth: fontSize
     readonly property real iconHeight: fontSize
+    
+    readonly property real sliderHandleWidth: 16
+    readonly property real sliderHandleHeight: sliderHandleWidth
+    readonly property real sliderGrooveHeight: sliderHandleWidth / 4 
+    readonly property real sliderWidth: 7 * sliderHandleHeight
     
     readonly property var labelTextAlign: Text.AlignRight
     readonly property var labelTextElide: Text.ElideMiddle

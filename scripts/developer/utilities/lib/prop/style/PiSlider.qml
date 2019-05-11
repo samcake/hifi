@@ -12,41 +12,40 @@ import QtQuick 2.7
 import QtQuick.Controls 2.2
 
 Slider {
-    id: slider
+    id: control
     Global { id: global }
     value: 0
     height: global.slimHeight
 
-    property alias minimumValue: slider.from
-    property alias maximumValue: slider.to
-    property alias step: slider.stepSize
+    property alias minimumValue: control.from
+    property alias maximumValue: control.to
+    property alias step: control.stepSize
 
-
-    /*background: Rectangle {
-        implicitWidth: 200
-        implicitHeight: 8
-        color: "gray"
-        radius: 8
-    }*/
-
-    handle: Rectangle {
-        x: slider.leftPadding + slider.visualPosition * (slider.availableWidth - width)
-        y: slider.topPadding + slider.availableHeight / 2 - height / 2
-        implicitWidth: hifi.dimensions.sliderHandleSize
-        implicitHeight: hifi.dimensions.sliderHandleSize
-        radius: height / 2
-        border.width: 1
-        border.color: global.colorBorderLight
+    background: Rectangle {
+        x: control.leftPadding
+        y: control.topPadding + control.availableHeight / 2 - height / 2
+        implicitWidth: global.sliderWidth
+        implicitHeight: global.sliderGrooveHeight
+        width: control.availableWidth
+        height: global.sliderGrooveHeight
+        radius: 2
+        color: global.colorBorderLighter
 
         Rectangle {
-            height: parent.height - 2
-            width: height
-            radius: height / 2
-            anchors.centerIn: parent
-            //color: hifi.colors.transparent
-            border.width: 1
-            border.color: global.colorBorderLight
+            width: control.visualPosition * parent.width
+            height: parent.height
+            color: global.colorBorderHighight
+            radius: 2
         }
     }
 
+    handle: Rectangle {
+        x: control.leftPadding + control.visualPosition * (control.availableWidth - width)
+        y: control.topPadding + control.availableHeight / 2 - height / 2
+        implicitWidth: global.sliderHandleWidth
+        implicitHeight: global.sliderHandleHeight
+        radius: global.slimHeight / 2
+        color: global.colorBorderHighight
+        border.color: control.pressed ? global.colorBorderLighter : global.colorBorderLight
+    }
 }

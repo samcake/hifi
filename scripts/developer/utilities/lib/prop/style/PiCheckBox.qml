@@ -19,8 +19,8 @@ CheckBox {
     spacing: 0
 
     indicator: Rectangle {
-        color: global.color  
-        border.color: control.down ? global.colorBorderHighight : global.colorBorderLight
+        color: global.colorBack  
+        border.color: control.down ? global.colorBorderLighter : global.colorBorderLight
         border.width: global.valueBorderWidth
         radius: global.valueBorderRadius / 2
 

@@ -75,7 +75,13 @@ Prop.PropGroup {
                 filled: root.jobEnabled
                 fillColor: (root.jobEnabled ? global.colorGreenHighlight : global.colorOrangeAccent)
                 icon: 5
-                iconMouseArea.onClicked: { toggleJobActivation() }
+
+                
+                MouseArea{
+                    id: mousearea
+                    anchors.fill: parent
+                    onClicked: { root.toggleJobActivation() }
+                }
             }
 
         }

@@ -23,7 +23,7 @@ Rectangle {
     property var mainViewTask: Render.getConfig("RenderMainView")
     
     Prop.Global { id: global;}
-    color: global.color
+    color: global.colorBack
 
     ScrollView {
         id: control
@@ -53,6 +53,7 @@ Rectangle {
             }
             Prop.PropFolderPanel {
                 label: "Tone Mapping"
+                isUnfold: true
                 panelFrameData: Component {
                     ToneMapping {}
                 }
@@ -88,7 +89,7 @@ Rectangle {
                     }
                 }
             }
-            Jet.TaskPropView {
+             /*   Jet.TaskPropView {
                 id: "le"
                 jobPath: "RenderMainView.LightingModel"
                 label: "Le Render Engine"
@@ -96,7 +97,7 @@ Rectangle {
               //  anchors.left: parent.left
               //  anchors.right: parent.right 
             }
-       /*     Jet.TaskPropView {
+        Jet.TaskPropView {
                 id: "le"
                 jobPath: ""
                 label: "Le Render Engine"
