@@ -54,30 +54,30 @@ Column {
             Prop.PropCheckBox {
                 text: "Zones"
                 checked: root.mainViewTask.getConfig("DrawZones")["enabled"]
-                onCheckedChanged: { root.mainViewTask.getConfig("ZoneRenderer")["enabled"] = checked; root.mainViewTask.getConfig("DrawZones")["enabled"] = checked; }
+                onCheckedChanged: { /*root.mainViewTask.getConfig("ZoneRenderer")["enabled"] = checked;*/ root.mainViewTask.getConfig("DrawZones")["enabled"] = checked; }
             }  
         }
         Column {
             spacing: 5 
             Prop.PropCheckBox {
                 text: "Opaques in Front"
-                checked: root.mainViewTask.getConfig("DrawOverlayInFrontOpaqueBounds")["enabled"]
-                onCheckedChanged: { root.mainViewTask.getConfig("DrawOverlayInFrontOpaqueBounds")["enabled"] = checked }
+                checked: root.mainViewTask.getConfig("DrawInFrontOpaqueBounds")["enabled"]
+                onCheckedChanged: { root.mainViewTask.getConfig("DrawInFrontOpaqueBounds")["enabled"] = checked }
             }
             Prop.PropCheckBox {
                 text: "Transparents in Front"
-                checked: root.mainViewTask.getConfig("DrawOverlayInFrontTransparentBounds")["enabled"]
-                onCheckedChanged: { root.mainViewTask.getConfig("DrawOverlayInFrontTransparentBounds")["enabled"] = checked }
+                checked: root.mainViewTask.getConfig("DrawInFrontTransparentBounds")["enabled"]
+                onCheckedChanged: { root.mainViewTask.getConfig("DrawInFrontTransparentBounds")["enabled"] = checked }
             }
             Prop.PropCheckBox {
                 text: "Opaques in HUD"
-                checked: root.mainViewTask.getConfig("DrawOverlayHUDOpaqueBounds")["enabled"]
-                onCheckedChanged: { root.mainViewTask.getConfig("DrawOverlayHUDOpaqueBounds")["enabled"] = checked }
+                checked: root.mainViewTask.getConfig("DrawHUDOpaqueBounds")["enabled"]
+                onCheckedChanged: { root.mainViewTask.getConfig("DrawHUDOpaqueBounds")["enabled"] = checked }
             }
             Prop.PropCheckBox {
                 text: "Transparents in HUD"
-                checked: root.mainViewTask.getConfig("DrawOverlayHUDTransparentBounds")["enabled"]
-                onCheckedChanged: { root.mainViewTask.getConfig("DrawOverlayHUDTransparentBounds")["enabled"] = checked }
+                checked: root.mainViewTask.getConfig("DrawHUDTransparentBounds")["enabled"]
+                onCheckedChanged: { root.mainViewTask.getConfig("DrawHUDTransparentBounds")["enabled"] = checked }
             }
         }
     }

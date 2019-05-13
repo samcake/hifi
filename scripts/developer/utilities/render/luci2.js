@@ -1,6 +1,6 @@
 
 
-var MaterialInspector = Script.require('./materialInspector.js');
+// var MaterialInspector = Script.require('./materialInspector.js');
 var Page = Script.require('./luci/Page.js');
 
 
@@ -69,8 +69,8 @@ function openView() {
     }
 
     pages.addPage('Luci', 'Luci', '../luci.qml', 350, 420, openLuciWindow, closeLuciWindow);
-    pages.addPage('openEngineLODView', 'Render LOD', '../lod.qml', 300, 400);
-    pages.addPage('openMaterialInspectorView', 'Material Inspector', '../materialInspector.qml', 300, 400, MaterialInspector.setWindow, MaterialInspector.setWindow);
+ //   pages.addPage('openEngineLODView', 'Render LOD', '../lod.qml', 300, 400);
+ //   pages.addPage('openMaterialInspectorView', 'Material Inspector', '../materialInspector.qml', 300, 400, MaterialInspector.setWindow, MaterialInspector.setWindow);
 
     pages.open('Luci');
 

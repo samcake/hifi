@@ -529,6 +529,15 @@ glm::ivec3 LightClusters::updateClusters() {
 
 
 
+void LightClusteringPass::Config::setDimX(int x) {
+    dimX = x;
+}
+
+int LightClusteringPass::Config::getDimX() const {
+
+    return dimX;
+}
+
 LightClusteringPass::LightClusteringPass() {
     _lightClusters = std::make_shared<LightClusters>();
 }

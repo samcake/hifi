@@ -51,12 +51,11 @@ Rectangle {
                     Framebuffer {}
                 }
             }
-            Prop.PropFolderPanel {
+            Jet.TaskPropView {
+                id: toneMapping
+                jobPath: "RenderMainView.ToneMapping"
                 label: "Tone Mapping"
-                isUnfold: true
-                panelFrameData: Component {
-                    ToneMapping {}
-                }
+
             }
             Prop.PropFolderPanel {
                 label: "Antialiasing"
@@ -70,7 +69,7 @@ Rectangle {
                     Culling {}
                 }
             }
-            Prop.PropFolderPanel {
+          /*  Prop.PropFolderPanel {
                 label: "Tools"
                 panelFrameData: Component {
                     Row {
@@ -88,7 +87,7 @@ Rectangle {
                         }
                     }
                 }
-            }
+            }*/
              /*   Jet.TaskPropView {
                 id: "le"
                 jobPath: "RenderMainView.LightingModel"
@@ -96,8 +95,8 @@ Rectangle {
 
               //  anchors.left: parent.left
               //  anchors.right: parent.right 
-            }
-        Jet.TaskPropView {
+            }*/
+      /*  Jet.TaskPropView {
                 id: "le"
                 jobPath: ""
                 label: "Le Render Engine"

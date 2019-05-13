@@ -122,7 +122,7 @@ class LightClusteringPassConfig : public render::Job::Config {
     Q_PROPERTY(float rangeNear MEMBER rangeNear NOTIFY dirty)
     Q_PROPERTY(float rangeFar MEMBER rangeFar NOTIFY dirty)
  
-    Q_PROPERTY(int dimX MEMBER dimX NOTIFY dirty)
+    Q_PROPERTY(int dimX READ getDimX WRITE setDimX NOTIFY dirty)
     Q_PROPERTY(int dimY MEMBER dimY NOTIFY dirty)
     Q_PROPERTY(int dimZ MEMBER dimZ NOTIFY dirty)
     
@@ -141,6 +141,8 @@ public:
     float rangeNear{ 0.1f };
     float rangeFar{ 200.0f };
 
+    void setDimX(int x);
+    int getDimX() const;
     int dimX { 14 };
     int dimY { 14 };
     int dimZ { 14 };
