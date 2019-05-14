@@ -96,14 +96,14 @@ Rectangle {
               //  anchors.left: parent.left
               //  anchors.right: parent.right 
             }*/
-      /*  Jet.TaskPropView {
+        Jet.TaskPropView {
                 id: "le"
                 jobPath: ""
                 label: "Le Render Engine"
 
               //  anchors.left: parent.left
               //  anchors.right: parent.right 
-            }*/
+            }
         }
     }
 }

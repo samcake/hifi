@@ -178,6 +178,11 @@ public:
     Q_INVOKABLE QString getPropertyAnnotations() const;
     virtual Annotation& appendConfigPropAnnotation(Annotation& annotation) const;
 
+    void connectChildConfig(std::shared_ptr<JobConfig> childConfig, const std::string& name);
+    void transferChildrenConfigs(std::shared_ptr<JobConfig> source);
+
+    JobConcept* _jobConcept;
+
 public slots:
 
     /**jsdoc
@@ -185,6 +190,11 @@ public slots:
      * @param {object} map
      */
     void load(const QJsonObject& val) { qObjectFromJsonValue(val, *this); emit loaded(); }
+
+    /**jsdoc
+     * @function Render.refresh
+     */
+    void refresh();
 
 signals:
 
@@ -272,18 +282,33 @@ public:
         auto subs = getSubConfigs();
         return ((i < 0 || i >= subs.size()) ? nullptr : subs[i]);
     }
+};
 
-    void connectChildConfig(QConfigPointer childConfig, const std::string& name);
-    void transferChildrenConfigs(QConfigPointer source);
+class SwitchConfig : public JobConfig {
+    Q_OBJECT
+    Q_PROPERTY(bool branch READ getBranch WRITE setBranch NOTIFY dirtyEnabled)
 
-    JobConcept* _task;
+public:
+    uint8_t getBranch() const { return _branch; }
+    void setBranch(uint8_t index);
 
-public slots:
+    Q_INVOKABLE bool isTask() const override { return true; }
+    Q_INVOKABLE QObjectList getSubConfigs() const override {
+        auto list = findChildren<JobConfig*>(QRegExp(".*"), Qt::FindDirectChildrenOnly);
+        QObjectList returned;
+        for (int i = 0; i < list.size(); i++) {
+            returned.push_back(list[i]);
+        }
+        return returned;
+    }
+    Q_INVOKABLE int getNumSubs() const override { return getSubConfigs().size(); }
+    Q_INVOKABLE QObject* getSubConfig(int i) const override {
+        auto subs = getSubConfigs();
+        return ((i < 0 || i >= subs.size()) ? nullptr : subs[i]);
+    }
 
-    /**jsdoc
-     * @function Render.refresh
-     */
-    void refresh();
+protected:
+    uint8_t _branch { 0 };
 };
 
 }
