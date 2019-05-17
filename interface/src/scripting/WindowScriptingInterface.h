@@ -558,6 +558,52 @@ public slots:
      */
     float domainLoadingProgress();
 
+    /**jsdoc
+     * Gets the number of display plugins currently available.
+     * @function Window.getDisplayPluginCount
+     * @returns {number} The number of display plugins currently available.
+     */
+    int getDisplayPluginCount();
+
+    /**jsdoc
+     * Gets the name of a display plugin.
+     * @function Window.getDisplayPluginName
+     * @param {number} index - The index of the display plugin. Must be less than the value returned by 
+     *     {@link Window.getDisplayPluginCount|getDisplayPluginCount}. The first display plugin has an index of <code>0</code>.
+     * @returns {string} The name of the display plugin.
+     * @example <caption>Print the names of all available display plugins.</caption>
+     * for (var i = 0, length = Window.getDisplayPluginCount(); i < length; i++) {
+     *     print(Window.getDisplayPluginName(i));
+     * }
+     */
+    QString getDisplayPluginName(int index);
+
+    /**jsdoc
+     * Checks whether a display plugin is an HMD.
+     * @function Window.isDisplayPluginHmd
+     * @param {number} index - The index of the display plugin. Must be less than the value returned by 
+     *     {@link Window.getDisplayPluginCount|getDisplayPluginCount}. The first display plugin has an index of <code>0</code>.
+     * @returns {boolean} <code>true</code> if the display plugin is a HMD, <code>false</code> if it isn't.
+     */
+    bool isDisplayPluginHmd(int index);
+
+    /**jsdoc
+     * Gets the index of the currently active display plugin.
+     * @function Window.getActiveDisplayPlugin
+     * @returns {number} The index of the currently active display plugin. The first display plugin has an index of 
+     *     <code>0</code>.
+     */
+    int getActiveDisplayPlugin();
+
+    /**jsdoc
+     * Sets the currently active display plugin.
+     * @function Window.setActiveDisplayPlugin
+     * @param {number} index - The index of the display plugin. Must be less than the value returned by 
+     *     {@link Window.getDisplayPluginCount|getDisplayPluginCount}. The first display plugin has an index of <code>0</code>.
+     */
+    void setActiveDisplayPlugin(int index);
+
+
 private slots:
     void onWindowGeometryChanged(const QRect& geometry);
     void onMessageBoxSelected(int button);

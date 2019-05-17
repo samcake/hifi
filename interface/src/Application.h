@@ -290,7 +290,6 @@ public:
     render::EnginePointer getRenderEngine() override { return  _graphicsEngine.getRenderEngine(); }
     gpu::ContextPointer getGPUContext() const { return _graphicsEngine.getGPUContext(); }
 
-
     const GameWorkload& getGameWorkload() const { return _gameWorkload; }
 
     virtual void pushPostUpdateLambda(void* key, const std::function<void()>& func) override;
@@ -807,7 +806,7 @@ private:
     std::queue<SnapshotOperator> _snapshotOperators;
     bool _hasPrimarySnapshot { false };
 
-    DisplayPluginPointer _autoSwitchDisplayModeSupportedHMDPlugin;
+    DisplayPluginPointer _autoSwitchDisplayModeSupportedHMDPlugin { nullptr };
     QString _autoSwitchDisplayModeSupportedHMDPluginName;
     bool _previousHMDWornStatus;
     void startHMDStandBySession();
