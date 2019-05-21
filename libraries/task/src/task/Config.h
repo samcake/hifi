@@ -100,6 +100,14 @@ public:
 
 };
 
+class JobConfig;
+
+class TConfigProxy {
+public:
+    using Config = JobConfig;
+};
+
+
 // A default Config is always on; to create an enableable Config, use the ctor JobConfig(bool enabled)
 class JobConfig : public QObject {
     Q_OBJECT
@@ -138,7 +146,46 @@ public:
      */
     Q_INVOKABLE void load(const QVariantMap& map) { qObjectFromJsonValue(QJsonObject::fromVariantMap(map), *this); emit loaded(); }
 
-    Q_INVOKABLE QObject* getConfig(const QString& name) { return nullptr; }
+  //  Q_INVOKABLE QObject* getConfig(const QString& name) { return nullptr; }
+
+  // getter for cpp (strictly typed), prefer this getter
+    JobConfig* getRootConfig(const std::string& jobPath, std::string& jobName) const;
+    JobConfig* getJobConfig(const std::string& jobPath) const;
+
+    template <class T> typename T::Config* getConfig(std::string jobPath = "") const {
+        return dynamic_cast<typename T::Config*>(getJobConfig(jobPath));
+    }
+
+    /**jsdoc
+    * @function Render.getConfig
+    * @param {string} name
+    * @returns {object}
+    */
+    // Get a sub job config through task.getConfig(path)
+    // where path can be:
+    // - <job_name> search for the first job named job_name traversing the the sub graph of task and jobs (from this task as root)
+    // - <parent_name>.[<sub_parent_names>.]<job_name>
+    //    Allowing to first look for the parent_name job (from this task as root) and then search from there for the
+    //    optional sub_parent_names and finally from there looking for the job_name (assuming every job in the path were found)
+    //
+    // getter for qml integration, prefer the templated getter
+    Q_INVOKABLE QObject* getConfig(const QString& name) { return getConfig<TConfigProxy>(name.toStdString()); }
+
+
+    Q_INVOKABLE virtual bool isTask() const  { return true; }
+    Q_INVOKABLE  QObjectList getSubConfigs() const {
+        auto list = findChildren<JobConfig*>(QRegExp(".*"), Qt::FindDirectChildrenOnly);
+        QObjectList returned;
+        for (int i = 0; i < list.size(); i++) {
+            returned.push_back(list[i]);
+        }
+        return returned;
+    }
+    Q_INVOKABLE  int getNumSubs() const { return getSubConfigs().size(); }
+    Q_INVOKABLE QObject* getSubConfig(int i) const  {
+        auto subs = getSubConfigs();
+        return ((i < 0 || i >= subs.size()) ? nullptr : subs[i]);
+    }
 
     // Running Time measurement
     // The new stats signal is emitted once per run time of a job when stats  (cpu runtime) are updated
@@ -150,26 +197,26 @@ public:
      * @function Render.isTask
      * @returns {boolean}
      */
-    Q_INVOKABLE virtual bool isTask() const { return false; }
+  //  Q_INVOKABLE virtual bool isTask() const { return false; }
 
     /**jsdoc
      * @function Render.getSubConfigs
      * @returns {object[]}
      */
-    Q_INVOKABLE virtual QObjectList getSubConfigs() const { return QObjectList(); }
+ //   Q_INVOKABLE virtual QObjectList getSubConfigs() const { return QObjectList(); }
 
     /**jsdoc
      * @function Render.getNumSubs
      * @returns {number}
      */
-    Q_INVOKABLE virtual int getNumSubs() const { return 0; }
+  //  Q_INVOKABLE virtual int getNumSubs() const { return 0; }
 
     /**jsdoc
      * @function Render.getSubConfig
      * @param {number} index
      * @returns {object}
      */
-    Q_INVOKABLE virtual QObject* getSubConfig(int i) const { return nullptr; }
+ //   Q_INVOKABLE virtual QObject* getSubConfig(int i) const { return nullptr; }
 
     /**jsdoc
     * @function Render.getPropertyAnnotations()
@@ -219,11 +266,6 @@ signals:
 
 using QConfigPointer = std::shared_ptr<JobConfig>;
 
-class TConfigProxy {
-public:
-    using Config = JobConfig;
-};
-
 
 /**jsdoc
  * @namespace Render
@@ -244,43 +286,6 @@ public:
     TaskConfig() = default;
     TaskConfig(bool enabled) : JobConfig(enabled) {}
 
-    /**jsdoc
-     * @function Render.getConfig
-     * @param {string} name
-     * @returns {object}
-     */
-    // Get a sub job config through task.getConfig(path)
-    // where path can be:
-    // - <job_name> search for the first job named job_name traversing the the sub graph of task and jobs (from this task as root)
-    // - <parent_name>.[<sub_parent_names>.]<job_name>
-    //    Allowing to first look for the parent_name job (from this task as root) and then search from there for the
-    //    optional sub_parent_names and finally from there looking for the job_name (assuming every job in the path were found)
-    //
-    // getter for qml integration, prefer the templated getter
-    Q_INVOKABLE QObject* getConfig(const QString& name) { return getConfig<TConfigProxy>(name.toStdString()); }
-
-    // getter for cpp (strictly typed), prefer this getter
-    TaskConfig* getRootConfig(const std::string& jobPath, std::string& jobName) const;
-    JobConfig* getJobConfig(const std::string& jobPath) const;
-
-    template <class T> typename T::Config* getConfig(std::string jobPath = "") const {
-        return dynamic_cast<typename T::Config*>(getJobConfig(jobPath));
-    }
-
-    Q_INVOKABLE bool isTask() const override { return true; }
-    Q_INVOKABLE QObjectList getSubConfigs() const override {
-        auto list = findChildren<JobConfig*>(QRegExp(".*"), Qt::FindDirectChildrenOnly);
-        QObjectList returned;
-        for (int i = 0; i < list.size(); i++) {
-            returned.push_back(list[i]);
-        }
-        return returned;
-    }
-    Q_INVOKABLE int getNumSubs() const override { return getSubConfigs().size(); }
-    Q_INVOKABLE QObject* getSubConfig(int i) const override {
-        auto subs = getSubConfigs();
-        return ((i < 0 || i >= subs.size()) ? nullptr : subs[i]);
-    }
 };
 
 class SwitchConfig : public JobConfig {
@@ -292,7 +297,7 @@ public:
     void setBranch(uint8_t index);
 
     Q_INVOKABLE bool isTask() const override { return true; }
-    Q_INVOKABLE QObjectList getSubConfigs() const override {
+ /*   Q_INVOKABLE QObjectList getSubConfigs() const override {
         auto list = findChildren<JobConfig*>(QRegExp(".*"), Qt::FindDirectChildrenOnly);
         QObjectList returned;
         for (int i = 0; i < list.size(); i++) {
@@ -304,7 +309,7 @@ public:
     Q_INVOKABLE QObject* getSubConfig(int i) const override {
         auto subs = getSubConfigs();
         return ((i < 0 || i >= subs.size()) ? nullptr : subs[i]);
-    }
+    }*/
 
 protected:
     uint8_t _branch { 0 };

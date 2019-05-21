@@ -129,8 +129,10 @@ void JobConfig::refresh() {
     _jobConcept->applyConfiguration();
 }
 
-TaskConfig* TaskConfig::getRootConfig(const std::string& jobPath, std::string& jobName) const {
-    TaskConfig* root = const_cast<TaskConfig*> (this);
+//TaskConfig* JobConfig::getRootConfig(const std::string& jobPath, std::string& jobName) const {
+JobConfig* JobConfig::getRootConfig(const std::string& jobPath, std::string& jobName) const {
+    //   TaskConfig* root = const_cast<TaskConfig*> (this);
+    JobConfig* root =/* dynamic_cast<TaskConfig*> */(const_cast<JobConfig*>(this));
 
     std::list<std::string> tokens;
     std::size_t pos = 0, sepPos;
@@ -155,7 +157,7 @@ TaskConfig* TaskConfig::getRootConfig(const std::string& jobPath, std::string& j
         while (tokens.size() > 1) {
             auto taskName = tokens.front();
             tokens.pop_front();
-            root = root->findChild<TaskConfig*>((taskName.empty() ? QString() : QString(taskName.c_str())));
+            root = root->findChild<JobConfig*>((taskName.empty() ? QString() : QString(taskName.c_str())));
             if (!root) {
                 return nullptr;
             }
@@ -165,7 +167,7 @@ TaskConfig* TaskConfig::getRootConfig(const std::string& jobPath, std::string& j
     return root;
 }
 
-JobConfig* TaskConfig::getJobConfig(const std::string& jobPath) const {
+JobConfig* JobConfig::getJobConfig(const std::string& jobPath) const {
     std::string jobName;
     auto root = getRootConfig(jobPath, jobName);
 
