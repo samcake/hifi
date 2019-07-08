@@ -38,14 +38,37 @@ void Preference::setEnabler(BoolPreference* enabler, bool inverse) {
     _enablerInverted = inverse;
     if (_enabler) {
         connect(_enabler, &BoolPreference::valueChanged, this, &Preference::onEnablerValueChanged);
-        onEnablerValueChanged();
+        onEnablerValueChanged(_enabler->getValue());
     }
 }
 
-void Preference::onEnablerValueChanged() {
-    bool value = _enabler->getValue();
+void Preference::onEnablerValueChanged(int newValue) {
+    bool value = (bool) newValue;
     if (_enablerInverted) {
         value = !value;
     }
     setEnabled(value);
+}
+
+void Preference::setEnablerInt(IntPreference* enabler, int index, bool inverse) {
+    if (_enablerInt) {
+        disconnect(_enablerInt);
+        _enablerInt = nullptr;
+    }
+    
+    _enablerInt = enabler;
+    _enablerValue = index;
+    _enablerInverted = inverse;
+    if (_enablerInt) {
+        connect(_enablerInt, &IntPreference::valueChanged, this, &Preference::onEnablerIntValueChanged);
+        onEnablerIntValueChanged(_enablerInt->getValue());
+    }
+}
+
+void Preference::onEnablerIntValueChanged(int value) {
+    bool activation = value == _enablerValue;
+    if (_enablerInverted) {
+        activation = !activation ;
+    }
+    setEnabled(activation);
 }

@@ -25,6 +25,7 @@
 #include "SnapshotAnimated.h"
 #include "UserActivityLogger.h"
 #include "ui/Keyboard.h"
+#include "platform/Profiler.h"
 
 void setupPreferences() {
     auto preferences = DependencyManager::get<Preferences>();
@@ -56,69 +57,127 @@ void setupPreferences() {
     // Graphics quality
     static const QString GRAPHICS_QUALITY { "Graphics Quality" };
     {
-        auto getter = []()->float {
-            return DependencyManager::get<LODManager>()->getWorldDetailQuality();
+        auto presetGetter = []()->int {
+            auto profile = qApp->getPerformanceManager().getPerformancePreset();
+            return profile;
         };
+        auto presetSetter = [](int value) {
+            qApp->getPerformanceManager().setPerformancePreset((PerformanceManager::PerformancePreset) value);
+        };
+        auto presetPreference = new RadioButtonsPreference(GRAPHICS_QUALITY, "Graphics Setting", presetGetter, presetSetter);
+        QStringList items;
+        items << "Custom" << "Low" << "Medium" << "High";
+       // preference->setHeading("Tablet Input Mechanism");
+        presetPreference->setItems(items);
+        preferences->addPreference(presetPreference);
+        
+        {
+            // Expose the Viewport Resolution Scale
+            auto getter = []()->float {
+                return RenderScriptingInterface::getInstance()->getViewportResolutionScale();
+            };
+            
+            auto setter = [](float value) {
+                RenderScriptingInterface::getInstance()->setViewportResolutionScale(value);
+            };
+            
+            auto scaleSlider = new SliderPreference(GRAPHICS_QUALITY, "Resolution Scale", getter, setter);
+            scaleSlider->setMin(0.25f);
+            scaleSlider->setMax(1.0f);
+            scaleSlider->setStep(0.02f);
+            scaleSlider->setEnablerInt(presetPreference, 0);
+            preferences->addPreference(scaleSlider);
+        }
+        {
+            const QStringList worldDetailsProfiles{ "Low", "Medium", "High" };
+            
+            auto getter = [worldDetailsProfiles]()->QString {
+                auto val = DependencyManager::get<LODManager>()->getWorldDetailQuality();
+                if (val <= 0.25f) {
+                    return worldDetailsProfiles[0];
+                } else if (val >= 0.75f) {
+                    return worldDetailsProfiles[2];
+                } else {
+                    return worldDetailsProfiles[1];
+                }
+            };
 
-        auto setter = [](float value) {
-            DependencyManager::get<LODManager>()->setWorldDetailQuality(value);
-        };
+            auto setter = [worldDetailsProfiles](QString value) {
+                if (value.compare(worldDetailsProfiles[0]) == 0) {
+                    DependencyManager::get<LODManager>()->setWorldDetailQuality(0.25f);
+                } else if (value.compare(worldDetailsProfiles[1]) == 0) {
+                    DependencyManager::get<LODManager>()->setWorldDetailQuality(0.5f);
+                } else {
+                    DependencyManager::get<LODManager>()->setWorldDetailQuality(0.75f);
+                }
+            };
+            auto preference = new ComboBoxPreference(GRAPHICS_QUALITY, "World Details", getter, setter);
+            preference->setItems(worldDetailsProfiles);
+            
+            preference->setEnablerInt(presetPreference, 0);
+            preferences->addPreference(preference);
+        }
+        {
+            const QStringList renderEffectProfiles{ "No Effect", "Haze", "Haze and Shadow" };
+            
+            auto getter = [renderEffectProfiles]()->QString {
+                auto renderMethod = RenderScriptingInterface::getInstance()->getRenderMethod();
+                auto shadowEnabled = RenderScriptingInterface::getInstance()->getShadowsEnabled();
+                int profile{0};
+                if (shadowEnabled) {
+                    profile = 2;
+                } else if (renderMethod == RenderScriptingInterface::RenderMethod::DEFERRED) {
+                    profile = 1;
+                }
+                return renderEffectProfiles[profile];
+            };
+            
+            auto setter = [renderEffectProfiles](QString value) {
+                static bool isDeferredCapable = platform::Profiler::isRenderMethodDeferredCapable();
+                if (value.compare(renderEffectProfiles[0]) == 0) {
+                    RenderScriptingInterface::getInstance()->setRenderMethod( RenderScriptingInterface::RenderMethod::FORWARD);
+                    RenderScriptingInterface::getInstance()->setShadowsEnabled(false);
+                } else if (value.compare(renderEffectProfiles[1]) == 0) {
+                    RenderScriptingInterface::getInstance()->setRenderMethod(( isDeferredCapable ?
+                                                                              RenderScriptingInterface::RenderMethod::DEFERRED :
+                                                                              RenderScriptingInterface::RenderMethod::FORWARD ));
+                    RenderScriptingInterface::getInstance()->setShadowsEnabled(false);
+                } else {
+                    RenderScriptingInterface::getInstance()->setRenderMethod(( isDeferredCapable ?
+                                                                              RenderScriptingInterface::RenderMethod::DEFERRED :
+                                                                              RenderScriptingInterface::RenderMethod::FORWARD ));
+                    RenderScriptingInterface::getInstance()->setShadowsEnabled(true);
+                }
+            };
+            auto preference = new ComboBoxPreference(GRAPHICS_QUALITY, "Render Effects", getter, setter);
+            preference->setItems(renderEffectProfiles);
+            preference->setEnablerInt(presetPreference, 0);
+            preferences->addPreference(preference);
+        }
+        {
+            auto getter = []()->QString {
+                RefreshRateManager::RefreshRateProfile refreshRateProfile = qApp->getRefreshRateManager().getRefreshRateProfile();
+                return QString::fromStdString(RefreshRateManager::refreshRateProfileToString(refreshRateProfile));
+            };
 
-        auto wodSlider = new SliderPreference(GRAPHICS_QUALITY, "World Detail", getter, setter);
-        wodSlider->setMin(0.25f);
-        wodSlider->setMax(0.75f);
-        wodSlider->setStep(0.25f);
-        preferences->addPreference(wodSlider);
+            auto setter = [](QString value) {
+                std::string profileName = value.toStdString();
+                RefreshRateManager::RefreshRateProfile refreshRateProfile = RefreshRateManager::refreshRateProfileFromString(profileName);
+                qApp->getRefreshRateManager().setRefreshRateProfile(refreshRateProfile);
+            };
 
-        auto getterShadow = []()->bool {
-            auto menu = Menu::getInstance();
-            return menu->isOptionChecked(MenuOption::Shadows);
-        };
-        auto setterShadow = [](bool value) {
-            auto menu = Menu::getInstance();
-            menu->setIsOptionChecked(MenuOption::Shadows, value);
-        };
-        preferences->addPreference(new CheckPreference(GRAPHICS_QUALITY, "Show Shadows", getterShadow, setterShadow));
+            auto preference = new ComboBoxPreference(GRAPHICS_QUALITY, "Refresh Rate", getter, setter);
+            QStringList refreshRateProfiles
+                { QString::fromStdString(RefreshRateManager::refreshRateProfileToString(RefreshRateManager::RefreshRateProfile::ECO)),
+                  QString::fromStdString(RefreshRateManager::refreshRateProfileToString(RefreshRateManager::RefreshRateProfile::INTERACTIVE)),
+                  QString::fromStdString(RefreshRateManager::refreshRateProfileToString(RefreshRateManager::RefreshRateProfile::REALTIME)) };
+
+            preference->setItems(refreshRateProfiles);
+            preference->setEnablerInt(presetPreference, 0);
+            preferences->addPreference(preference);
+        }
     }
-
-    {
-        auto getter = []()->QString {
-            RefreshRateManager::RefreshRateProfile refreshRateProfile = qApp->getRefreshRateManager().getRefreshRateProfile();
-            return QString::fromStdString(RefreshRateManager::refreshRateProfileToString(refreshRateProfile));
-        };
-
-        auto setter = [](QString value) {
-            std::string profileName = value.toStdString();
-            RefreshRateManager::RefreshRateProfile refreshRateProfile = RefreshRateManager::refreshRateProfileFromString(profileName);
-            qApp->getRefreshRateManager().setRefreshRateProfile(refreshRateProfile);
-        };
-
-        auto preference = new ComboBoxPreference(GRAPHICS_QUALITY, "Refresh Rate", getter, setter);
-        QStringList refreshRateProfiles
-            { QString::fromStdString(RefreshRateManager::refreshRateProfileToString(RefreshRateManager::RefreshRateProfile::ECO)),
-              QString::fromStdString(RefreshRateManager::refreshRateProfileToString(RefreshRateManager::RefreshRateProfile::INTERACTIVE)),
-              QString::fromStdString(RefreshRateManager::refreshRateProfileToString(RefreshRateManager::RefreshRateProfile::REALTIME)) };
-
-        preference->setItems(refreshRateProfiles);
-        preferences->addPreference(preference);
-    }
-    {
-        // Expose the Viewport Resolution Scale
-        auto getter = []()->float {
-            return RenderScriptingInterface::getInstance()->getViewportResolutionScale();
-        };
-
-        auto setter = [](float value) {
-            RenderScriptingInterface::getInstance()->setViewportResolutionScale(value);
-        };
-
-        auto scaleSlider = new SliderPreference(GRAPHICS_QUALITY, "Resolution Scale", getter, setter);
-        scaleSlider->setMin(0.25f);
-        scaleSlider->setMax(1.0f);
-        scaleSlider->setStep(0.02f);
-        preferences->addPreference(scaleSlider);
-    }
-
+    
     // UI
     static const QString UI_CATEGORY { "User Interface" };
     {

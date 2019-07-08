@@ -37,6 +37,7 @@ private:
 };
 
 class BoolPreference;
+class IntPreference;
 
 class Preference : public QObject {
     Q_OBJECT
@@ -81,6 +82,8 @@ public:
     }
 
     void setEnabler(BoolPreference* enabler, bool inverse = false);
+    void setEnablerInt(IntPreference* enabler, int index = 0, bool inverse = false);
+    
     virtual Type getType() { return Invalid; };
 
     Q_INVOKABLE virtual void load() {};
@@ -90,15 +93,18 @@ signals:
     void enabledChanged();
 
 private slots:
-    void onEnablerValueChanged();
-
+    void onEnablerValueChanged(int value);
+    void onEnablerIntValueChanged(int value);
+    
 protected:
     virtual void emitValueChanged() {};
 
     BoolPreference* _enabler { nullptr };
+    IntPreference* _enablerInt { nullptr };
     const QString _category;
     const QString _name;
     bool _enabled { true };
+    int _enablerValue { 1 };
     bool _enablerInverted { false };
 };
 
@@ -137,14 +143,14 @@ public:
     }
 
 signals:
-    void valueChanged();
+    void valueChanged(int value);
 
 protected:
     bool _value;
     const Getter _getter;
     const Setter _setter;
 
-    void emitValueChanged() override { emit valueChanged(); }
+    void emitValueChanged() override { emit valueChanged(_value); }
 };
 
 class FloatPreference : public Preference {
@@ -185,10 +191,10 @@ public:
     void setDecimals(float decimals) { _decimals = decimals; };
 
 signals:
-    void valueChanged();
+    void valueChanged(float value);
 
 protected:
-    void emitValueChanged() override { emit valueChanged(); }
+    void emitValueChanged() override { emit valueChanged(_value); }
 
     float _value;
     const Getter _getter;
@@ -238,14 +244,14 @@ public:
     void setDecimals(int decimals) { _decimals = decimals; };
 
 signals:
-    void valueChanged();
+    void valueChanged(int value);
 
 protected:
     int _value;
     const Getter _getter;
     const Setter _setter;
 
-    void emitValueChanged() override { emit valueChanged(); }
+    void emitValueChanged() override { emit valueChanged(_value); }
 
     int _min { std::numeric_limits<int>::min() };
     int _max { std::numeric_limits<int>::max() };
@@ -276,10 +282,10 @@ public:
     }
 
 signals:
-    void valueChanged();
+    void valueChanged(QString value);
 
 protected:
-    void emitValueChanged() override { emit valueChanged(); }
+    void emitValueChanged() override { emit valueChanged(_value); }
 
     QString _value;
     const Getter _getter;
