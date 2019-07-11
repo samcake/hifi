@@ -58,9 +58,11 @@ void main(void) {
 
     // Convert region to color
     int region = floatBitsToInt(proxy.region.x);
+    int phase = (0x00FF0000 & region) >> 16;
     region = (0x000000FF & region);
 
-    varColor = vec4(REGION_COLOR[region].xyz, proxy.sphere.w);
+    
+    varColor = vec4(mix(vec3(0.5), REGION_COLOR[region].xyz, float(phase != 0)), proxy.sphere.w);
 
     gl_Position = mix(gl_Position, vec4(0.0), float(region == 4));
 }

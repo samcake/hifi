@@ -42,8 +42,8 @@ PropItem {
         enabled: root.showValue
 
         anchors.left: root.splitter.right
+        anchors.right: (root.readOnly ? root.right : sliderControl.left)
         anchors.verticalCenter: root.verticalCenter
-        width: root.width * (root.readOnly ? 1.0 : global.valueAreaWidthScale)
         horizontalAlignment: global.valueTextAlign
         height: global.slimHeight
         
@@ -60,12 +60,14 @@ PropItem {
     HifiControls.Slider {
         id: sliderControl
         visible: !root.readOnly
+
         stepSize: root.integral ? 1.0 : 0.0
-        anchors.left: valueLabel.right
-        anchors.right: root.right
-        anchors.verticalCenter: root.verticalCenter
         value: root.sourceValueVar
         onValueChanged: { applyValueVarFromWidgets(value) }
+
+        width: root.width * (root.readOnly ? 0.0 : global.handleAreaWidthScale)
+        anchors.right: root.right
+        anchors.verticalCenter: root.verticalCnter
     }
 
     

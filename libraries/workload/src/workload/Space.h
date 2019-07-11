@@ -17,6 +17,7 @@
 
 #include <memory>
 #include <vector>
+#include <functional>
 #include <glm/glm.hpp>
 
 #include "Transaction.h"
@@ -45,11 +46,13 @@ public:
     uint32_t getNumObjects() const { return _IDAllocator.getNumLiveIndices(); }
     uint32_t getNumAllocatedProxies() const { return (uint32_t)(_IDAllocator.getNumAllocatedIndices()); }
 
+    void accessProxies(std::function<void(Proxy::Vector&)> accessor);
     void categorizeAndGetChanges(std::vector<Change>& changes);
     uint32_t copyProxyValues(Proxy* proxies, uint32_t numDestProxies) const;
 
     const Owner getOwner(int32_t proxyID) const;
     uint8_t getRegion(int32_t proxyID) const;
+    uint8_t getPhase(int32_t proxyID) const;
 
     void clear() override;
 private:
@@ -58,6 +61,7 @@ private:
     void processResets(const Transaction::Resets& transactions);
     void processRemoves(const Transaction::Removes& transactions);
     void processUpdates(const Transaction::Updates& transactions);
+    void processPhases(const Transaction::Phases& transactions);
 
     // The database of proxies is protected for editing by a mutex
     mutable std::mutex _proxiesMutex;

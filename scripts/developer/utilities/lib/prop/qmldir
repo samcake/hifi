@@ -13,3 +13,4 @@ PropScalar 1.0 PropScalar.qml
 PropString 1.0 PropString.qml
 PropEnum 1.0 PropEnum.qml
 PropColor 1.0 PropColor.qml
+PropVec3 1.0 PropVec3.qml

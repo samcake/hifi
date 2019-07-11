@@ -20,7 +20,7 @@ class GameSpaceToRenderConfig : public workload::Job::Config {
 public:
 
     bool freezeViews{ false };
-    bool showProxies{ false };
+    bool showProxies{ true };
     bool showViews{ false };
 signals:
     void dirty();

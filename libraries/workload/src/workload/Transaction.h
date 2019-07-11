@@ -94,14 +94,17 @@ class Transaction {
     friend class Space;
 public:
     using ProxyPayload = Sphere;
+    using ProxyPhase = uint8_t;
 
     using Reset = std::tuple<ProxyID, ProxyPayload, Owner>;
     using Remove = ProxyID;
     using Update = std::tuple<ProxyID, ProxyPayload>;
+    using DoPhase = std::tuple<ProxyID, ProxyPhase>;
 
     using Resets = std::vector<Reset>;
     using Removes = std::vector<Remove>;
     using Updates = std::vector<Update>;
+    using Phases = std::vector<DoPhase>;
 
     Transaction() {}
     ~Transaction() {}
@@ -116,6 +119,9 @@ public:
     void update(ProxyID id, const ProxyPayload& sphere);
     void update(const Updates& updates);
 
+    void doPhase(ProxyID id, ProxyPhase phase);
+    void doPhase(const Phases& phases);
+
     void reserve(const std::vector<Transaction>& transactionContainer);
     void merge(const std::vector<Transaction>& transactionContainer);
     void merge(std::vector<Transaction>&& transactionContainer);
@@ -129,6 +135,7 @@ protected:
     Resets _resetItems;
     Removes _removedItems;
     Updates _updatedItems;
+    Phases _phasedItems;
 };
 typedef std::vector<Transaction> TransactionQueue;
 

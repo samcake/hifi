@@ -25,20 +25,27 @@ void Transaction::update(ProxyID id, const ProxyPayload& payload) {
     _updatedItems.emplace_back(id, payload);
 }
 
+void Transaction::doPhase(ProxyID id, ProxyPhase phase) {
+    _phasedItems.emplace_back(id, phase);
+}
+
 void Transaction::reserve(const std::vector<Transaction>& transactionContainer) {
     size_t resetItemsCount = 0;
     size_t removedItemsCount = 0;
     size_t updatedItemsCount = 0;
+    size_t phasedItemsCount = 0;
 
     for (const auto& transaction : transactionContainer) {
         resetItemsCount += transaction._resetItems.size();
         removedItemsCount += transaction._removedItems.size();
         updatedItemsCount += transaction._updatedItems.size();
+        phasedItemsCount += transaction._phasedItems.size();
     }
 
     _resetItems.reserve(resetItemsCount);
     _removedItems.reserve(removedItemsCount);
     _updatedItems.reserve(updatedItemsCount);
+    _phasedItems.reserve(phasedItemsCount);
 }
 
 void Transaction::merge(const std::vector<Transaction>& transactionContainer) {
@@ -84,22 +91,29 @@ void Transaction::update(const Updates& updates) {
     copyElements(_updatedItems, updates);
 }
 
+void Transaction::doPhase(const Phases& phases) {
+    copyElements(_phasedItems, phases);
+}
+
 void Transaction::merge(Transaction&& transaction) {
     moveElements(_resetItems, transaction._resetItems);
     moveElements(_removedItems, transaction._removedItems);
     moveElements(_updatedItems, transaction._updatedItems);
+    moveElements(_phasedItems, transaction._phasedItems);
 }
 
 void Transaction::merge(const Transaction& transaction) {
     copyElements(_resetItems, transaction._resetItems);
     copyElements(_removedItems, transaction._removedItems);
     copyElements(_updatedItems, transaction._updatedItems);
+    copyElements(_phasedItems, transaction._phasedItems);
 }
 
 void Transaction::clear() {
     _resetItems.clear();
     _removedItems.clear();
     _updatedItems.clear();
+    _phasedItems.clear();
 }
 
 

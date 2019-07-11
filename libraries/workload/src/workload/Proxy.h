@@ -12,6 +12,7 @@
 #define hifi_workload_Proxy_h
 
 #include "View.h"
+#include "Phase.h"
 
 namespace workload {
 
@@ -47,7 +48,8 @@ public:
     Sphere sphere;
     uint8_t region{ Region::INVALID };
     uint8_t prevRegion{ Region::INVALID };
-    uint16_t _padding;
+    uint8_t phase { Phase::INVALID };
+    uint8_t _padding;
     uint32_t _paddings[3];
 
     using Vector = std::vector<Proxy>;

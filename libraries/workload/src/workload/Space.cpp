@@ -37,6 +37,7 @@ void Space::processTransactionFrame(const Transaction& transaction) {
 
     processResets(transaction._resetItems);
     processUpdates(transaction._updatedItems);
+    processPhases(transaction._phasedItems);
     processRemoves(transaction._removedItems);
 }
 
@@ -54,6 +55,7 @@ void Space::processResets(const Transaction::Resets& transactions) {
         // Reset the item with a new payload
         item.sphere = (std::get<1>(reset));
         item.prevRegion = item.region = Region::UNKNOWN;
+        item.phase = Phase::ON_HOLD;
 
         _owners[proxyID] = (std::get<2>(reset));
     }
@@ -71,6 +73,7 @@ void Space::processRemoves(const Transaction::Removes& transactions) {
 
         // Kill it
         item.prevRegion = item.region = Region::INVALID;
+        item.phase = Phase::INVALID;
         _owners[removedID] = Owner();
     }
 }
@@ -88,6 +91,25 @@ void Space::processUpdates(const Transaction::Updates& transactions) {
         // Update the item
         item.sphere = (std::get<1>(update));
     }
+}
+
+void Space::processPhases(const Transaction::Phases& transactions) {
+    for (auto& phase : transactions) {
+        auto updateID = std::get<0>(phase);
+        if (!_IDAllocator.checkIndex(updateID)) {
+            continue;
+        }
+
+        // Access the true item
+        auto& item = _proxies[updateID];
+
+        // Update the item
+        item.phase = (Phase::Name) std::get<1>(phase);
+    }
+}
+void Space::accessProxies(std::function<void(Proxy::Vector&)> accessor) {
+    std::unique_lock<std::mutex> lock(_proxiesMutex);
+    accessor(_proxies);
 }
 
 void Space::categorizeAndGetChanges(std::vector<Space::Change>& changes) {
@@ -141,6 +163,14 @@ uint8_t Space::getRegion(int32_t proxyID) const {
         return _proxies[proxyID].region;
     }
     return (uint8_t)Region::INVALID;
+}
+
+uint8_t Space::getPhase(int32_t proxyID) const {
+    std::unique_lock<std::mutex> lock(_proxiesMutex);
+    if (isAllocatedID(proxyID) && (proxyID < (Index)_proxies.size())) {
+        return _proxies[proxyID].phase;
+    }
+    return (uint8_t)Phase::INVALID;
 }
 
 void Space::clear() {

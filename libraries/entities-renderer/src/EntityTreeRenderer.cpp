@@ -357,9 +357,10 @@ void EntityTreeRenderer::addPendingEntities(const render::ScenePointer& scene, r
             if (!entity->isParentPathComplete()) {
                 continue;
             }
-            if (entity->getSpaceIndex() == -1) {
+            auto spaceIndex = entity->getSpaceIndex();
+            if (spaceIndex == -1) {
                 std::unique_lock<std::mutex> lock(_spaceLock);
-                auto spaceIndex = _space->allocateID();
+                spaceIndex = _space->allocateID();
                 workload::Sphere sphere(entity->getWorldPosition(), entity->getBoundingRadius());
                 workload::Transaction transaction;
                 SpatiallyNestablePointer nestable = std::static_pointer_cast<SpatiallyNestable>(entity);
@@ -368,12 +369,14 @@ void EntityTreeRenderer::addPendingEntities(const render::ScenePointer& scene, r
                 entity->setSpaceIndex(spaceIndex);
                 connect(entity.get(), &EntityItem::spaceUpdate, this, &EntityTreeRenderer::handleSpaceUpdate, Qt::QueuedConnection);
             }
-
-            auto entityID = entity->getEntityItemID();
-            auto renderable = EntityRenderer::addToScene(*this, entity, scene, transaction);
-            if (renderable) {
-                _entitiesInScene.insert({ entityID, renderable });
-                processedIds.insert(entityID);
+        
+            if (_space->getPhase(spaceIndex) == workload::Phase::BEGIN_LOADING) {
+                auto entityID = entity->getEntityItemID();
+                auto renderable = EntityRenderer::addToScene(*this, entity, scene, transaction);
+                if (renderable) {
+                    _entitiesInScene.insert({ entityID, renderable });
+                    processedIds.insert(entityID);
+                }
             }
         }
 
