@@ -17,7 +17,7 @@ Column {
     anchors.left: parent.left 
     anchors.right: parent.right 
 
-    Prop.PropVec3 {
+    Prop.PropVec234 {
         label: "Origin"
         object: Workload.getConfig("updatePhase")
         property: "loadingOriginQ"  

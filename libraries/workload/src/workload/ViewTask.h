@@ -13,6 +13,9 @@
 
 #include "Engine.h"
 
+#include <qvector3d.h>
+#include <qvector4d.h>
+
 template <typename T>
 QVariantList toVariantList(const QList<T> &list)
 {
@@ -42,12 +45,22 @@ namespace workload {
 
     class SetupViewsConfig : public Job::Config{
         Q_OBJECT
-        Q_PROPERTY(float r1Front READ getR1Front WRITE setR1Front NOTIFY dirty)
-        Q_PROPERTY(float r1Back READ getR1Back WRITE setR1Back NOTIFY dirty)
-        Q_PROPERTY(float r2Front READ getR2Front WRITE setR2Front NOTIFY dirty)
-        Q_PROPERTY(float r2Back READ getR2Back WRITE setR2Back NOTIFY dirty)
-        Q_PROPERTY(float r3Front READ getR3Front WRITE setR3Front NOTIFY dirty)
-        Q_PROPERTY(float r3Back READ getR3Back WRITE setR3Back NOTIFY dirty)
+        Q_PROPERTY(int numViews READ getNumViews NOTIFY newStats())
+
+        Q_PROPERTY(glm::vec3 origin READ getOrigin NOTIFY newStats())
+        Q_PROPERTY(glm::vec3 direction READ getDirection NOTIFY newStats())
+        Q_PROPERTY(glm::vec4 fov READ getFov NOTIFY newStats())
+        Q_PROPERTY(QVector3D originQ READ getOriginQ NOTIFY newStats())
+        Q_PROPERTY(QVector3D directionQ READ getDirectionQ NOTIFY newStats())
+        Q_PROPERTY(QVector4D fovQ READ getFovQ NOTIFY newStats())
+
+        Q_PROPERTY(float r1Front READ getR1Front WRITE setR1Front NOTIFY newStats)
+        Q_PROPERTY(float r1Back READ getR1Back WRITE setR1Back NOTIFY newStats)
+        Q_PROPERTY(float r2Front READ getR2Front WRITE setR2Front NOTIFY newStats)
+        Q_PROPERTY(float r2Back READ getR2Back WRITE setR2Back NOTIFY newStats)
+        Q_PROPERTY(float r3Front READ getR3Front WRITE setR3Front NOTIFY newStats)
+        Q_PROPERTY(float r3Back READ getR3Back WRITE setR3Back NOTIFY newStats)
+        
         Q_PROPERTY(bool freezeViews READ getFreezeView WRITE setFreezeView NOTIFY dirty)
         Q_PROPERTY(bool useAvatarView READ useAvatarView WRITE setUseAvatarView NOTIFY dirty)
         Q_PROPERTY(bool forceViewHorizontal READ forceViewHorizontal WRITE setForceViewHorizontal NOTIFY dirty)
@@ -55,6 +68,16 @@ namespace workload {
         Q_PROPERTY(bool simulateSecondaryCamera READ simulateSecondaryCamera WRITE setSimulateSecondaryCamera NOTIFY dirty)
 
     public:
+         int getNumViews() const { return dataExport.numViews; }
+        
+        glm::vec3 getOrigin() const { return dataExport.origin; }
+        QVector3D getOriginQ() const { return QVector3D(dataExport.origin.x, dataExport.origin.y, dataExport.origin.z); }
+
+        glm::vec3 getDirection() const { return dataExport.direction; }
+        QVector3D getDirectionQ() const { return QVector3D(dataExport.direction.x, dataExport.direction.y, dataExport.direction.z); }
+
+        glm::vec4 getFov() const { return dataExport.fov; }
+        QVector4D getFovQ() const { return QVector4D(dataExport.fov.x, dataExport.fov.y, dataExport.fov.z, dataExport.fov.w); }
 
         float getR1Front() const { return data.r1Front; }
         float getR1Back() const { return data.r1Back; }
@@ -63,12 +86,12 @@ namespace workload {
         float getR3Front() const { return data.r3Front; }
         float getR3Back() const { return data.r3Back; }
 
-        void setR1Front(float d) { data.r1Front = d; emit dirty(); }
-        void setR1Back(float d) { data.r1Back = d; emit dirty(); }
-        void setR2Front(float d) { data.r2Front = d; emit dirty(); }
-        void setR2Back(float d) { data.r2Back = d; emit dirty(); }
-        void setR3Front(float d) { data.r3Front = d; emit dirty(); }
-        void setR3Back(float d) { data.r3Back = d; emit dirty(); }
+        void setR1Front(float d) { data.r1Front = d; }
+        void setR1Back(float d) { data.r1Back = d; }
+        void setR2Front(float d) { data.r2Front = d; }
+        void setR2Back(float d) { data.r2Back = d; }
+        void setR3Front(float d) { data.r3Front = d; }
+        void setR3Back(float d) { data.r3Back = d; }
 
         bool getFreezeView() const { return data.freezeViews; }
         void setFreezeView(bool freeze) { data.freezeViews = freeze; emit dirty(); }
@@ -91,11 +114,17 @@ namespace workload {
             float r3Front{ MAX_VIEW_BACK_FRONTS[2].y };
 
             bool freezeViews{ false };
-            bool useAvatarView{ false };
+            bool useAvatarView{ true };
             bool forceViewHorizontal{ false };
             bool simulateSecondaryCamera{ false };
         } data;
+        struct DataExport {
+            int numViews { 0 };
+            glm::vec3 origin{ 0.0f };
+            glm::vec3 direction{ 0.0f, 0.0f, -1.0f };
+            glm::vec4 fov {0.f};
 
+        } dataExport;
     signals:
         void dirty();
     };
@@ -111,7 +140,8 @@ namespace workload {
         void run(const workload::WorkloadContextPointer& renderContext, const Input& inputs, Output& outputs);
 
     protected:
-        Config::Data data;
+        Config::Data _data;
+        Config::DataExport _dataExport;
         Views _views;
     };
 
@@ -129,17 +159,22 @@ namespace workload {
         Q_PROPERTY(bool regulateViewRanges READ regulateViewRanges WRITE setRegulateViewRanges NOTIFY dirty)
 
 
-        Q_PROPERTY(float r1Timing READ r1Timing NOTIFY dirty)
-        Q_PROPERTY(float r2Timing READ r2Timing NOTIFY dirty)
-        Q_PROPERTY(float r3Timing READ r3Timing NOTIFY dirty)
+        Q_PROPERTY(float r1Timing READ r1Timing NOTIFY newStats)
+        Q_PROPERTY(float r2Timing READ r2Timing NOTIFY newStats)
+        Q_PROPERTY(float r3Timing READ r3Timing NOTIFY newStats)
 
-        Q_PROPERTY(float r1RangeBack READ r1RangeBack NOTIFY dirty)
-        Q_PROPERTY(float r2RangeBack READ r2RangeBack NOTIFY dirty)
-        Q_PROPERTY(float r3RangeBack READ r3RangeBack NOTIFY dirty)
+        Q_PROPERTY(float r1RangeBack READ r1RangeBack NOTIFY newStats)
+        Q_PROPERTY(float r2RangeBack READ r2RangeBack NOTIFY newStats)
+        Q_PROPERTY(float r3RangeBack READ r3RangeBack NOTIFY newStats)
 
-        Q_PROPERTY(float r1RangeFront READ r1RangeFront NOTIFY dirty)
-        Q_PROPERTY(float r2RangeFront READ r2RangeFront NOTIFY dirty)
-        Q_PROPERTY(float r3RangeFront READ r3RangeFront NOTIFY dirty)
+        Q_PROPERTY(float r1RangeFront READ r1RangeFront NOTIFY newStats)
+        Q_PROPERTY(float r2RangeFront READ r2RangeFront NOTIFY newStats)
+        Q_PROPERTY(float r3RangeFront READ r3RangeFront NOTIFY newStats)
+
+        Q_PROPERTY(QVector3D r1Q READ getR1Q NOTIFY newStats)
+        Q_PROPERTY(QVector3D r2Q READ getR2Q NOTIFY newStats)
+        Q_PROPERTY(QVector3D r3Q READ getR3Q NOTIFY newStats)
+
         /*
         Q_PROPERTY(float r1MinRangeBack READ r1MinRangeBack WRITE setR1MinRangeBack NOTIFY dirty)
         Q_PROPERTY(float r2MinRangeBack READ r2MinRangeBack WRITE setR2MinRangeBack NOTIFY dirty)
@@ -172,6 +207,12 @@ namespace workload {
         Q_PROPERTY(float r1SpeedUpFront READ r1SpeedUpFront WRITE setR1SpeedUpFront NOTIFY dirty)
         Q_PROPERTY(float r2SpeedUpFront READ r2SpeedUpFront WRITE setR2SpeedUpFront NOTIFY dirty)
         Q_PROPERTY(float r3SpeedUpFront READ r3SpeedUpFront WRITE setR3SpeedUpFront NOTIFY dirty)*/
+
+
+        QVector3D getR1Q() const { return QVector3D(r1Timing(), r1RangeBack(), r1RangeFront()); }
+        QVector3D getR2Q() const { return QVector3D(r2Timing(), r2RangeBack(), r2RangeFront()); }
+        QVector3D getR3Q() const { return QVector3D(r3Timing(), r3RangeBack(), r3RangeFront()); }
+
 
     public:
 

@@ -49,7 +49,7 @@ public:
     uint8_t region{ Region::INVALID };
     uint8_t prevRegion{ Region::INVALID };
     uint8_t phase { Phase::INVALID };
-    uint8_t _padding;
+    uint8_t _padding { 0 };
     uint32_t _paddings[3];
 
     using Vector = std::vector<Proxy>;

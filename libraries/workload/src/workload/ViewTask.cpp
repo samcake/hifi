@@ -19,24 +19,24 @@ void AssignSpaceViews::run(const WorkloadContextPointer& renderContext, const In
 }
 
 void SetupViews::configure(const Config& config) {
-    data = config.data;
+    _data = config.data;
 }
 
-void SetupViews::run(const WorkloadContextPointer& renderContext, const Input& inputs, Output& outputs) {
+void SetupViews::run(const WorkloadContextPointer& runContext, const Input& inputs, Output& outputs) {
     // If views are frozen don't use the input
-    if (!data.freezeViews) {
+    if (!_data.freezeViews) {
         _views = inputs;
     }
 
     auto& outViews = outputs;
     outViews.clear();
-
+    bool mergedHeadAndCam { false };
     if (_views.size() >= 2) {
         // when inputs contains two or more views:
         //   index 0 = view from avatar's head
         //   index 1 = view from camera
         //   index 2 and higher = secondary camera and whatever
-        if (data.useAvatarView) {
+        if (_data.useAvatarView) {
             // for debug purposes we keep the head view and skip that of the camera
             outViews.push_back(_views[0]);
             outViews.insert(outViews.end(), _views.begin() + 2, _views.end());
@@ -47,6 +47,7 @@ void SetupViews::run(const WorkloadContextPointer& renderContext, const Input& i
                 // ... unless the first two are close enough to be considered the same
                 // in which case we only keep one of them
                 outViews.insert(outViews.end(), _views.begin() + 1, _views.end());
+                mergedHeadAndCam = true;
             } else {
                 outViews = _views;
             }
@@ -56,12 +57,14 @@ void SetupViews::run(const WorkloadContextPointer& renderContext, const Input& i
     }
 
     // Force frutum orientation horizontal if needed
-    if (outViews.size() > 0 && data.forceViewHorizontal) {
+    if (outViews.size() > 0 && _data.forceViewHorizontal) {
         outViews[0].makeHorizontal();
+
+        if (outViews.size() > 1) outViews [1].makeHorizontal();
     }
 
     // Force frutum orientation horizontal if needed
-    if (outViews.size() > 0 && data.simulateSecondaryCamera) {
+    if (outViews.size() > 0 && _data.simulateSecondaryCamera) {
         auto view = outViews[0];
         auto secondaryDirectionFlat = glm::normalize(glm::vec3(view.direction.x, 0.0f, view.direction.z));
         auto secondaryDirection = glm::normalize(glm::vec3(secondaryDirectionFlat.z, 0.0f, -secondaryDirectionFlat.x));
@@ -74,9 +77,20 @@ void SetupViews::run(const WorkloadContextPointer& renderContext, const Input& i
 
     // Update regions based on the current config
     for (auto& v : outViews) {
-        View::updateRegionsFromBackFrontDistances(v, (float*) &data);
+        View::updateRegionsFromBackFrontDistances(v, (float*) &_data);
     }
 
+    _dataExport.numViews = outViews.size();
+    if (outViews.size() > 0) {
+        auto& view = outViews[(mergedHeadAndCam || _data.useAvatarView ? 0 : 1)];
+        
+        _dataExport.origin = view.origin;
+        _dataExport.direction = view.direction;
+        _dataExport.fov = view.fov_halfAngle_tan_cos_sin;
+
+        auto config = std::static_pointer_cast<Config>(runContext->jobConfig);
+        config->dataExport = _dataExport;
+    }
     // outViews is ready to be used
 }
 

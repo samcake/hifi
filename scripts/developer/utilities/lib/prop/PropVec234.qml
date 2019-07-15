@@ -1,5 +1,5 @@
 //
-//  PropVec3.qml
+//  PropVec234.qml
 //
 //  Created by Sam Gateau on 7/10/2019
 //  Copyright 2019 High Fidelity, Inc.
@@ -26,8 +26,11 @@ PropItem {
     function valueToString() {
         var text = root.sourceValueVar.x.toFixed(numDigits)
              + separator + root.sourceValueVar.y.toFixed(numDigits)
-        if (dimension >= 3) {
+        if (dimension > 2) {
             text += separator + root.valueVarGetter().z.toFixed(numDigits);
+            if (dimension > 3) {
+                text += separator + root.valueVarGetter().w.toFixed(numDigits);
+            }
         }
         return text
     }

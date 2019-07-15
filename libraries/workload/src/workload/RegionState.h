@@ -21,10 +21,10 @@
 namespace workload {
     class RegionStateConfig : public Job::Config{
         Q_OBJECT
-        Q_PROPERTY(float numR0 READ getNumR0 NOTIFY dirty)
-        Q_PROPERTY(float numR1 READ getNumR1 NOTIFY dirty)
-        Q_PROPERTY(float numR2 READ getNumR2 NOTIFY dirty)
-        Q_PROPERTY(float numR3 READ getNumR3 NOTIFY dirty)
+        Q_PROPERTY(float numR0 READ getNumR0 NOTIFY newStats)
+        Q_PROPERTY(float numR1 READ getNumR1 NOTIFY newStats)
+        Q_PROPERTY(float numR2 READ getNumR2 NOTIFY newStats)
+        Q_PROPERTY(float numR3 READ getNumR3 NOTIFY newStats)
     public:
 
         uint32_t getNumR0() const { return data.numR0; }

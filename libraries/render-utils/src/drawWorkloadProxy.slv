@@ -19,8 +19,9 @@
 <$declareWorkloadProxies()$>
 
 
+
 layout(location=0) out vec4 varColor;
-layout(location=1) out vec3 varTexcoord;
+layout(location=1) out vec4 varTexcoord;
 layout(location=2) out vec3 varEyePos;
 
 void main(void) {
@@ -53,16 +54,23 @@ void main(void) {
 
     vec4 pos = vec4(proxyPosEye.xyz + proxy.sphere.w * ( dirX * spriteVert.x + dirY * spriteVert.y /* + dirZ * spriteVert.z*/), 1.0);
     varEyePos = pos.xyz;
-    varTexcoord = spriteVert.xyz;
+    varTexcoord = spriteVert;
     <$transformEyeToClipPos(cam, pos, gl_Position)$>
 
     // Convert region to color
     int region = floatBitsToInt(proxy.region.x);
     int phase = (0x00FF0000 & region) >> 16;
+    int phase256 = (0xFF000000 & region) >> 24;
     region = (0x000000FF & region);
 
+    float phaseR = phase + float(phase256) / (256.f);
+    float phaseN = float(phaseR) / 4.0;
     
-    varColor = vec4(mix(vec3(0.5), REGION_COLOR[region].xyz, float(phase != 0)), proxy.sphere.w);
+  //  varColor = vec4(mix(colorRamp(phaseR / 4.0), REGION_COLOR[region].xyz, float(phase != 4)), proxy.sphere.w);
+    varColor = vec4(colorRamp(phaseN), proxy.sphere.w);
+
+    varTexcoord.z = 30.0;
+    varTexcoord.w =  0.1 + 0.9 * phaseN;
 
     gl_Position = mix(gl_Position, vec4(0.0), float(region == 4));
 }

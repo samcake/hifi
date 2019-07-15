@@ -14,15 +14,22 @@
 <@include gpu/Paint.slh@>
 
 layout(location=0) in vec4 varColor;
-layout(location=1) in vec3 varTexcoord;
+layout(location=1) in vec4 varTexcoord;
 layout(location=2) in vec3 varEyePos;
 
 void main(void) {
     if (varColor.w > 0.0) {
-        float r = sqrt(dot(varTexcoord.xyz,varTexcoord.xyz));
+        float r = sqrt(dot(varTexcoord.xy,varTexcoord.xy));
         float d = varColor.w / abs(varEyePos.z);
         float a = paintStripe(r * d, 0.0, 1.0 / d, 0.002 / d);
         if (a <= 0.1 || r > 1.1) {
+            discard;
+        }
+    }
+
+    if (varTexcoord.z > 0) {
+        float theta = degrees(atan(varTexcoord.y, varTexcoord.x));
+        if (fract(theta / varTexcoord.z) < varTexcoord.w) {
             discard;
         }
     }

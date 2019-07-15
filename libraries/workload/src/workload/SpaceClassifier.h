@@ -57,10 +57,7 @@ public:
     float _readyRadius{ 0.0f };
     int _numEvaluated{ 0 };
 
-    glm::vec3
-    getLoadingOrigin() const {
-        return _loadingOrigin;
-    }
+    glm::vec3 getLoadingOrigin() const { return _loadingOrigin; }
     QVector3D getLoadingOriginQ() const { return QVector3D(_loadingOrigin.x, _loadingOrigin.y, _loadingOrigin.z); }
 
     float getLoadingRadius() const { return _loadingRadius; }

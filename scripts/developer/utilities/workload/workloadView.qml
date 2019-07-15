@@ -49,7 +49,14 @@ Rectangle {
                     }
                 }
             }
-
+            Prop.PropFolderPanel {
+                label: "Region Inspector"
+                isUnfold: false
+                panelFrameData: Component {
+                    RegionInspector {
+                    }
+                }
+            }
             Prop.PropFolderPanel {
                 label: "Phase Inspector"
                 isUnfold: true

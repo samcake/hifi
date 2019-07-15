@@ -17,6 +17,33 @@ Column {
     anchors.left: parent.left 
     anchors.right: parent.right 
 
+    Prop.PropScalar {
+        label: "Num Views"
+        object: Workload.getConfig("setupViews")
+        property: "numViews"
+        readOnly: true
+        integral: true
+    } 
+
+    Prop.PropVec234 {
+        label: "Origin"
+        object: Workload.getConfig("setupViews")
+        property: "originQ"  
+        numDigits: 1
+    }
+    Prop.PropVec234 {
+        label: "Direction"
+        object: Workload.getConfig("setupViews")
+        property: "directionQ"  
+        numDigits: 1
+    }
+    Prop.PropVec234 {
+        label: "FOV"
+        object: Workload.getConfig("setupViews")
+        property: "fovQ" 
+        dimension: 4 
+        numDigits: 1
+    }
     Prop.PropBool {
         label: "Freeze Views"
         object: Workload.getConfig("setupViews")
@@ -36,11 +63,5 @@ Column {
         label: "Simulate Secondary"
         object: Workload.getConfig("setupViews")
         property: "simulateSecondaryCamera"
-    }
-
-    Prop.PropBool {
-        label: "Show Views"
-        object: Workload.getConfig("SpaceToRender")
-        property: "showViews"
     }
 }
