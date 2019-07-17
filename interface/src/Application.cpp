@@ -257,6 +257,10 @@ extern "C" {
 }
 #endif
 
+#ifdef Q_OS_MAC
+#include "MacHelper.h"
+#endif
+
 #if defined(Q_OS_ANDROID)
 #include <android/log.h>
 #include "AndroidHelper.h"
@@ -960,6 +964,9 @@ bool setupEssentials(int& argc, char** argv, bool runningMarkerExisted) {
     DependencyManager::set<KeyboardScriptingInterface>();
     DependencyManager::set<GrabManager>();
     DependencyManager::set<AvatarPackager>();
+#ifdef Q_OS_MAC
+    DependencyManager::set<MacHelper>();
+#endif
 
     QString setBookmarkValue = getCmdOption(argc, constArgv, "--setBookmark");
     if (!setBookmarkValue.isEmpty()) {
@@ -2810,7 +2817,7 @@ void Application::cleanupBeforeQuit() {
     DependencyManager::destroy<TabletScriptingInterface>();
     DependencyManager::destroy<ToolbarScriptingInterface>();
     DependencyManager::destroy<OffscreenUi>();
-
+    
     DependencyManager::destroy<OffscreenQmlSurfaceCache>();
 
     _snapshotSoundInjector = nullptr;
@@ -2856,6 +2863,9 @@ Application::~Application() {
     _gameWorkload.shutdown();
 
     DependencyManager::destroy<Preferences>();
+#ifdef Q_OS_MAC
+    DependencyManager::destroy<MacHelper>();
+#endif
 
     _entityClipboard->eraseAllOctreeElements();
     _entityClipboard.reset();
@@ -6757,6 +6767,12 @@ void Application::update(float deltaTime) {
     // If the display plugin is inactive then the frames won't be processed so process them here.
     if (!getActiveDisplayPlugin()->isActive()) {
         getMain3DScene()->processTransactionQueue();
+    }
+
+    // decide if the sensorToWorldMatrix is changing in a way that warrents squeezing the edges of the view down
+    if (getActiveDisplayPlugin()->isHmd()) {
+        PerformanceTimer perfTimer("squeezeVision");
+        _visionSqueeze.updateVisionSqueeze(myAvatar->getSensorToWorldMatrix(), deltaTime);
     }
 }
 
