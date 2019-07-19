@@ -55,6 +55,8 @@ void UpdatePhase::run(const WorkloadContextPointer& context, const Inputs& in, O
                 Proxy& proxy = proxies[i];
                 if (proxy.phase == Phase::ON_HOLD) {
                     numEvaluated[Phase::ON_HOLD]++;
+                    proxy._padding = 0;
+
                     glm::vec3 proxyCenter = glm::vec3(proxy.sphere);
                     float proxyRadius = proxy.sphere.w;
 
@@ -69,6 +71,7 @@ void UpdatePhase::run(const WorkloadContextPointer& context, const Inputs& in, O
                     }
 
                     if (centerDistance2 < touchDistance2) {
+                        proxy._padding = 0;
                         proxy.phase = Phase::BEGIN_LOADING;
                     }
                 } else if (proxy.phase == Phase::BEGIN_LOADING) {

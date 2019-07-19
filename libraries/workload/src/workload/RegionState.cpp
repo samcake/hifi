@@ -74,5 +74,5 @@ void RegionState::run(const workload::WorkloadContextPointer& renderContext, con
     }
 
     auto config = std::static_pointer_cast<Config>(renderContext->jobConfig);
-    config->setNum(0, (uint32_t) _state[0].size(), (uint32_t) _state[1].size(), (uint32_t) _state[2].size());
+    config->setNum((uint32_t) _state[0].size(), (uint32_t) _state[1].size(), (uint32_t) _state[2].size(), (uint32_t)_state[3].size());
 }

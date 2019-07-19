@@ -21,26 +21,26 @@
 namespace workload {
     class RegionStateConfig : public Job::Config{
         Q_OBJECT
-        Q_PROPERTY(float numR0 READ getNumR0 NOTIFY newStats)
         Q_PROPERTY(float numR1 READ getNumR1 NOTIFY newStats)
         Q_PROPERTY(float numR2 READ getNumR2 NOTIFY newStats)
         Q_PROPERTY(float numR3 READ getNumR3 NOTIFY newStats)
+        Q_PROPERTY(float numR4 READ getNumR4 NOTIFY newStats)
     public:
 
-        uint32_t getNumR0() const { return data.numR0; }
         uint32_t getNumR1() const { return data.numR1; }
         uint32_t getNumR2() const { return data.numR2; }
         uint32_t getNumR3() const { return data.numR3; }
+        uint32_t getNumR4() const { return data.numR4; }
 
-        void setNum(const uint32_t r0, const uint32_t r1, const uint32_t r2, const uint32_t r3) {
-            data.numR0 = r0; data.numR1 = r1; data.numR2 = r2; data.numR3 = r3; emit dirty();
+        void setNum(const uint32_t r1, const uint32_t r2, const uint32_t r3, const uint32_t r4) {
+            data.numR1 = r1; data.numR2 = r1; data.numR3 = r3; data.numR4 = r4; emit dirty();
         }
 
         struct Data {
-            uint32_t numR0{ 0 };
             uint32_t numR1{ 0 };
             uint32_t numR2{ 0 };
             uint32_t numR3{ 0 };
+            uint32_t numR4{ 0 };
         } data;
 
     signals:

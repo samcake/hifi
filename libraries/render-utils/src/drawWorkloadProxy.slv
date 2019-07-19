@@ -63,14 +63,15 @@ void main(void) {
     int phase256 = (0xFF000000 & region) >> 24;
     region = (0x000000FF & region);
 
-    float phaseR = phase + float(phase256) / (256.f);
+    float phaseF = float(phase256) / (256.f);
+    float phaseR = phase + phaseF;
     float phaseN = float(phaseR) / 4.0;
     
   //  varColor = vec4(mix(colorRamp(phaseR / 4.0), REGION_COLOR[region].xyz, float(phase != 4)), proxy.sphere.w);
-    varColor = vec4(colorRamp(phaseN), proxy.sphere.w);
+    varColor = vec4(colorRamp(float(phase) / 4.0), proxy.sphere.w);
 
-    varTexcoord.z = 30.0;
-    varTexcoord.w =  0.1 + 0.9 * phaseN;
+    varTexcoord.z = 20;
+    varTexcoord.w =  0.25 + 0.75 * phaseN;
 
-    gl_Position = mix(gl_Position, vec4(0.0), float(region == 4));
+    gl_Position = mix(gl_Position, vec4(0.0), float(region == 5));
 }
