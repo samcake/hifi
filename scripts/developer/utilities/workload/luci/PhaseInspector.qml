@@ -35,7 +35,17 @@ Column {
         label: "Loading Radius"
         object: Workload.getConfig("updatePhase")
         property: "loadingRadius"
+        numDigits: 0
         readOnly: true
+    }
+
+    Prop.PropScalar {
+        label: "Expansion Speed"
+        object: Workload.getConfig("updatePhase")
+        property: "expansionSpeed"
+        numDigits: 1
+        min: 0.0
+        max: 20.0
     }
 
     Prop.PropVec234 {
@@ -44,6 +54,20 @@ Column {
         property: "numEvaluatedPerPhaseQ"  
         numDigits: 0
         dimension: 4
+    }
+    Prop.PropVec234 {
+        label: "OnHold Range"
+        object: Workload.getConfig("updatePhase")
+        property: "onHoldRangeQ"  
+        numDigits: 0
+        dimension: 2
+    }
+    Prop.PropVec234 {
+        label: "Loading Range"
+        object: Workload.getConfig("updatePhase")
+        property: "loadingRangeQ"  
+        numDigits: 0
+        dimension: 2
     }
 }
 

@@ -71,7 +71,7 @@ void main(void) {
     varTexcoord.w =  0.25 + 0.75 * phaseRN;  
 
     
-    varColor = vec4(mix(colorRamp(phaseDN), REGION_COLOR[region].xyz, float(phase != 4)), proxy.sphere.w);
+    varColor = vec4(mix(colorRamp(phaseDN), REGION_COLOR[region].xyz, float(phase == 4)), proxy.sphere.w);
 
-    gl_Position = mix(gl_Position, vec4(0.0), float(region == 5));
+    gl_Position = mix(gl_Position, vec4(0.0), float(region >= 5));
 }
