@@ -77,7 +77,7 @@ void UpdatePhase::run(const WorkloadContextPointer& context, const Inputs& in, O
                 } else if (proxy.phase == Phase::BEGIN_LOADING) {
                     numEvaluated[Phase::BEGIN_LOADING]++;
                     
-                    if (proxy._padding < 255) {
+                    if (proxy._padding < 50) {
                         proxy._padding ++;
                     } else {
                         proxy._padding = 0;
@@ -95,7 +95,7 @@ void UpdatePhase::run(const WorkloadContextPointer& context, const Inputs& in, O
                 } else if (proxy.phase == Phase::DONE_LOADING) {
                     numEvaluated[Phase::DONE_LOADING]++;
 
-                    if (proxy._padding < 255) {
+                    if (proxy._padding < 15) {
                         proxy._padding++;
                         continue;
                     } else {
@@ -118,8 +118,13 @@ void UpdatePhase::run(const WorkloadContextPointer& context, const Inputs& in, O
         });
         
         int numChanged = 0;
+        glm::ivec4 numEvaluateds {0};
         for (auto n : numEvaluated) {
             numChanged += n;
+       
+        }
+        for (int i = 0; i < Phase::NUM_PHASES - 1; ++i) {
+            numEvaluateds[i] = numEvaluated[i];
         }
 
         if (numChanged) {
@@ -131,6 +136,6 @@ void UpdatePhase::run(const WorkloadContextPointer& context, const Inputs& in, O
         config->_readyRadius = _readyRadius;
         config->_loadingRadius = _loadingRadius;
         config->_loadingOrigin = _loadingOrigin;
-        config->_numEvaluated = numChanged;
+        config->_numEvaluatedPerPhase = numEvaluateds;
     }
 }

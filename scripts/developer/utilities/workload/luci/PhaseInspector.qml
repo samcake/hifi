@@ -38,12 +38,12 @@ Column {
         readOnly: true
     }
 
-    Prop.PropScalar {
-        label: "Num Evaluated"
+    Prop.PropVec234 {
+        label: "Num OnHold/Begin/Loading/Done"
         object: Workload.getConfig("updatePhase")
-        property: "numEvaluated"
-        integral: true
-        readOnly: true
+        property: "numEvaluatedPerPhaseQ"  
+        numDigits: 0
+        dimension: 4
     }
 }
 

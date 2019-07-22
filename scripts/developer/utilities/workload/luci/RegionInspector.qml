@@ -57,4 +57,11 @@ Column {
         readOnly: true
         integral: true
     }
+    Prop.PropScalar {
+        label: "Region 4"
+        object: Workload.getConfig("regionState")
+        property: "numR4"
+        readOnly: true
+        integral: true
+    }
 }

@@ -33,7 +33,7 @@ namespace workload {
         uint32_t getNumR4() const { return data.numR4; }
 
         void setNum(const uint32_t r1, const uint32_t r2, const uint32_t r3, const uint32_t r4) {
-            data.numR1 = r1; data.numR2 = r1; data.numR3 = r3; data.numR4 = r4; emit dirty();
+            data.numR1 = r1; data.numR2 = r2; data.numR3 = r3; data.numR4 = r4; emit dirty();
         }
 
         struct Data {

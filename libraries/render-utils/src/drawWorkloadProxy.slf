@@ -27,7 +27,7 @@ void main(void) {
         }
     }
 
-    if (varTexcoord.z > 0) {
+    if (varTexcoord.w < 1.0 && varTexcoord.z > 0) {
         float theta = degrees(atan(varTexcoord.y, varTexcoord.x));
         if (fract(theta / varTexcoord.z) > varTexcoord.w) {
             discard;

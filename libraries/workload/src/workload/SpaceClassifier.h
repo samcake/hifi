@@ -49,20 +49,20 @@ class UpdatePhaseConfig : public Job::Config {
     Q_PROPERTY(QVector3D loadingOriginQ READ getLoadingOriginQ NOTIFY newStats())
     Q_PROPERTY(float loadingRadius READ getLoadingRadius NOTIFY newStats())
     Q_PROPERTY(float readyRadius READ getReadyRadius NOTIFY newStats())
-    Q_PROPERTY(int numEvaluated READ getNumEvaluated NOTIFY newStats())
+    Q_PROPERTY(QVector4D numEvaluatedPerPhaseQ READ getNumEvaluatedPerPhaseQ NOTIFY newStats())
 
 public:
     glm::vec3 _loadingOrigin;
     float _loadingRadius{ 0.0f };
     float _readyRadius{ 0.0f };
-    int _numEvaluated{ 0 };
+    glm::ivec4 _numEvaluatedPerPhase { 0 };
 
     glm::vec3 getLoadingOrigin() const { return _loadingOrigin; }
     QVector3D getLoadingOriginQ() const { return QVector3D(_loadingOrigin.x, _loadingOrigin.y, _loadingOrigin.z); }
 
     float getLoadingRadius() const { return _loadingRadius; }
     float getReadyRadius() const { return _readyRadius; }
-    int getNumEvaluated() const { return _numEvaluated; }
+    QVector4D getNumEvaluatedPerPhaseQ() const { return QVector4D(_numEvaluatedPerPhase.x, _numEvaluatedPerPhase.y, _numEvaluatedPerPhase.z, _numEvaluatedPerPhase.w); }
 
 signals:
     void dirty();

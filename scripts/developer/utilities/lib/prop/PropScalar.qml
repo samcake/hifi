@@ -55,6 +55,12 @@ PropItem {
             border.width: global.valueBorderWidth
             radius: global.valueBorderRadius
         }
+
+        MouseArea{
+            id: mousearea
+            anchors.fill: parent
+            onDoubleClicked: { sliderControl.visible = !sliderControl.visible }
+        }
     }
 
     HifiControls.Slider {

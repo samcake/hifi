@@ -58,20 +58,20 @@ void main(void) {
     <$transformEyeToClipPos(cam, pos, gl_Position)$>
 
     // Convert region to color
-    int region = floatBitsToInt(proxy.region.x);
-    int phase = (0x00FF0000 & region) >> 16;
-    int phase256 = (0xFF000000 & region) >> 24;
+    uint region = floatBitsToUint(proxy.region.x);
+    uint phase = (0x00FF0000 & region) >> 16;
+    uint phase256 = (0xFF000000 & region) >> 24;
     region = (0x000000FF & region);
 
+    float phaseDN = float(phase) / 4.0;
     float phaseF = float(phase256) / (256.f);
     float phaseR = phase + phaseF;
-    float phaseN = float(phaseR) / 4.0;
-    
-  //  varColor = vec4(mix(colorRamp(phaseR / 4.0), REGION_COLOR[region].xyz, float(phase != 4)), proxy.sphere.w);
-    varColor = vec4(colorRamp(float(phase) / 4.0), proxy.sphere.w);
-
+    float phaseRN = float(phaseR) / 4.0;
     varTexcoord.z = 20;
-    varTexcoord.w =  0.25 + 0.75 * phaseN;
+    varTexcoord.w =  0.25 + 0.75 * phaseRN;  
+
+    
+    varColor = vec4(mix(colorRamp(phaseDN), REGION_COLOR[region].xyz, float(phase != 4)), proxy.sphere.w);
 
     gl_Position = mix(gl_Position, vec4(0.0), float(region == 5));
 }
