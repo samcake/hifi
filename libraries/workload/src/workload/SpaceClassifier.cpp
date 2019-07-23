@@ -13,6 +13,8 @@
 #include "ViewTask.h"
 #include "RegionState.h"
 
+#include <algorithm>
+
 using namespace workload;
 
 void PerformSpaceTransaction::configure(const Config& config) {
@@ -78,7 +80,7 @@ void UpdatePhase::run(const WorkloadContextPointer& context, const Inputs& in, O
                     glm::vec3 proxyCenter = glm::vec3(proxy.sphere);
                     float proxyRadius = proxy.sphere.w;
                     float centerDistance2 = distance2(proxyCenter, loadingOrigin);
-                    float originToProxyDistance = std::max(0.0f, sqrt(centerDistance2) - proxyRadius);
+                    float originToProxyDistance = std::max(0.0f, sqrtf(centerDistance2) - proxyRadius);
 
                     // Per phase counters
                     numEvaluated[proxy.phase]++;
