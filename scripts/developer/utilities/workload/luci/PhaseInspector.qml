@@ -39,15 +39,6 @@ Column {
         readOnly: true
     }
 
-    Prop.PropScalar {
-        label: "Expansion Speed"
-        object: Workload.getConfig("updatePhase")
-        property: "expansionSpeed"
-        numDigits: 1
-        min: 0.0
-        max: 20.0
-    }
-
     Prop.PropVec234 {
         label: "Num OnHold/Begin/Loading/Done"
         object: Workload.getConfig("updatePhase")
@@ -68,6 +59,24 @@ Column {
         property: "loadingRangeQ"  
         numDigits: 0
         dimension: 2
+    }
+    
+    Prop.PropScalar {
+        label: "Expansion Speed [m/s]"
+        object: Workload.getConfig("updatePhase")
+        property: "expansionSpeed"
+        numDigits: 1
+        min: 0.0
+        max: 10.0
+    }
+    
+    Prop.PropScalar {
+        label: "Fake Loading Time"
+        object: Workload.getConfig("updatePhase")
+        property: "fakeLoadingTime"
+        numDigits: 1
+        min: 0.0
+        max: 3.0
     }
 }
 

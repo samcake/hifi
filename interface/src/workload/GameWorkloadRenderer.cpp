@@ -20,6 +20,7 @@
 void GameSpaceToRender::configure(const Config& config) {
     _freezeViews = config.freezeViews;
     _showAllProxies = config.showProxies;
+    _showPhasingProxies = config.showPhasingProxies;
     _showAllViews = config.showViews;
 }
 
@@ -33,8 +34,9 @@ void GameSpaceToRender::run(const workload::WorkloadContextPointer& runContext, 
         return;
     }
 
-    auto visible = _showAllProxies || _showAllViews;
+    auto visible = _showAllProxies || _showPhasingProxies || _showAllViews;
     auto showProxies = _showAllProxies;
+    auto showPhasingProxies = _showPhasingProxies;
     auto showViews = _showAllViews;
 
     render::Transaction transaction;
@@ -66,9 +68,10 @@ void GameSpaceToRender::run(const workload::WorkloadContextPointer& runContext, 
         transaction.resetItem(_spaceRenderItemID, std::make_shared<GameWorkloadRenderItem::Payload>(renderItem));
     }
     
-    transaction.updateItem<GameWorkloadRenderItem>(_spaceRenderItemID, [visible, showProxies, proxies, showViews, views](GameWorkloadRenderItem& item) {
+    transaction.updateItem<GameWorkloadRenderItem>(_spaceRenderItemID, [visible, showProxies, showPhasingProxies, proxies, showViews, views](GameWorkloadRenderItem& item) {
         item.setVisible(visible);
         item.showProxies(showProxies);
+        item.showPhasingProxies(showPhasingProxies);
         item.setAllProxies(proxies);
         item.showViews(showViews);
         item.setAllViews(views);
@@ -117,6 +120,10 @@ void GameWorkloadRenderItem::showProxies(bool show) {
     _showProxies = show;
 }
 
+void GameWorkloadRenderItem::showPhasingProxies(bool show) {
+    _showPhasingProxies = show;
+}
+
 void GameWorkloadRenderItem::showViews(bool show) {
     _showViews = show;
 }
@@ -159,6 +166,23 @@ const gpu::PipelinePointer GameWorkloadRenderItem::getProxiesPipeline() {
         _drawAllProxiesPipeline = gpu::Pipeline::create(program, state);
     }
     return _drawAllProxiesPipeline;
+}
+
+const gpu::PipelinePointer GameWorkloadRenderItem::getPhasingProxiesPipeline() {
+    // FIXME: this needs a forward pipeline, or to only write to one output
+    if (!_drawPhasingProxiesPipeline) {
+        gpu::ShaderPointer program = gpu::Shader::createProgram(shader::render_utils::program::drawWorkloadProxy_phasing);
+        auto state = std::make_shared<gpu::State>();
+        state->setDepthTest(true, true, gpu::LESS_EQUAL);
+        /*  state->setBlendFunction(true,
+              gpu::State::SRC_ALPHA, gpu::State::BLEND_OP_ADD, gpu::State::INV_SRC_ALPHA,
+              gpu::State::DEST_ALPHA, gpu::State::BLEND_OP_ADD, gpu::State::ZERO);*/
+
+        PrepareStencil::testMaskDrawShape(*state);
+        state->setCullMode(gpu::State::CULL_NONE);
+        _drawPhasingProxiesPipeline = gpu::Pipeline::create(program, state);
+    }
+    return _drawPhasingProxiesPipeline;
 }
 
 
@@ -216,6 +240,13 @@ void GameWorkloadRenderItem::render(RenderArgs* args) {
     // Show Proxies
     if (_showProxies) {
         batch.setPipeline(getProxiesPipeline());
+
+        static const int NUM_VERTICES_PER_PROXY = 3;
+        batch.draw(gpu::TRIANGLES, NUM_VERTICES_PER_PROXY * _numAllProxies, 0);
+    }
+
+    if (_showPhasingProxies) {
+        batch.setPipeline(getPhasingProxiesPipeline());
 
         static const int NUM_VERTICES_PER_PROXY = 3;
         batch.draw(gpu::TRIANGLES, NUM_VERTICES_PER_PROXY * _numAllProxies, 0);

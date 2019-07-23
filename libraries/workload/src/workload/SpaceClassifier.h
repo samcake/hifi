@@ -54,6 +54,7 @@ class UpdatePhaseConfig : public Job::Config {
     Q_PROPERTY(QVector4D numEvaluatedPerPhaseQ READ getNumEvaluatedPerPhaseQ NOTIFY newStats())
 
     Q_PROPERTY(float expansionSpeed READ getExpansionSpeed WRITE setExpansionSpeed NOTIFY dirty())
+    Q_PROPERTY(float fakeLoadingTime READ getFakeLoadingTime WRITE setFakeLoadingTime NOTIFY dirty())
 
     Q_PROPERTY(QVector2D onHoldRangeQ READ getOnHoldRangeQ NOTIFY newStats())
     Q_PROPERTY(QVector2D loadingRangeQ READ getLoadingRangeQ NOTIFY newStats())
@@ -62,7 +63,8 @@ public:
     glm::vec3 _loadingOrigin;
     float _loadingRadius{ 0.0f };
     float _readyRadius{ 0.0f };
-    float _expansionSpeed{ 1.0f };
+    float _expansionSpeed{ 5.0f };
+    float _fakeLoadingTime{ 0.5f };
     glm::ivec4 _numEvaluatedPerPhase { 0 };
     glm::vec2 _onHoldRange{0.f};
     glm::vec2 _loadingRange{ 0.f };
@@ -76,7 +78,9 @@ public:
 
     float getExpansionSpeed() const { return _expansionSpeed; }
     void setExpansionSpeed(float speed) { _expansionSpeed = std::max(0.0f, speed); emit dirty(); }
-
+    float getFakeLoadingTime() const { return _fakeLoadingTime; }
+    void setFakeLoadingTime(float speed) { _fakeLoadingTime = std::max(0.0f, speed); emit dirty(); }
+    
     glm::vec2 getOnHoldRange() const { return _onHoldRange; }
     QVector2D getOnHoldRangeQ() const { return QVector2D(_onHoldRange.x, _onHoldRange.y); }
 
@@ -104,6 +108,7 @@ protected:
     float _expansionSpeed{ 1.0f};
     float _loadingRadius{ 0.0f };
     float _readyRadius{ 0.0f };
+    float _fakeLoadingTime{ 1.0f };
 
     std::chrono::high_resolution_clock::time_point _lastTime;
 

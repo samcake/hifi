@@ -41,6 +41,24 @@ void main(void) {
     WorkloadProxy proxy = getWorkloadProxy(proxyID);
     vec4 proxyPosWorld = vec4(proxy.sphere.xyz, 1.0);
 
+    // Unpack Region and phase from proxy
+    uint region = floatBitsToUint(proxy.region.x);
+    uint phase = (0x00FF0000 & region) >> 16;
+    uint phase256 = (0xFF000000 & region) >> 24;
+    region = (0x000000FF & region);
+
+ <@if HIFI_USE_PHASING@>
+    if (phase >= 4) {
+        gl_Position =  vec4(0.0);
+        return;
+    }
+<@else@>
+    if (phase < 4) {
+        gl_Position =  vec4(0.0);
+        return;
+    }
+<@endif@>
+
     // standard transform, bring proxy in view space
     TransformCamera cam = getTransformCamera();
     TransformObject obj = getTransformObject();
@@ -57,12 +75,6 @@ void main(void) {
     varTexcoord = spriteVert;
     <$transformEyeToClipPos(cam, pos, gl_Position)$>
 
-    // Convert region to color
-    uint region = floatBitsToUint(proxy.region.x);
-    uint phase = (0x00FF0000 & region) >> 16;
-    uint phase256 = (0xFF000000 & region) >> 24;
-    region = (0x000000FF & region);
-
     float phaseDN = float(phase) / 4.0;
     float phaseF = float(phase256) / (256.f);
     float phaseR = phase + phaseF;
@@ -70,8 +82,9 @@ void main(void) {
     varTexcoord.z = 20;
     varTexcoord.w =  0.25 + 0.75 * phaseRN;  
 
-    
-    varColor = vec4(mix(colorRamp(phaseDN), REGION_COLOR[region].xyz, float(phase == 4)), proxy.sphere.w);
-
-    gl_Position = mix(gl_Position, vec4(0.0), float(region >= 5));
+<@if HIFI_USE_PHASING@> 
+    varColor = vec4(colorRamp(phaseDN), proxy.sphere.w);
+<@else@>
+    varColor = vec4(REGION_COLOR[region].xyz, proxy.sphere.w);
+<@endif@>
 }

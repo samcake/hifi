@@ -16,11 +16,13 @@ class GameSpaceToRenderConfig : public workload::Job::Config {
     Q_OBJECT
     Q_PROPERTY(bool freezeViews MEMBER freezeViews NOTIFY dirty)
     Q_PROPERTY(bool showProxies MEMBER showProxies NOTIFY dirty)
+    Q_PROPERTY(bool showPhasingProxies MEMBER showPhasingProxies NOTIFY dirty)
     Q_PROPERTY(bool showViews MEMBER showViews NOTIFY dirty)
 public:
 
     bool freezeViews{ false };
-    bool showProxies{ true };
+    bool showProxies{ false };
+    bool showPhasingProxies{ true };
     bool showViews{ false };
 signals:
     void dirty();
@@ -43,6 +45,7 @@ protected:
     render::ItemID _spaceRenderItemID{ render::Item::INVALID_ITEM_ID };
     bool _freezeViews{ false };
     bool _showAllProxies{ false };
+    bool _showPhasingProxies{ false };
     bool _showAllViews{ false };
 };
 
@@ -61,6 +64,7 @@ public:
 
     void setVisible(bool visible);
     void showProxies(bool show);
+    void showPhasingProxies(bool show);
     void showViews(bool show);
 
     void setAllProxies(const workload::Proxy::Vector& proxies);
@@ -82,6 +86,9 @@ protected:
     gpu::PipelinePointer _drawAllProxiesPipeline;
     const gpu::PipelinePointer getProxiesPipeline();
 
+    gpu::PipelinePointer _drawPhasingProxiesPipeline;
+    const gpu::PipelinePointer getPhasingProxiesPipeline();
+
     gpu::PipelinePointer _drawAllViewsPipeline;
     const gpu::PipelinePointer getViewsPipeline();
 
@@ -91,6 +98,7 @@ protected:
 
     render::ItemKey _key;
     bool _showProxies{ true };
+    bool _showPhasingProxies{ true };
     bool _showViews{ true };
 };
 

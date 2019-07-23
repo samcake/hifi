@@ -22,5 +22,10 @@ Column {
         object: Workload.getConfig("SpaceToRender")
         property: "showProxies"
     }
+    Prop.PropBool {
+        label: "Show Phasing Proxies"
+        object: Workload.getConfig("SpaceToRender")
+        property: "showPhasingProxies"
+    }
 }
 

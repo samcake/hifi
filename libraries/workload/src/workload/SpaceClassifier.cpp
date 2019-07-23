@@ -35,6 +35,7 @@ void SpaceClassifierTask::build(JobModel& model, const Varying& in, Varying& out
 
 void UpdatePhase::configure(const Config& config) {
     _expansionSpeed = config.getExpansionSpeed();
+    _fakeLoadingTime = config.getFakeLoadingTime();
 }
 
 void UpdatePhase::run(const WorkloadContextPointer& context, const Inputs& in, Outputs& out) {
@@ -60,7 +61,15 @@ void UpdatePhase::run(const WorkloadContextPointer& context, const Inputs& in, O
         
         glm::vec2 distanceRanges[] = { { 1000.0f, 0.0f},  { 1000.0f, 0.0f},  { 1000.0f, 0.0f},  { 1000.0f, 0.0f} };
 
-        context->_space->accessProxies([&numEvaluated, &distanceRanges, loadingRadius, loadingOrigin](Proxy::Vector& proxies) {
+        auto fakeLoadingTime = _fakeLoadingTime;
+        glm::ivec4 fakeLoadingTempo = {
+            0,
+            std::min(255, (int)floor(_fakeLoadingTime * 1)),
+            std::min(255, (int)floor(_fakeLoadingTime * 10)),
+            std::min(255, (int)floor(_fakeLoadingTime * 1)),
+        };
+
+        context->_space->accessProxies([fakeLoadingTempo, &numEvaluated, &distanceRanges, loadingRadius, loadingOrigin](Proxy::Vector& proxies) {
             uint32_t numProxies = (uint32_t)proxies.size();
             for (uint32_t i = 0; i < numProxies; ++i) {
                 Proxy& proxy = proxies[i];
@@ -90,7 +99,7 @@ void UpdatePhase::run(const WorkloadContextPointer& context, const Inputs& in, O
                             }
                         } break;
                         case Phase::BEGIN_LOADING: {
-                            if (proxy._padding < 5) {
+                            if (proxy._padding < fakeLoadingTempo[Phase::BEGIN_LOADING]) {
                                 proxy._padding++;
                             } else {
                                 proxy._padding = 0;
@@ -98,7 +107,7 @@ void UpdatePhase::run(const WorkloadContextPointer& context, const Inputs& in, O
                             }
                         } break;
                         case Phase::LOADING: {
-                            if (proxy._padding < 10) {
+                            if (proxy._padding < fakeLoadingTempo[Phase::LOADING]) {
                                 proxy._padding++;
                             }
                             else {
@@ -107,7 +116,7 @@ void UpdatePhase::run(const WorkloadContextPointer& context, const Inputs& in, O
                             }
                         } break;
                         case Phase::DONE_LOADING: {
-                            if (proxy._padding < 5) {
+                            if (proxy._padding < fakeLoadingTempo[Phase::DONE_LOADING]) {
                                 proxy._padding++;
                             }
                             else {
