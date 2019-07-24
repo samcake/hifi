@@ -63,7 +63,6 @@ void UpdatePhase::run(const WorkloadContextPointer& context, const Inputs& in, O
         
         glm::vec2 distanceRanges[] = { { 1000.0f, 0.0f},  { 1000.0f, 0.0f},  { 1000.0f, 0.0f},  { 1000.0f, 0.0f} };
 
-        auto fakeLoadingTime = _fakeLoadingTime;
         glm::ivec4 fakeLoadingTempo = {
             0,
             std::min(255, (int)floor(_fakeLoadingTime * 1)),
@@ -134,7 +133,6 @@ void UpdatePhase::run(const WorkloadContextPointer& context, const Inputs& in, O
 
         int numOnHold = numEvaluated[Phase::ON_HOLD];
         int numLoading = numEvaluated[Phase::BEGIN_LOADING] + numEvaluated[Phase::LOADING] + numEvaluated[Phase::DONE_LOADING];
-        int numEvaled = numOnHold + numLoading;
         
         glm::vec2 onHoldDistanceRange( distanceRanges[Phase::ON_HOLD] );
 
@@ -149,9 +147,9 @@ void UpdatePhase::run(const WorkloadContextPointer& context, const Inputs& in, O
 
         // Eval the next reaady radius
         auto newReadyRadius = std::min(onHoldDistanceRange.x, loadingDistanceRange.x);
+        auto maxChange = (float)duration * _expansionSpeed;
         auto readyRadiusChange = newReadyRadius - readyRadius;
         if (readyRadiusChange > 0) {
-            auto maxChange =  (float) duration * _expansionSpeed;
             if (readyRadiusChange < maxChange) {
                 _readyRadius = newReadyRadius;
             } else {
@@ -162,7 +160,7 @@ void UpdatePhase::run(const WorkloadContextPointer& context, const Inputs& in, O
         }
 
 
-        _loadingRadius = _readyRadius + 1.0;
+        _loadingRadius = _readyRadius + maxChange;
 
 
 

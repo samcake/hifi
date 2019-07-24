@@ -80,7 +80,7 @@ void SetupViews::run(const WorkloadContextPointer& runContext, const Input& inpu
         View::updateRegionsFromBackFrontDistances(v, (float*) &_data);
     }
 
-    _dataExport.numViews = outViews.size();
+    _dataExport.numViews = (int) outViews.size();
     if (outViews.size() > 0) {
         auto& view = outViews[(mergedHeadAndCam || _data.useAvatarView ? 0 : 1)];
         
