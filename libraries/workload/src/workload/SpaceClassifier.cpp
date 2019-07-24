@@ -131,12 +131,12 @@ void UpdatePhase::run(const WorkloadContextPointer& context, const Inputs& in, O
         });
         
 
-        int numOnHold = numEvaluated[Phase::ON_HOLD];
-        int numLoading = numEvaluated[Phase::BEGIN_LOADING] + numEvaluated[Phase::LOADING] + numEvaluated[Phase::DONE_LOADING];
+
         
         glm::vec2 onHoldDistanceRange( distanceRanges[Phase::ON_HOLD] );
 
         glm::vec2 loadingDistanceRange( distanceRanges[Phase::BEGIN_LOADING] );
+        int numLoading = numEvaluated[Phase::BEGIN_LOADING] + numEvaluated[Phase::LOADING] + numEvaluated[Phase::DONE_LOADING];
         if (numLoading) {
             loadingDistanceRange.x = std::min(distanceRanges[Phase::LOADING].x, loadingDistanceRange.x);
             loadingDistanceRange.y = std::max(distanceRanges[Phase::LOADING].y, loadingDistanceRange.y);
