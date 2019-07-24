@@ -104,9 +104,7 @@ Column {
 
         target:Render.getConfig("RenderMainView.FogOfWar")
         property: "range"
-        value: function () {
-                return Workload.getConfig("updatePhase").readyRadius
-                }
+        value: { return Workload.getConfig("updatePhase").readyRadius }
         when: phaseInspector.doFOWBinding
     }
 }
