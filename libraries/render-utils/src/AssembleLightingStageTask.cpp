@@ -9,6 +9,8 @@
 
 #include <render/DrawTask.h>
 
+#include "HazePayload.h"
+
 void FetchCurrentFrames::run(const render::RenderContextPointer& renderContext, Output& output) {
     auto lightStage = renderContext->_scene->getStage<LightStage>();
     assert(lightStage);
@@ -38,6 +40,9 @@ void AssembleLightingStageTask::build(JobModel& task, const render::Varying& inp
 
     // Clear Light, Haze, Bloom, and Skybox Stages and render zones from the general metas bucket
     const auto zones = task.addJob<ZoneRendererTask>("ZoneRenderer", metas);
+
+    // Inject loading fog effect if needed as first haze
+    task.addJob<FogOfWar>("FogOfWar");
 
     // Draw Lights just add the lights to the current list of lights to deal with. NOt really gpu job for now.
     task.addJob<render::DrawLight>("DrawLight", lights);

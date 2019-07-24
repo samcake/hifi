@@ -17,6 +17,10 @@ Column {
     anchors.left: parent.left 
     anchors.right: parent.right 
 
+    id: phaseInspector
+
+    property bool doFOWBinding: true
+
     Prop.PropVec234 {
         label: "Origin"
         object: Workload.getConfig("updatePhase")
@@ -77,6 +81,33 @@ Column {
         numDigits: 1
         min: 0.0
         max: 3.0
+    }
+    Prop.PropBool {
+        label: "Show Fog Of War"
+        object: Render.getConfig("RenderMainView.FogOfWar")
+        property: "enabled"
+    }
+    Prop.PropScalar {
+        label: "Fog Of War"
+        object: Render.getConfig("RenderMainView.FogOfWar")
+        property: "range"
+        numDigits: 0
+        min: 0.0
+        max: 1000.0
+    }
+    Prop.PropBool {
+        label: "Bind Fog Of War"
+        object: phaseInspector
+        property: "doFOWBinding"
+    }
+    Binding {
+
+        target:Render.getConfig("RenderMainView.FogOfWar")
+        property: "range"
+        value: function () {
+                return Workload.getConfig("updatePhase").readyRadius
+                }
+        when: phaseInspector.doFOWBinding
     }
 }
 

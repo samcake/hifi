@@ -35,7 +35,7 @@ Rectangle {
 
             Prop.PropFolderPanel {
                 label: "Space Inspector"
-                isUnfold: true
+                isUnfold: false
                 panelFrameData: Component {
                     SpaceInspector {
                     }
@@ -43,7 +43,7 @@ Rectangle {
             }
             Prop.PropFolderPanel {
                 label: "Views Inspector"
-                isUnfold: true
+                isUnfold: false
                 panelFrameData: Component {
                     ViewsInspector {
                     }
