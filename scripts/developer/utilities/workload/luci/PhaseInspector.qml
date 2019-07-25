@@ -95,6 +95,14 @@ Column {
         min: 0.0
         max: 1000.0
     }
+    Prop.PropScalar {
+        label: "Fog Of War"
+        object: Render.getConfig("RenderMainView.FogOfWar")
+        property: "backgroundBlend"
+        numDigits: 2
+        min: 0.0
+        max: 1.0
+    }
     Prop.PropBool {
         label: "Bind Fog Of War"
         object: phaseInspector
@@ -104,7 +112,18 @@ Column {
 
         target:Render.getConfig("RenderMainView.FogOfWar")
         property: "range"
-        value: { return Workload.getConfig("updatePhase").readyRadius }
+        value: { return Workload.getConfig("updatePhase").readyRadius * Workload.getConfig("updatePhase").readyRadius * 0.01 }
+        when: phaseInspector.doFOWBinding
+    }
+    Binding {
+
+        target:Render.getConfig("RenderMainView.FogOfWar")
+        property: "backgroundBlend"
+        value: { 
+            var v = Workload.getConfig("updatePhase").readyRadius
+            var c = (v / 500)
+            return c
+        }
         when: phaseInspector.doFOWBinding
     }
 }
