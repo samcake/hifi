@@ -16,7 +16,8 @@
 <@include render-utils/ShaderConstants.h@>
 
 struct ToneMappingParams {
-    vec4 _exp_2powExp_s0_s1;
+    vec4 _exp_2powExp_toeStrength_toeLength;
+    vec4 _shoulderLength_shoulderStrength_shoulderAngle_gamma;
     ivec4 _toneCurve_s0_s1_s2;
 };
 
@@ -31,7 +32,7 @@ LAYOUT(binding=RENDER_UTILS_BUFFER_TM_PARAMS) uniform toneMappingParamsBuffer {
     ToneMappingParams params;
 };
 float getTwoPowExposure() {
-    return params._exp_2powExp_s0_s1.y;
+    return params._exp_2powExp_toeStrength_toeLength.y;
 }
 int getToneCurve() {
     return params._toneCurve_s0_s1_s2.x;

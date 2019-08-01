@@ -26,21 +26,41 @@ enum class ToneCurve {
     Gamma22,
     Reinhard,
     Filmic,
+    Piecewise
 };
 
 class ToneMappingConfig : public render::Job::Config {
     Q_OBJECT
     Q_PROPERTY(float exposure MEMBER exposure WRITE setExposure);
     Q_PROPERTY(int curve MEMBER curve WRITE setCurve);
+    Q_PROPERTY(float toeStrength MEMBER toeStrength WRITE setToeStrength);
+    Q_PROPERTY(float toeLength MEMBER toeLength WRITE setToeLength);
+    Q_PROPERTY(float shoulderStrength MEMBER shoulderStrength WRITE setShoulderStrength);
+    Q_PROPERTY(float shoulderLength MEMBER shoulderLength WRITE setShoulderLength);
+    Q_PROPERTY(float shoulderAngle MEMBER shoulderAngle WRITE setShoulderAngle);
+    Q_PROPERTY(float gamma MEMBER gamma WRITE setGamma);
 
 public:
     ToneMappingConfig() : render::Job::Config(true) {}
 
     void setExposure(float newExposure) { exposure = newExposure; emit dirty(); }
-    void setCurve(int newCurve) { curve = std::max((int)ToneCurve::None, std::min((int)ToneCurve::Filmic, newCurve)); emit dirty(); }
-
+    void setCurve(int newCurve) { curve = std::max((int)ToneCurve::None, std::min((int)ToneCurve::Piecewise, newCurve)); emit dirty(); }
+    void setToeStrength(float newToeStrength) { toeStrength = newToeStrength; emit dirty(); }
+    void setToeLength(float newToeLength) { toeLength = newToeLength; emit dirty(); }
+    void setShoulderStrength(float newShoulderStrength) { shoulderStrength = newShoulderStrength; emit dirty(); }
+    void setShoulderLength(float newShoulderLength) { shoulderLength = newShoulderLength; emit dirty(); }
+    void setShoulderAngle(float newShoulderAngle) { shoulderAngle = newShoulderAngle; emit dirty(); }
+    void setGamma(float newGamma) { gamma = newGamma; emit dirty(); }
 
     float exposure{ 0.0f };
+    float toeStrength{ 0.5f };
+    float toeLength{ 0.5f };
+
+    float shoulderStrength{ 0.5f };
+    float shoulderLength{ 0.5f };
+    float shoulderAngle{ 1.0f };
+    float gamma{ 2.2f };
+
     int curve{ (int)ToneCurve::Gamma22 };
 
 signals:
@@ -60,6 +80,24 @@ public:
     void setToneCurve(ToneCurve curve);
     ToneCurve getToneCurve() const { return (ToneCurve)_parametersBuffer.get<Parameters>()._toneCurve; }
 
+    void ToneMapAndResample::setToeStrength(float strength);
+    float setToeStrength() const { return _parametersBuffer.get<Parameters>()._toeStrength; }
+
+    void ToneMapAndResample::setToeLength(float strength);
+    float setToeLength() const { return _parametersBuffer.get<Parameters>()._toeLength; }
+
+    void ToneMapAndResample::setShoulderStrength(float strength);
+    float setShoulderStrength() const { return _parametersBuffer.get<Parameters>()._shoulderStrength; }
+
+    void ToneMapAndResample::setShoulderLength(float strength);
+    float setShoulderLength() const { return _parametersBuffer.get<Parameters>()._shoulderLength; }
+
+    void ToneMapAndResample::setShoulderAngle(float strength);
+    float setShoulderAngle() const { return _parametersBuffer.get<Parameters>()._shoulderAngle; }
+
+    void ToneMapAndResample::setGamma(float strength);
+    float setGamma() const { return _parametersBuffer.get<Parameters>()._gamma; }
+
     // Inputs: lightingFramebuffer, destinationFramebuffer
     using Input = render::VaryingSet2<gpu::FramebufferPointer, gpu::FramebufferPointer>;
     using Output = gpu::FramebufferPointer;
@@ -72,6 +110,8 @@ public:
 protected:
     static gpu::PipelinePointer _pipeline;
     static gpu::PipelinePointer _mirrorPipeline;
+    static gpu::PipelinePointer _piecewisePipeline;
+    static gpu::PipelinePointer _piecewiseMirrorPipeline;
 
     gpu::FramebufferPointer _destinationFrameBuffer;
 
@@ -87,9 +127,15 @@ private:
     public:
         float _exposure = 0.0f;
         float _twoPowExposure = 1.0f;
-        glm::vec2 spareA;
+        float _toeStrength = 0.5f;
+        float _toeLength = 0.5f;
+
+        float _shoulderStrength = 2.0f;
+        float _shoulderLength = 0.5f;
+        float _shoulderAngle = 1.0f;
+        float _gamma = 2.2f;
+
         int _toneCurve = (int)ToneCurve::Gamma22;
-        glm::vec3 spareB;
 
         Parameters() {}
     };

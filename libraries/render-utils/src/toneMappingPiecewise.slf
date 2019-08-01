@@ -1,0 +1,389 @@
+<@include gpu/Config.slh@>
+<$VERSION_HEADER$>
+//  Generated on Sat Oct 24 09:34:37 2015
+//
+//  toneMappingPiecewise.frag
+//
+//  Draw texture 0 fetched at texcoord.xy
+//
+//  Created by Anna Brewer on 7/30/2019
+//  Copyright 2019 High Fidelity, Inc.
+//
+//  Distributed under the Apache License, Version 2.0.
+//  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
+//
+
+<@include render-utils/ShaderConstants.h@>
+
+struct ToneMappingParams {
+    vec4 _exp_2powExp_toeStrength_toeLength;
+    vec4 _shoulderLength_shoulderStrength_shoulderAngle_gamma;
+    ivec4 _toneCurve_s0_s1_s2;
+};
+
+struct CurveParamsUser
+{
+	float m_toeStrength; // as a ratio
+	float m_toeLength; // as a ratio
+	float m_shoulderStrength; // as a ratio
+	float m_shoulderLength; // in F stops
+	float m_shoulderAngle; // as a ratio
+
+	float m_gamma;
+};
+
+struct CurveParamsDirect {
+	float m_x0;
+	float m_y0;
+	float m_x1;
+	float m_y1;
+	float m_W;
+
+	float m_overshootX;
+	float m_overshootY;
+
+	float m_gamma;
+};
+
+struct CurveSegment {
+	float m_offsetX;
+	float m_offsetY;
+	float m_scaleX; // always 1 or -1
+	float m_scaleY;
+	float m_lnA;
+	float m_B;
+};
+
+struct FullCurve
+{
+	float m_W;
+	float m_invW;
+
+	float m_x0;
+	float m_x1;
+	float m_y0;
+	float m_y1;
+};
+
+CurveSegment m_segments[3];
+
+LAYOUT(binding=RENDER_UTILS_BUFFER_TM_PARAMS) uniform toneMappingParamsBuffer {
+    ToneMappingParams params;
+};
+float getTwoPowExposure() {
+    return params._exp_2powExp_toeStrength_toeLength.y;
+}
+float getToeStrength() {
+    return params._exp_2powExp_toeStrength_toeLength.z;
+}
+float getToeLength() {
+    return params._exp_2powExp_toeStrength_toeLength.w;
+}
+float getShoulderStrength() {
+    return params._shoulderLength_shoulderStrength_shoulderAngle_gamma.x;
+}
+float getShoulderLength() {
+    return params._shoulderLength_shoulderStrength_shoulderAngle_gamma.y;
+}
+float getShoulderAngle() {
+    return params._shoulderLength_shoulderStrength_shoulderAngle_gamma.z;
+}
+float getGamma() {
+    return params._shoulderLength_shoulderStrength_shoulderAngle_gamma.w;
+}
+
+LAYOUT(binding=RENDER_UTILS_TEXTURE_TM_COLOR) uniform sampler2D colorMap;
+
+layout(location=0) in vec2 varTexCoord0;
+layout(location=0) out vec4 outFragColor;
+
+float MaxFloat(float x, float y) {
+	return x > y ? x : y;
+}
+
+float MinFloat(float x, float y)
+{
+	return x < y ? x : y;
+}
+
+float Saturate(float x) {
+	return MaxFloat(0.0f,MinFloat(1.0f,x));
+}
+
+float EvalCurveSegment(CurveSegment curve, float x) {
+    float x0 = (x - curve.m_offsetX)*curve.m_scaleX;
+	float y0 = 0.0f;
+
+	// log(0) is undefined but our function should evaluate to 0. There are better ways to handle this,
+	// but it's doing it the slow way here for clarity.
+	if (x0 > 0)
+	{
+		y0 = exp(curve.m_lnA + curve.m_B*log(x0));
+	}
+
+	return y0*curve.m_scaleY + curve.m_offsetY;
+}
+
+float EvalInvCurveSegment(CurveSegment curve, float y) {
+	float y0 = (y-curve.m_offsetY)/curve.m_scaleY;
+	float x0 = 0.0f;
+	
+	// watch out for log(0) again
+	if (y0 > 0)
+	{
+		x0 = exp((log(y0) - curve.m_lnA)/curve.m_B);
+	}
+	
+    float x = x0/curve.m_scaleX + curve.m_offsetX;
+
+    return x;
+}
+
+float EvalFullCurve(FullCurve curve, float srcX) {
+	float normX = srcX * curve.m_invW;
+	int index = (normX < curve.m_x0) ? 0 : ((normX < curve.m_x1) ? 1 : 2);
+	CurveSegment segment = m_segments[index];
+	float ret = EvalCurveSegment(segment, normX);
+	return ret;
+}
+
+float EvalInvFullCurve(FullCurve curve, float y) {
+	int index = (y < curve.m_y0) ? 0 : ((y < curve.m_y1) ? 1 : 2);
+	CurveSegment segment = m_segments[index];
+
+	float normX = EvalInvCurveSegment(segment, y);
+	return normX * curve.m_W;
+}
+
+// find a function of the form:
+//   f(x) = e^(lnA + Bln(x))
+// where
+//   f(0)   = 0; not really a constraint
+//   f(x0)  = y0
+//   f'(x0) = m
+float[2] SolveAB(float x0, float y0, float m) {
+	float B = (m*x0)/y0;
+	float lnA = log(y0) - B*log(x0);
+    float ab[2];
+    ab[0] = lnA;
+    ab[1] = B;
+    return ab;
+}
+
+// convert to y=mx+b
+float[2] AsSlopeIntercept(float x0, float x1, float y0, float y1) {
+	float dy = (y1-y0);
+	float dx = (x1-x0);
+    float m;
+	if (dx == 0)
+		m = 1.0f;
+	else
+		m = dy/dx;
+
+	float b = y0 - x0*m;
+
+    float mb[2];
+    mb[0] = m;
+    mb[1] = b;
+    return mb;
+}
+
+// f(x) = (mx+b)^g
+// f'(x) = gm(mx+b)^(g-1)
+float EvalDerivativeLinearGamma(float m, float b, float g, float x) {
+	float ret = g*m*pow(m*x+b,g-1.0f);
+	return ret;
+}
+
+FullCurve CreateCurve(const CurveParamsDirect srcParams) {
+	CurveParamsDirect params = srcParams;
+
+    FullCurve dstCurve = FullCurve(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+
+	dstCurve.m_W = srcParams.m_W;
+	dstCurve.m_invW = 1.0f / srcParams.m_W;
+
+	// normalize params to 1.0 range
+	params.m_W = 1.0f;
+	params.m_x0 /= srcParams.m_W;
+	params.m_x1 /= srcParams.m_W;
+	params.m_overshootX = srcParams.m_overshootX / srcParams.m_W;
+
+	float toeM = 0.0f;
+	float shoulderM = 0.0f;
+	float endpointM = 0.0f;
+	//{
+		float[] mb = AsSlopeIntercept(params.m_x0,params.m_x1,params.m_y0,params.m_y1);
+        float m = mb[0];
+        float b = mb[1];
+
+		float g = srcParams.m_gamma;
+		
+		// base function of linear section plus gamma is
+		// y = (mx+b)^g
+
+		// which we can rewrite as
+		// y = exp(g*ln(m) + g*ln(x+b/m))
+
+		// and our evaluation function is (skipping the if parts):
+		/*
+			float x0 = (x - m_offsetX)*m_scaleX;
+			y0 = exp(m_lnA + m_B*log(x0));
+			return y0*m_scaleY + m_offsetY;
+		*/
+
+		CurveSegment midSegment;
+		midSegment.m_offsetX = -(b/m);
+		midSegment.m_offsetY = 0.0f;
+		midSegment.m_scaleX = 1.0f;
+		midSegment.m_scaleY = 1.0f;
+		midSegment.m_lnA = g * log(m);
+		midSegment.m_B = g;
+
+		m_segments[1] = midSegment;
+
+		toeM = EvalDerivativeLinearGamma(m,b,g,params.m_x0);
+		shoulderM = EvalDerivativeLinearGamma(m,b,g,params.m_x1);
+
+		// apply gamma to endpoints
+		params.m_y0 = MaxFloat(1e-5f,pow(params.m_y0,params.m_gamma));
+		params.m_y1 = MaxFloat(1e-5f,pow(params.m_y1,params.m_gamma));
+
+		params.m_overshootY = pow(1.0f + params.m_overshootY,params.m_gamma) - 1.0f;
+	//}
+
+	dstCurve.m_x0 = params.m_x0;
+	dstCurve.m_x1 = params.m_x1;
+	dstCurve.m_y0 = params.m_y0;
+	dstCurve.m_y1 = params.m_y1;
+
+	// toe section
+	//{
+		CurveSegment toeSegment;
+		toeSegment.m_offsetX = 0;
+		toeSegment.m_offsetY = 0.0f;
+		toeSegment.m_scaleX = 1.0f;
+		toeSegment.m_scaleY = 1.0f;
+
+		float[] toeAB = SolveAB(params.m_x0,params.m_y0,toeM);
+        toeSegment.m_lnA = toeAB[0];
+        toeSegment.m_B = toeAB[1];
+		m_segments[0] = toeSegment;
+	//}
+
+	// shoulder section
+	//{
+		// use the simple version that is usually too flat 
+		CurveSegment shoulderSegment;
+
+		float x0 = (1.0f + params.m_overshootX) - params.m_x1;
+		float y0 = (1.0f + params.m_overshootY) - params.m_y1;
+
+		float[] shoulderAB = SolveAB(x0,y0,shoulderM);
+        float lnA = shoulderAB[0];
+		float B = shoulderAB[1];
+
+		shoulderSegment.m_offsetX = (1.0f + params.m_overshootX);
+		shoulderSegment.m_offsetY = (1.0f + params.m_overshootY);
+
+		shoulderSegment.m_scaleX = -1.0f;
+		shoulderSegment.m_scaleY = -1.0f;
+		shoulderSegment.m_lnA = lnA;
+		shoulderSegment.m_B = B;
+
+		m_segments[2] = shoulderSegment;
+	//}
+
+	// Normalize so that we hit 1.0 at our white point. We wouldn't have do this if we 
+	// skipped the overshoot part.
+	//{
+		// evaluate shoulder at the end of the curve
+		float scale = EvalCurveSegment(m_segments[2], 1.0f);
+		float invScale = 1.0f / scale;
+
+		m_segments[0].m_offsetY *= invScale;
+		m_segments[0].m_scaleY *= invScale;
+
+		m_segments[1].m_offsetY *= invScale;
+		m_segments[1].m_scaleY *= invScale;
+
+		m_segments[2].m_offsetY *= invScale;
+		m_segments[2].m_scaleY *= invScale;
+	//}
+        return dstCurve;
+}
+
+CurveParamsDirect CalcDirectParamsFromUser(const CurveParamsUser srcParams) {
+	CurveParamsDirect dstParams = CurveParamsDirect(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+
+	// This is not actually the display gamma. It's just a UI space to avoid having to 
+	// enter small numbers for the input.
+	float perceptualGamma = 2.2f;
+
+	// constraints
+	//{
+		float toeLength = pow(Saturate(srcParams.m_toeLength),perceptualGamma);
+		float toeStrength = Saturate(srcParams.m_toeStrength);
+		float shoulderAngle = Saturate(srcParams.m_shoulderAngle);
+		float shoulderLength = MaxFloat(1e-5f,Saturate(srcParams.m_shoulderLength));
+
+		float shoulderStrength = MaxFloat(0.0f,srcParams.m_shoulderStrength);
+	//}
+
+	// apply base params
+	//{
+		// toe goes from 0 to 0.5
+		float x0 = toeLength * .5f;
+		float y0 = (1.0f - toeStrength) * x0; // lerp from 0 to x0
+
+		float remainingY = 1.0f - y0;
+
+		float initialW = x0 + remainingY;
+
+		float y1_offset = (1.0f - shoulderLength) * remainingY;
+		float x1 = x0 + y1_offset;
+		float y1 = y0 + y1_offset;
+
+		// filmic shoulder strength is in F stops
+		float extraW = exp2(shoulderStrength)-1.0f;
+
+		float W = initialW + extraW;
+
+		dstParams.m_x0 = x0;
+		dstParams.m_y0 = y0;
+		dstParams.m_x1 = x1;
+		dstParams.m_y1 = y1;
+		dstParams.m_W = W;
+
+		// bake the linear to gamma space conversion
+		dstParams.m_gamma = srcParams.m_gamma;
+	//}
+
+	dstParams.m_overshootX = (dstParams.m_W * 2.0f) * shoulderAngle * shoulderStrength;
+	dstParams.m_overshootY = 0.5f * shoulderAngle * shoulderStrength;
+
+    return dstParams;
+}
+        
+void main(void) {
+<@if HIFI_USE_MIRRORED@>
+    vec4 fragColorRaw = texture(colorMap, vec2(1.0 - varTexCoord0.x, varTexCoord0.y));
+<@else@>
+    vec4 fragColorRaw = texture(colorMap, varTexCoord0);
+<@endif@>
+    vec3 fragColor = fragColorRaw.xyz;
+
+    vec3 srcColor = fragColor * getTwoPowExposure();
+
+    CurveParamsUser userParams = CurveParamsUser(getToeStrength(), getToeLength(), getShoulderStrength(), getShoulderLength(), getShoulderAngle(), getGamma());
+
+    CurveParamsDirect curveParams = CalcDirectParamsFromUser(userParams);
+
+    FullCurve curve = CreateCurve(curveParams);
+
+    float curveValX = EvalFullCurve(curve, srcColor.x);
+    float curveValY = EvalFullCurve(curve, srcColor.y);
+    float curveValZ = EvalFullCurve(curve, srcColor.z);
+
+    outFragColor = vec4(curveValX, curveValY, curveValZ, 1.0);
+}

@@ -24,6 +24,8 @@ using namespace shader::render_utils::program;
 
 gpu::PipelinePointer ToneMapAndResample::_pipeline;
 gpu::PipelinePointer ToneMapAndResample::_mirrorPipeline;
+gpu::PipelinePointer ToneMapAndResample::_piecewisePipeline;
+gpu::PipelinePointer ToneMapAndResample::_piecewiseMirrorPipeline;
 
 ToneMapAndResample::ToneMapAndResample() {
     Parameters parameters;
@@ -39,6 +41,8 @@ void ToneMapAndResample::init() {
 
     _pipeline = gpu::PipelinePointer(gpu::Pipeline::create(gpu::Shader::createProgram(toneMapping), blitState));
     _mirrorPipeline = gpu::PipelinePointer(gpu::Pipeline::create(gpu::Shader::createProgram(toneMapping_mirrored), blitState));
+    _piecewisePipeline = gpu::PipelinePointer(gpu::Pipeline::create(gpu::Shader::createProgram(toneMappingPiecewise), blitState));
+    _piecewiseMirrorPipeline = gpu::PipelinePointer(gpu::Pipeline::create(gpu::Shader::createProgram(toneMappingPiecewise_mirrored), blitState));
 }
 
 void ToneMapAndResample::setExposure(float exposure) {
@@ -56,9 +60,52 @@ void ToneMapAndResample::setToneCurve(ToneCurve curve) {
     }
 }
 
+void ToneMapAndResample::setToeStrength(float strength) {
+    auto& params = _parametersBuffer.get<Parameters>();
+    if (params._toeStrength != strength) {
+        _parametersBuffer.edit<Parameters>()._toeStrength = strength;
+    }
+}
+
+void ToneMapAndResample::setToeLength(float length) {
+    auto& params = _parametersBuffer.get<Parameters>();
+    if (params._toeLength != length) {
+        _parametersBuffer.edit<Parameters>()._toeLength = length;
+    }
+}
+
+void ToneMapAndResample::setShoulderStrength(float strength) {
+    auto& params = _parametersBuffer.get<Parameters>();
+    if (params._shoulderStrength != strength) {
+        _parametersBuffer.edit<Parameters>()._shoulderStrength = strength;
+    }
+}
+
+void ToneMapAndResample::setShoulderLength(float length) {
+    auto& params = _parametersBuffer.get<Parameters>();
+    if (params._shoulderLength != length) {
+        _parametersBuffer.edit<Parameters>()._shoulderLength = length;
+    }
+}
+
+void ToneMapAndResample::setShoulderAngle(float angle) {
+    auto& params = _parametersBuffer.get<Parameters>();
+    if (params._shoulderAngle != angle) {
+        _parametersBuffer.edit<Parameters>()._shoulderAngle = angle;
+    }
+}
+
+void ToneMapAndResample::setGamma(float gamma) {
+    auto& params = _parametersBuffer.get<Parameters>();
+    if (params._gamma != gamma) {
+        _parametersBuffer.edit<Parameters>()._gamma = gamma;
+    }
+}
+
 void ToneMapAndResample::configure(const Config& config) {
     setExposure(config.exposure);
     setToneCurve((ToneCurve)config.curve);
+    setToeStrength(config.toeStrength);
 }
 
 void ToneMapAndResample::run(const RenderContextPointer& renderContext, const Input& input, Output& output) {
@@ -88,6 +135,8 @@ void ToneMapAndResample::run(const RenderContextPointer& renderContext, const In
 
     glm::ivec4 destViewport{ 0, 0, bufferSize.x, bufferSize.y };
 
+    auto& params = _parametersBuffer.get<Parameters>();
+
     gpu::doInBatch("Resample::run", args->_context, [&](gpu::Batch& batch) {
         batch.enableStereo(false);
         batch.setFramebuffer(destinationFramebuffer);
@@ -95,7 +144,10 @@ void ToneMapAndResample::run(const RenderContextPointer& renderContext, const In
         batch.setViewportTransform(destViewport);
         batch.setProjectionTransform(glm::mat4());
         batch.resetViewTransform();
-        batch.setPipeline(args->_renderMode == RenderArgs::MIRROR_RENDER_MODE ? _mirrorPipeline : _pipeline);
+        batch.setPipeline(params._toneCurve == 4 ?
+            (args->_renderMode == RenderArgs::MIRROR_RENDER_MODE ? _piecewisePipeline : _piecewiseMirrorPipeline) :
+            (args->_renderMode == RenderArgs::MIRROR_RENDER_MODE ? _mirrorPipeline : _pipeline));
+            
 
         batch.setModelTransform(gpu::Framebuffer::evalSubregionTexcoordTransform(srcBufferSize, args->_viewport));
         batch.setUniformBuffer(render_utils::slot::buffer::ToneMappingParams, _parametersBuffer);
