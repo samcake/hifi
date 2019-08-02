@@ -34,6 +34,7 @@ PropItem {
     function applyValueVarFromWidgets(value) {
         if (!root.readOnly) { 
            root.valueVarSetter(value)
+           valueLabel.text = value.toFixed(root.integral ? 0 : root.numDigits);
         }
     }
 

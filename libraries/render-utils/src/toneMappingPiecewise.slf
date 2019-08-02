@@ -106,7 +106,7 @@ float MinFloat(float x, float y)
 	return x < y ? x : y;
 }
 
-float Saturate(float x) {
+float Clamp(float x) {
 	return MaxFloat(0.0f,MinFloat(1.0f,x));
 }
 
@@ -195,10 +195,61 @@ float EvalDerivativeLinearGamma(float m, float b, float g, float x) {
 	return ret;
 }
 
+CurveParamsDirect CalcDirectParamsFromUser(const CurveParamsUser srcParams) {
+	CurveParamsDirect dstParams = CurveParamsDirect(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+
+	// This is not actually the display gamma. It's just a UI space to avoid having to 
+	// enter small numbers for the input.
+	float perceptualGamma = 2.2f;
+
+	// constraints
+	//{
+		float toeLength = pow(Clamp(srcParams.m_toeLength),perceptualGamma);
+		float toeStrength = Clamp(srcParams.m_toeStrength);
+		float shoulderAngle = Clamp(srcParams.m_shoulderAngle);
+		float shoulderLength = MaxFloat(0.00001f,Clamp(srcParams.m_shoulderLength));
+		float shoulderStrength = MaxFloat(0.0f,srcParams.m_shoulderStrength);
+	//}
+
+	// apply base params
+	//{
+		// toe goes from 0 to 0.5
+		float x0 = toeLength * .5f;
+		float y0 = (1.0f - toeStrength) * x0; // lerp from 0 to x0
+
+		float remainingY = 1.0f - y0;
+
+		float initialW = x0 + remainingY;
+
+		float y1_offset = (1.0f - shoulderLength) * remainingY; // distance from end of toe to start of shoulder
+		float x1 = x0 + y1_offset; // we constrain linear section to have a slope of 1
+		float y1 = y0 + y1_offset;
+
+		// filmic shoulder strength is in F stops
+		float extraW = exp2(shoulderStrength)-1.0f; // note that shoulder length does not affect white point
+
+		float W = initialW + extraW;
+
+		dstParams.m_x0 = x0;
+		dstParams.m_y0 = y0;
+		dstParams.m_x1 = x1;
+		dstParams.m_y1 = y1;
+		dstParams.m_W = W;
+
+		// bake the linear to gamma space conversion
+		dstParams.m_gamma = 2.2 / srcParams.m_gamma;
+	//}
+
+	dstParams.m_overshootX = (dstParams.m_W * 2.0f) * shoulderAngle * shoulderStrength;
+	dstParams.m_overshootY = 0.5f * shoulderAngle * shoulderStrength;
+
+    return dstParams;
+}
+
 FullCurve CreateCurve(const CurveParamsDirect srcParams) {
 	CurveParamsDirect params = srcParams;
 
-    FullCurve dstCurve = FullCurve(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+    FullCurve dstCurve = FullCurve(1.0, 1.0, 0.25, 0.25, 0.75, 0.75);
 
 	dstCurve.m_W = srcParams.m_W;
 	dstCurve.m_invW = 1.0f / srcParams.m_W;
@@ -312,64 +363,13 @@ FullCurve CreateCurve(const CurveParamsDirect srcParams) {
 	//}
         return dstCurve;
 }
-
-CurveParamsDirect CalcDirectParamsFromUser(const CurveParamsUser srcParams) {
-	CurveParamsDirect dstParams = CurveParamsDirect(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
-
-	// This is not actually the display gamma. It's just a UI space to avoid having to 
-	// enter small numbers for the input.
-	float perceptualGamma = 2.2f;
-
-	// constraints
-	//{
-		float toeLength = pow(Saturate(srcParams.m_toeLength),perceptualGamma);
-		float toeStrength = Saturate(srcParams.m_toeStrength);
-		float shoulderAngle = Saturate(srcParams.m_shoulderAngle);
-		float shoulderLength = MaxFloat(1e-5f,Saturate(srcParams.m_shoulderLength));
-
-		float shoulderStrength = MaxFloat(0.0f,srcParams.m_shoulderStrength);
-	//}
-
-	// apply base params
-	//{
-		// toe goes from 0 to 0.5
-		float x0 = toeLength * .5f;
-		float y0 = (1.0f - toeStrength) * x0; // lerp from 0 to x0
-
-		float remainingY = 1.0f - y0;
-
-		float initialW = x0 + remainingY;
-
-		float y1_offset = (1.0f - shoulderLength) * remainingY;
-		float x1 = x0 + y1_offset;
-		float y1 = y0 + y1_offset;
-
-		// filmic shoulder strength is in F stops
-		float extraW = exp2(shoulderStrength)-1.0f;
-
-		float W = initialW + extraW;
-
-		dstParams.m_x0 = x0;
-		dstParams.m_y0 = y0;
-		dstParams.m_x1 = x1;
-		dstParams.m_y1 = y1;
-		dstParams.m_W = W;
-
-		// bake the linear to gamma space conversion
-		dstParams.m_gamma = srcParams.m_gamma;
-	//}
-
-	dstParams.m_overshootX = (dstParams.m_W * 2.0f) * shoulderAngle * shoulderStrength;
-	dstParams.m_overshootY = 0.5f * shoulderAngle * shoulderStrength;
-
-    return dstParams;
-}
-        
+   
 void main(void) {
+// using the inverse gamma (so that higher gamma = brighter) flips the image for some reason, so we flip it back here
 <@if HIFI_USE_MIRRORED@>
-    vec4 fragColorRaw = texture(colorMap, vec2(1.0 - varTexCoord0.x, varTexCoord0.y));
-<@else@>
     vec4 fragColorRaw = texture(colorMap, varTexCoord0);
+<@else@>
+    vec4 fragColorRaw = texture(colorMap, vec2(1.0 - varTexCoord0.x, varTexCoord0.y));
 <@endif@>
     vec3 fragColor = fragColorRaw.xyz;
 
@@ -381,9 +381,9 @@ void main(void) {
 
     FullCurve curve = CreateCurve(curveParams);
 
-    float curveValX = EvalFullCurve(curve, srcColor.x);
-    float curveValY = EvalFullCurve(curve, srcColor.y);
-    float curveValZ = EvalFullCurve(curve, srcColor.z);
+    float curveValR = EvalFullCurve(curve, srcColor.x);
+    float curveValG = EvalFullCurve(curve, srcColor.y);
+    float curveValB = EvalFullCurve(curve, srcColor.z);
 
-    outFragColor = vec4(curveValX, curveValY, curveValZ, 1.0);
+    outFragColor = vec4(curveValR, curveValG, curveValB, 1.0);
 }

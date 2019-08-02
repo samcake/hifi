@@ -81,22 +81,22 @@ public:
     ToneCurve getToneCurve() const { return (ToneCurve)_parametersBuffer.get<Parameters>()._toneCurve; }
 
     void ToneMapAndResample::setToeStrength(float strength);
-    float setToeStrength() const { return _parametersBuffer.get<Parameters>()._toeStrength; }
+    float getToeStrength() const { return _parametersBuffer.get<Parameters>()._toeStrength; }
 
     void ToneMapAndResample::setToeLength(float strength);
-    float setToeLength() const { return _parametersBuffer.get<Parameters>()._toeLength; }
+    float getToeLength() const { return _parametersBuffer.get<Parameters>()._toeLength; }
 
     void ToneMapAndResample::setShoulderStrength(float strength);
-    float setShoulderStrength() const { return _parametersBuffer.get<Parameters>()._shoulderStrength; }
+    float getShoulderStrength() const { return _parametersBuffer.get<Parameters>()._shoulderStrength; }
 
     void ToneMapAndResample::setShoulderLength(float strength);
-    float setShoulderLength() const { return _parametersBuffer.get<Parameters>()._shoulderLength; }
+    float getShoulderLength() const { return _parametersBuffer.get<Parameters>()._shoulderLength; }
 
     void ToneMapAndResample::setShoulderAngle(float strength);
-    float setShoulderAngle() const { return _parametersBuffer.get<Parameters>()._shoulderAngle; }
+    float getShoulderAngle() const { return _parametersBuffer.get<Parameters>()._shoulderAngle; }
 
     void ToneMapAndResample::setGamma(float strength);
-    float setGamma() const { return _parametersBuffer.get<Parameters>()._gamma; }
+    float getGamma() const { return _parametersBuffer.get<Parameters>()._gamma; }
 
     // Inputs: lightingFramebuffer, destinationFramebuffer
     using Input = render::VaryingSet2<gpu::FramebufferPointer, gpu::FramebufferPointer>;

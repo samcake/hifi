@@ -106,6 +106,11 @@ void ToneMapAndResample::configure(const Config& config) {
     setExposure(config.exposure);
     setToneCurve((ToneCurve)config.curve);
     setToeStrength(config.toeStrength);
+    setToeLength(config.toeLength);
+    setShoulderStrength(config.shoulderStrength);
+    setShoulderLength(config.shoulderLength);
+    setShoulderAngle(config.shoulderAngle);
+    setGamma(config.gamma);
 }
 
 void ToneMapAndResample::run(const RenderContextPointer& renderContext, const Input& input, Output& output) {
