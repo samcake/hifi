@@ -9,6 +9,9 @@
 //  Created by Anna Brewer on 7/30/2019
 //  Copyright 2019 High Fidelity, Inc.
 //
+//  Adapted from John Hable's piecewise filmic curve sample code:
+//  https://github.com/johnhable/fw-public.git
+//
 //  Distributed under the Apache License, Version 2.0.
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
@@ -66,6 +69,8 @@ struct FullCurve
 };
 
 CurveSegment m_segments[3];
+float ALMOST_ZERO = 0.00001f;
+float ALMOST_ONE = 0.99999f;
 
 LAYOUT(binding=RENDER_UTILS_BUFFER_TM_PARAMS) uniform toneMappingParamsBuffer {
     ToneMappingParams params;
@@ -107,7 +112,7 @@ float MinFloat(float x, float y)
 }
 
 float Clamp(float x) {
-	return MaxFloat(0.0f,MinFloat(1.0f,x));
+	return MaxFloat(ALMOST_ZERO,MinFloat(ALMOST_ONE,x));
 }
 
 float EvalCurveSegment(CurveSegment curve, float x) {
@@ -204,11 +209,11 @@ CurveParamsDirect CalcDirectParamsFromUser(const CurveParamsUser srcParams) {
 
 	// constraints
 	//{
-		float toeLength = pow(Clamp(srcParams.m_toeLength),perceptualGamma);
+        float toeLength = pow(Clamp(srcParams.m_toeLength),perceptualGamma);
 		float toeStrength = Clamp(srcParams.m_toeStrength);
 		float shoulderAngle = Clamp(srcParams.m_shoulderAngle);
-		float shoulderLength = MaxFloat(0.00001f,Clamp(srcParams.m_shoulderLength));
-		float shoulderStrength = MaxFloat(0.0f,srcParams.m_shoulderStrength);
+		float shoulderLength = Clamp(srcParams.m_shoulderLength);
+		float shoulderStrength = Clamp(srcParams.m_shoulderStrength);
 	//}
 
 	// apply base params
@@ -371,15 +376,15 @@ void main(void) {
 <@else@>
     vec4 fragColorRaw = texture(colorMap, vec2(1.0 - varTexCoord0.x, varTexCoord0.y));
 <@endif@>
-    vec3 fragColor = fragColorRaw.xyz;
-
-    vec3 srcColor = fragColor * getTwoPowExposure();
-
     CurveParamsUser userParams = CurveParamsUser(getToeStrength(), getToeLength(), getShoulderStrength(), getShoulderLength(), getShoulderAngle(), getGamma());
 
     CurveParamsDirect curveParams = CalcDirectParamsFromUser(userParams);
 
     FullCurve curve = CreateCurve(curveParams);
+
+    vec3 fragColor = fragColorRaw.xyz;
+
+    vec3 srcColor = fragColor * getTwoPowExposure();
 
     float curveValR = EvalFullCurve(curve, srcColor.x);
     float curveValG = EvalFullCurve(curve, srcColor.y);

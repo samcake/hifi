@@ -9,12 +9,43 @@
 //
 
 import QtQuick 2.7
-
+import QtQuick.Controls 1.4
 import "../../lib/prop" as Prop
+import "../../lib/plotperf"
 
 Column {
+
+    function evalEvenHeight() {
+        // Why do we have to do that manually ? cannot seem to find a qml / anchor / layout mode that does that ?
+        return (height - spacing * (children.length - 1)) / children.length
+    }
+
     anchors.left: parent.left
     anchors.right: parent.right 
+    
+    PlotCurve {
+        title: "Tone Curve"
+        object: parent.drawOpaqueConfig
+        valueScale: 1
+        valueNumDigits: 3
+        height: 160
+        points: 
+        [
+            {
+                object: Render.getConfig("RenderMainView.ToneMapping"),
+                prop: "exposure"
+            },
+            {
+                object: Render.getConfig("RenderMainView.ToneMapping"),
+                prop: "toeLength"
+            },
+            {
+                object: Render.getConfig("RenderMainView.ToneMapping"),
+                prop: "toeStrength"
+            }
+        ]
+    }
+    
     Prop.PropEnum {
         label: "Tone Curve"
         object: Render.getConfig("RenderMainView.ToneMapping")
@@ -91,7 +122,7 @@ Column {
         object: Render.getConfig("RenderMainView.ToneMapping")
         property: "gamma"
         numDigits: 1
-        min: 0
+        min: 1
         max: 3
         anchors.left: parent.left
         anchors.right: parent.right 
