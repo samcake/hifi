@@ -47,9 +47,9 @@ void ToneMapAndResample::init() {
 
 void ToneMapAndResample::setExposure(float exposure) {
     auto& params = _parametersBuffer.get<Parameters>();
-    if (params._exposure != exposure) {
-        _parametersBuffer.edit<Parameters>()._exposure = exposure;
-        _parametersBuffer.edit<Parameters>()._twoPowExposure = pow(2.0, exposure);
+    float twoPowExp = pow(2.0, exposure);
+    if (params._twoPowExposure != twoPowExp) {
+        _parametersBuffer.edit<Parameters>()._twoPowExposure = twoPowExp;
     }
 }
 
@@ -59,47 +59,70 @@ void ToneMapAndResample::setToneCurve(ToneCurve curve) {
         _parametersBuffer.edit<Parameters>()._toneCurve = (int)curve;
     }
 }
-
 void ToneMapAndResample::setToeStrength(float strength) {
-    auto& params = _parametersBuffer.get<Parameters>();
-    if (params._toeStrength != strength) {
-        _parametersBuffer.edit<Parameters>()._toeStrength = strength;
+    if (userParams.m_toeStrength != strength) {
+        userParams.m_toeStrength = strength;
+        _dirty = true;
     }
 }
 
 void ToneMapAndResample::setToeLength(float length) {
-    auto& params = _parametersBuffer.get<Parameters>();
-    if (params._toeLength != length) {
-        _parametersBuffer.edit<Parameters>()._toeLength = length;
+    if (userParams.m_toeLength != length) {
+        userParams.m_toeLength = length;
+        _dirty = true;
     }
 }
 
 void ToneMapAndResample::setShoulderStrength(float strength) {
-    auto& params = _parametersBuffer.get<Parameters>();
-    if (params._shoulderStrength != strength) {
-        _parametersBuffer.edit<Parameters>()._shoulderStrength = strength;
+    if (userParams.m_shoulderStrength != strength) {
+        userParams.m_shoulderStrength = strength;
+        _dirty = true;
     }
 }
 
 void ToneMapAndResample::setShoulderLength(float length) {
-    auto& params = _parametersBuffer.get<Parameters>();
-    if (params._shoulderLength != length) {
-        _parametersBuffer.edit<Parameters>()._shoulderLength = length;
+    if (userParams.m_shoulderLength != length) {
+        userParams.m_shoulderLength = length;
+        _dirty = true;
     }
 }
 
 void ToneMapAndResample::setShoulderAngle(float angle) {
-    auto& params = _parametersBuffer.get<Parameters>();
-    if (params._shoulderAngle != angle) {
-        _parametersBuffer.edit<Parameters>()._shoulderAngle = angle;
+    if (userParams.m_shoulderAngle != angle) {
+        userParams.m_shoulderAngle = angle;
+        _dirty = true;
     }
 }
 
 void ToneMapAndResample::setGamma(float gamma) {
-    auto& params = _parametersBuffer.get<Parameters>();
-    if (params._gamma != gamma) {
-        _parametersBuffer.edit<Parameters>()._gamma = gamma;
+    if (userParams.m_gamma != gamma) {
+        userParams.m_gamma = gamma;
+        _dirty = true;
     }
+}
+
+void ToneMapAndResample::setCurveParams(FullCurve curve) {
+    auto& params = _parametersBuffer.edit<Parameters>();
+
+    CurveSegment toe = m_segments[0];
+    CurveSegment linear = m_segments[1];
+    CurveSegment shoulder = m_segments[2];
+
+    _parametersBuffer.edit<Parameters>()._shoulderOffsetX = shoulder.m_offsetX;
+    _parametersBuffer.edit<Parameters>()._shoulderOffsetY = shoulder.m_offsetY;
+    _parametersBuffer.edit<Parameters>()._shoulderLnA = shoulder.m_lnA;
+    _parametersBuffer.edit<Parameters>()._shoulderB = shoulder.m_B;
+    _parametersBuffer.edit<Parameters>()._toeLnA = toe.m_lnA;
+    _parametersBuffer.edit<Parameters>()._toeB = toe.m_B;
+    _parametersBuffer.edit<Parameters>()._linearLnA = linear.m_lnA;
+    _parametersBuffer.edit<Parameters>()._linearB = linear.m_B;
+    _parametersBuffer.edit<Parameters>()._linearOffsetX = linear.m_offsetX;
+    _parametersBuffer.edit<Parameters>()._fullCurveW = curve.m_W;
+    _parametersBuffer.edit<Parameters>()._fullCurveInvW = curve.m_invW;
+    _parametersBuffer.edit<Parameters>()._fullCurveX0 = curve.m_x0;
+    _parametersBuffer.edit<Parameters>()._fullCurveY0 = curve.m_y0;
+    _parametersBuffer.edit<Parameters>()._fullCurveX1 = curve.m_x1;
+    _parametersBuffer.edit<Parameters>()._fullCurveY1 = curve.m_y1;
 }
 
 void ToneMapAndResample::configure(const Config& config) {

@@ -29,6 +29,37 @@ enum class ToneCurve {
     Piecewise
 };
 
+struct CurveParamsUser
+{
+    float m_toeStrength; // as a ratio
+    float m_toeLength; // as a ratio
+    float m_shoulderStrength; // as a ratio
+    float m_shoulderLength; // in F stops
+    float m_shoulderAngle; // as a ratio
+
+    float m_gamma;
+};
+
+struct CurveSegment {
+    float m_offsetX;
+    float m_offsetY;
+    float m_scaleX; // always 1 or -1
+    float m_scaleY;
+    float m_lnA;
+    float m_B;
+};
+
+struct FullCurve
+{
+    float m_W;
+    float m_invW;
+
+    float m_x0;
+    float m_x1;
+    float m_y0;
+    float m_y1;
+};
+
 class ToneMappingConfig : public render::Job::Config {
     Q_OBJECT
     Q_PROPERTY(float exposure MEMBER exposure WRITE setExposure);
@@ -75,28 +106,28 @@ public:
     void render(RenderArgs* args, const gpu::TexturePointer& lightingBuffer, gpu::FramebufferPointer& destinationBuffer);
 
     void setExposure(float exposure);
-    float getExposure() const { return _parametersBuffer.get<Parameters>()._exposure; }
+    float getExposure() const { return pow(_parametersBuffer.get<Parameters>()._twoPowExposure, 0.5); }
 
     void setToneCurve(ToneCurve curve);
     ToneCurve getToneCurve() const { return (ToneCurve)_parametersBuffer.get<Parameters>()._toneCurve; }
 
-    void ToneMapAndResample::setToeStrength(float strength);
-    float getToeStrength() const { return _parametersBuffer.get<Parameters>()._toeStrength; }
+    void setToeStrength(float strength);
+    float getToeStrength() const { return userParams.m_toeStrength; }
 
-    void ToneMapAndResample::setToeLength(float strength);
-    float getToeLength() const { return _parametersBuffer.get<Parameters>()._toeLength; }
+    void setToeLength(float strength);
+    float getToeLength() const { return userParams.m_toeLength; }
 
-    void ToneMapAndResample::setShoulderStrength(float strength);
-    float getShoulderStrength() const { return _parametersBuffer.get<Parameters>()._shoulderStrength; }
+    void setShoulderStrength(float strength);
+    float getShoulderStrength() const { return userParams.m_shoulderStrength; }
 
-    void ToneMapAndResample::setShoulderLength(float strength);
-    float getShoulderLength() const { return _parametersBuffer.get<Parameters>()._shoulderLength; }
+    void setShoulderLength(float strength);
+    float getShoulderLength() const { return userParams.m_shoulderLength; }
 
-    void ToneMapAndResample::setShoulderAngle(float strength);
-    float getShoulderAngle() const { return _parametersBuffer.get<Parameters>()._shoulderAngle; }
+    void setShoulderAngle(float strength);
+    float getShoulderAngle() const { return userParams.m_shoulderAngle; }
 
-    void ToneMapAndResample::setGamma(float strength);
-    float getGamma() const { return _parametersBuffer.get<Parameters>()._gamma; }
+    void setGamma(float strength);
+    float getGamma() const { return userParams.m_gamma; }
 
     // Inputs: lightingFramebuffer, destinationFramebuffer
     using Input = render::VaryingSet2<gpu::FramebufferPointer, gpu::FramebufferPointer>;
@@ -106,6 +137,8 @@ public:
 
     void configure(const Config& config);
     void run(const render::RenderContextPointer& renderContext, const Input& input, Output& output);
+
+    CurveSegment m_segments[3];
 
 protected:
     static gpu::PipelinePointer _pipeline;
@@ -119,21 +152,38 @@ protected:
 
     gpu::FramebufferPointer getResampledFrameBuffer(const gpu::FramebufferPointer& sourceFramebuffer);
 
+    bool _dirty;
+
+    void setCurveParams(FullCurve curve);
+
+    CurveParamsUser userParams = { 0.5, 0.5, 2.0, 0.5, 1.0, 2.2 };
+
 private:
     gpu::PipelinePointer _blitLightBuffer;
 
     // Class describing the uniform buffer with all the parameters common to the tone mapping shaders
     class Parameters {
     public:
-        float _exposure = 0.0f;
-        float _twoPowExposure = 1.0f;
-        float _toeStrength = 0.5f;
-        float _toeLength = 0.5f;
+        float _shoulderOffsetX;
+        float _shoulderOffsetY;
+        float _shoulderLnA;
+        float _shoulderB;
 
-        float _shoulderStrength = 2.0f;
-        float _shoulderLength = 0.5f;
-        float _shoulderAngle = 1.0f;
-        float _gamma = 2.2f;
+        float _toeLnA;
+        float _toeB;
+
+        float _linearLnA;
+        float _linearB;
+        float _linearOffsetX;
+
+        float _twoPowExposure = 1.0f;
+ 
+        float _fullCurveW;
+        float _fullCurveInvW;
+        float _fullCurveX0;
+        float _fullCurveY0;
+        float _fullCurveX1;
+        float _fullCurveY1;
 
         int _toneCurve = (int)ToneCurve::Gamma22;
 
