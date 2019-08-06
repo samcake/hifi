@@ -31,11 +31,25 @@ enum class ToneCurve {
 
 struct CurveParamsUser
 {
-    float m_toeStrength; // as a ratio
-    float m_toeLength; // as a ratio
-    float m_shoulderStrength; // as a ratio
-    float m_shoulderLength; // in F stops
-    float m_shoulderAngle; // as a ratio
+    float m_toeStrength = 0.5; // as a ratio
+    float m_toeLength = 0.5; // as a ratio
+    float m_shoulderStrength = 2.0; // as a ratio
+    float m_shoulderLength = 0.5; // in F stops
+    float m_shoulderAngle = 1.0; // as a ratio
+
+    float m_gamma = 2.2;
+};
+
+struct CurveParamsDirect {
+    float m_x0;
+    float m_y0;
+    float m_x1;
+    float m_y1;
+
+    float m_W;
+
+    float m_overshootX;
+    float m_overshootY;
 
     float m_gamma;
 };
@@ -70,6 +84,13 @@ class ToneMappingConfig : public render::Job::Config {
     Q_PROPERTY(float shoulderLength MEMBER shoulderLength WRITE setShoulderLength);
     Q_PROPERTY(float shoulderAngle MEMBER shoulderAngle WRITE setShoulderAngle);
     Q_PROPERTY(float gamma MEMBER gamma WRITE setGamma);
+    /*
+    Q_PROPERTY(float W MEMBER toeStrength);
+    Q_PROPERTY(float x0 MEMBER x0);
+    Q_PROPERTY(float x1 MEMBER x1);
+    Q_PROPERTY(float y0 MEMBER y0);
+    Q_PROPERTY(float y1 MEMBER y1);
+    */
 
 public:
     ToneMappingConfig() : render::Job::Config(true) {}
@@ -139,6 +160,10 @@ public:
     void run(const render::RenderContextPointer& renderContext, const Input& input, Output& output);
 
     CurveSegment m_segments[3];
+
+    CurveParamsDirect CalcDirectParamsFromUser(const CurveParamsUser srcParams);
+
+    FullCurve CreateCurve(const CurveParamsDirect srcParams);
 
 protected:
     static gpu::PipelinePointer _pipeline;

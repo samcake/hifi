@@ -33,7 +33,7 @@ Column {
         [
             {
                 object: Render.getConfig("RenderMainView.ToneMapping"),
-                prop: "exposure"
+                prop: "twoPowExposure"
             },
             {
                 object: Render.getConfig("RenderMainView.ToneMapping"),

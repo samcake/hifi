@@ -19,33 +19,11 @@
 <@include render-utils/ShaderConstants.h@>
 
 struct ToneMappingParams {
-    vec4 _exp_2powExp_toeStrength_toeLength;
-    vec4 _shoulderLength_shoulderStrength_shoulderAngle_gamma;
-    ivec4 _toneCurve_s0_s1_s2;
-};
-
-struct CurveParamsUser
-{
-	float m_toeStrength; // as a ratio
-	float m_toeLength; // as a ratio
-	float m_shoulderStrength; // as a ratio
-	float m_shoulderLength; // in F stops
-	float m_shoulderAngle; // as a ratio
-
-	float m_gamma;
-};
-
-struct CurveParamsDirect {
-	float m_x0;
-	float m_y0;
-	float m_x1;
-	float m_y1;
-	float m_W;
-
-	float m_overshootX;
-	float m_overshootY;
-
-	float m_gamma;
+    vec4 _shoulderOffsetX_shoulderOffsetY_shoulderLnA_shoulderB;
+    vec4 _toeLnA_toeB_linearLnA_linearB;
+    vec4 _linearOffsetX_2powExp_w_invW;
+    vec4 _x0_y0_x1_y1;
+    ivec4 curve_s0_s1_s2;
 };
 
 struct CurveSegment {
@@ -75,45 +53,63 @@ float ALMOST_ONE = 0.99999f;
 LAYOUT(binding=RENDER_UTILS_BUFFER_TM_PARAMS) uniform toneMappingParamsBuffer {
     ToneMappingParams params;
 };
+
+float getToeLnA() {
+    return params._toeLnA_toeB_linearLnA_linearB.x;
+}
+float getToeB() {
+    return params._toeLnA_toeB_linearLnA_linearB.y;
+}
+float getLinearLnA() {
+    return params._toeLnA_toeB_linearLnA_linearB.z;
+}
+float getLinearB() {
+    return params._toeLnA_toeB_linearLnA_linearB.w;
+}
+
+float getShoulderOffsetX() {
+    return params._shoulderOffsetX_shoulderOffsetY_shoulderLnA_shoulderB.x;
+}
+float getShoulderOffsetY() {
+    return params._shoulderOffsetX_shoulderOffsetY_shoulderLnA_shoulderB.y;
+}
+float getShoulderLnA() {
+    return params._shoulderOffsetX_shoulderOffsetY_shoulderLnA_shoulderB.z;
+}
+float getShoulderB() {
+    return params._shoulderOffsetX_shoulderOffsetY_shoulderLnA_shoulderB.w;
+}
+
+float getLinearOffsetX() {
+    return params._linearOffsetX_2powExp_w_invW.x;
+}
 float getTwoPowExposure() {
-    return params._exp_2powExp_toeStrength_toeLength.y;
+    return params._linearOffsetX_2powExp_w_invW.y;
 }
-float getToeStrength() {
-    return params._exp_2powExp_toeStrength_toeLength.z;
+float getW() {
+    return params._linearOffsetX_2powExp_w_invW.z;
 }
-float getToeLength() {
-    return params._exp_2powExp_toeStrength_toeLength.w;
+float getInvW() {
+    return params._linearOffsetX_2powExp_w_invW.w;
 }
-float getShoulderStrength() {
-    return params._shoulderLength_shoulderStrength_shoulderAngle_gamma.x;
+
+float getX0() {
+    return params._x0_y0_x1_y1.x;
 }
-float getShoulderLength() {
-    return params._shoulderLength_shoulderStrength_shoulderAngle_gamma.y;
+float getY0() {
+    return params._x0_y0_x1_y1.y;
 }
-float getShoulderAngle() {
-    return params._shoulderLength_shoulderStrength_shoulderAngle_gamma.z;
+float getX1() {
+    return params._x0_y0_x1_y1.z;
 }
-float getGamma() {
-    return params._shoulderLength_shoulderStrength_shoulderAngle_gamma.w;
+float getY1() {
+    return params._x0_y0_x1_y1.w;
 }
 
 LAYOUT(binding=RENDER_UTILS_TEXTURE_TM_COLOR) uniform sampler2D colorMap;
 
 layout(location=0) in vec2 varTexCoord0;
 layout(location=0) out vec4 outFragColor;
-
-float MaxFloat(float x, float y) {
-	return x > y ? x : y;
-}
-
-float MinFloat(float x, float y)
-{
-	return x < y ? x : y;
-}
-
-float Clamp(float x) {
-	return MaxFloat(ALMOST_ZERO,MinFloat(ALMOST_ONE,x));
-}
 
 float EvalCurveSegment(CurveSegment curve, float x) {
     float x0 = (x - curve.m_offsetX)*curve.m_scaleX;
@@ -132,13 +128,13 @@ float EvalCurveSegment(CurveSegment curve, float x) {
 float EvalInvCurveSegment(CurveSegment curve, float y) {
 	float y0 = (y-curve.m_offsetY)/curve.m_scaleY;
 	float x0 = 0.0f;
-	
+
 	// watch out for log(0) again
 	if (y0 > 0)
 	{
 		x0 = exp((log(y0) - curve.m_lnA)/curve.m_B);
 	}
-	
+
     float x = x0/curve.m_scaleX + curve.m_offsetX;
 
     return x;
@@ -160,21 +156,6 @@ float EvalInvFullCurve(FullCurve curve, float y) {
 	return normX * curve.m_W;
 }
 
-// find a function of the form:
-//   f(x) = e^(lnA + Bln(x))
-// where
-//   f(0)   = 0; not really a constraint
-//   f(x0)  = y0
-//   f'(x0) = m
-float[2] SolveAB(float x0, float y0, float m) {
-	float B = (m*x0)/y0;
-	float lnA = log(y0) - B*log(x0);
-    float ab[2];
-    ab[0] = lnA;
-    ab[1] = B;
-    return ab;
-}
-
 // convert to y=mx+b
 float[2] AsSlopeIntercept(float x0, float x1, float y0, float y1) {
 	float dy = (y1-y0);
@@ -192,183 +173,6 @@ float[2] AsSlopeIntercept(float x0, float x1, float y0, float y1) {
     mb[1] = b;
     return mb;
 }
-
-// f(x) = (mx+b)^g
-// f'(x) = gm(mx+b)^(g-1)
-float EvalDerivativeLinearGamma(float m, float b, float g, float x) {
-	float ret = g*m*pow(m*x+b,g-1.0f);
-	return ret;
-}
-
-CurveParamsDirect CalcDirectParamsFromUser(const CurveParamsUser srcParams) {
-	CurveParamsDirect dstParams = CurveParamsDirect(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
-
-	// This is not actually the display gamma. It's just a UI space to avoid having to 
-	// enter small numbers for the input.
-	float perceptualGamma = 2.2f;
-
-	// constraints
-	//{
-        float toeLength = pow(Clamp(srcParams.m_toeLength),perceptualGamma);
-		float toeStrength = Clamp(srcParams.m_toeStrength);
-		float shoulderAngle = Clamp(srcParams.m_shoulderAngle);
-		float shoulderLength = Clamp(srcParams.m_shoulderLength);
-		float shoulderStrength = Clamp(srcParams.m_shoulderStrength);
-	//}
-
-	// apply base params
-	//{
-		// toe goes from 0 to 0.5
-		float x0 = toeLength * .5f;
-		float y0 = (1.0f - toeStrength) * x0; // lerp from 0 to x0
-
-		float remainingY = 1.0f - y0;
-
-		float initialW = x0 + remainingY;
-
-		float y1_offset = (1.0f - shoulderLength) * remainingY; // distance from end of toe to start of shoulder
-		float x1 = x0 + y1_offset; // we constrain linear section to have a slope of 1
-		float y1 = y0 + y1_offset;
-
-		// filmic shoulder strength is in F stops
-		float extraW = exp2(shoulderStrength)-1.0f; // note that shoulder length does not affect white point
-
-		float W = initialW + extraW;
-
-		dstParams.m_x0 = x0;
-		dstParams.m_y0 = y0;
-		dstParams.m_x1 = x1;
-		dstParams.m_y1 = y1;
-		dstParams.m_W = W;
-
-		// bake the linear to gamma space conversion
-		dstParams.m_gamma = 2.2 / srcParams.m_gamma;
-	//}
-
-	dstParams.m_overshootX = (dstParams.m_W * 2.0f) * shoulderAngle * shoulderStrength;
-	dstParams.m_overshootY = 0.5f * shoulderAngle * shoulderStrength;
-
-    return dstParams;
-}
-
-FullCurve CreateCurve(const CurveParamsDirect srcParams) {
-	CurveParamsDirect params = srcParams;
-
-    FullCurve dstCurve = FullCurve(1.0, 1.0, 0.25, 0.25, 0.75, 0.75);
-
-	dstCurve.m_W = srcParams.m_W;
-	dstCurve.m_invW = 1.0f / srcParams.m_W;
-
-	// normalize params to 1.0 range
-	params.m_W = 1.0f;
-	params.m_x0 /= srcParams.m_W;
-	params.m_x1 /= srcParams.m_W;
-	params.m_overshootX = srcParams.m_overshootX / srcParams.m_W;
-
-	float toeM = 0.0f;
-	float shoulderM = 0.0f;
-	float endpointM = 0.0f;
-	//{
-		float[] mb = AsSlopeIntercept(params.m_x0,params.m_x1,params.m_y0,params.m_y1);
-        float m = mb[0];
-        float b = mb[1];
-
-		float g = srcParams.m_gamma;
-		
-		// base function of linear section plus gamma is
-		// y = (mx+b)^g
-
-		// which we can rewrite as
-		// y = exp(g*ln(m) + g*ln(x+b/m))
-
-		// and our evaluation function is (skipping the if parts):
-		/*
-			float x0 = (x - m_offsetX)*m_scaleX;
-			y0 = exp(m_lnA + m_B*log(x0));
-			return y0*m_scaleY + m_offsetY;
-		*/
-
-		CurveSegment midSegment;
-		midSegment.m_offsetX = -(b/m);
-		midSegment.m_offsetY = 0.0f;
-		midSegment.m_scaleX = 1.0f;
-		midSegment.m_scaleY = 1.0f;
-		midSegment.m_lnA = g * log(m);
-		midSegment.m_B = g;
-
-		m_segments[1] = midSegment;
-
-		toeM = EvalDerivativeLinearGamma(m,b,g,params.m_x0);
-		shoulderM = EvalDerivativeLinearGamma(m,b,g,params.m_x1);
-
-		// apply gamma to endpoints
-		params.m_y0 = MaxFloat(1e-5f,pow(params.m_y0,params.m_gamma));
-		params.m_y1 = MaxFloat(1e-5f,pow(params.m_y1,params.m_gamma));
-
-		params.m_overshootY = pow(1.0f + params.m_overshootY,params.m_gamma) - 1.0f;
-	//}
-
-	dstCurve.m_x0 = params.m_x0;
-	dstCurve.m_x1 = params.m_x1;
-	dstCurve.m_y0 = params.m_y0;
-	dstCurve.m_y1 = params.m_y1;
-
-	// toe section
-	//{
-		CurveSegment toeSegment;
-		toeSegment.m_offsetX = 0;
-		toeSegment.m_offsetY = 0.0f;
-		toeSegment.m_scaleX = 1.0f;
-		toeSegment.m_scaleY = 1.0f;
-
-		float[] toeAB = SolveAB(params.m_x0,params.m_y0,toeM);
-        toeSegment.m_lnA = toeAB[0];
-        toeSegment.m_B = toeAB[1];
-		m_segments[0] = toeSegment;
-	//}
-
-	// shoulder section
-	//{
-		// use the simple version that is usually too flat 
-		CurveSegment shoulderSegment;
-
-		float x0 = (1.0f + params.m_overshootX) - params.m_x1;
-		float y0 = (1.0f + params.m_overshootY) - params.m_y1;
-
-		float[] shoulderAB = SolveAB(x0,y0,shoulderM);
-        float lnA = shoulderAB[0];
-		float B = shoulderAB[1];
-
-		shoulderSegment.m_offsetX = (1.0f + params.m_overshootX);
-		shoulderSegment.m_offsetY = (1.0f + params.m_overshootY);
-
-		shoulderSegment.m_scaleX = -1.0f;
-		shoulderSegment.m_scaleY = -1.0f;
-		shoulderSegment.m_lnA = lnA;
-		shoulderSegment.m_B = B;
-
-		m_segments[2] = shoulderSegment;
-	//}
-
-	// Normalize so that we hit 1.0 at our white point. We wouldn't have do this if we 
-	// skipped the overshoot part.
-	//{
-		// evaluate shoulder at the end of the curve
-		float scale = EvalCurveSegment(m_segments[2], 1.0f);
-		float invScale = 1.0f / scale;
-
-		m_segments[0].m_offsetY *= invScale;
-		m_segments[0].m_scaleY *= invScale;
-
-		m_segments[1].m_offsetY *= invScale;
-		m_segments[1].m_scaleY *= invScale;
-
-		m_segments[2].m_offsetY *= invScale;
-		m_segments[2].m_scaleY *= invScale;
-	//}
-        return dstCurve;
-}
-   
 void main(void) {
 // using the inverse gamma (so that higher gamma = brighter) flips the image for some reason, so we flip it back here
 <@if HIFI_USE_MIRRORED@>
@@ -376,11 +180,11 @@ void main(void) {
 <@else@>
     vec4 fragColorRaw = texture(colorMap, vec2(1.0 - varTexCoord0.x, varTexCoord0.y));
 <@endif@>
-    CurveParamsUser userParams = CurveParamsUser(getToeStrength(), getToeLength(), getShoulderStrength(), getShoulderLength(), getShoulderAngle(), getGamma());
+    FullCurve curve = FullCurve(getW(), getInvW(), getX0(), getY0(), getX1(), getY1());
 
-    CurveParamsDirect curveParams = CalcDirectParamsFromUser(userParams);
-
-    FullCurve curve = CreateCurve(curveParams);
+    m_segments[0] = CurveSegment(0.0, 0.0, 1.0, 1.0, getToeLnA(), getToeB());
+    m_segments[1] = CurveSegment(getLinearOffsetX(), 0.0, 1.0, 1.0, getLinearLnA(), getLinearB());
+    m_segments[2] = CurveSegment(getShoulderOffsetX(), getShoulderOffsetY(), -1.0, -1.0, getShoulderLnA(), getShoulderB());
 
     vec3 fragColor = fragColorRaw.xyz;
 

@@ -16,6 +16,10 @@ Item {
     width: parent.width
     height: 100
 
+    property var color: "#FFFFFF"
+
+    property var lineWidth: 1 
+
     // The title of the graph
     property string title
 
@@ -86,7 +90,7 @@ Item {
             function valueFromPixel(pixY) {
                 return _displayMinValue + (((pixY - lineHeight) / (height - lineHeight) - 1) * (_displayMaxValue - _displayMinValue) / (-0.99));
             }
-            function plotValueHistory(ctx, valHistory, color) {
+            function plotValueHistory(ctx, valHistory) {
                 var widthStep= width / (valHistory.length - 1);
 
                 ctx.beginPath();
@@ -103,8 +107,8 @@ Item {
 
             function plot(ctx) {
                 ctx.beginPath();
-                ctx.strokeStyle= Qt.rgba(1, 1, 1, 1);
-                ctx.lineWidth="1";
+                ctx.strokeStyle= color;
+                ctx.lineWidth=lineWidth;
                 ctx.moveTo(0, height); 
                 
                 //ctx.bezierCurveTo(0, height, 20, height - 10, 50, 50); 
@@ -114,7 +118,23 @@ Item {
 
                 var val = point.object[value];
 
-                ctx.bezierCurveTo(0, height, 20, height - 10, 50, 60 + val); 
+                var w = width;
+                var h = height - 20;
+
+                /*
+                var x0 = ;
+                var y0 = ;
+                var x1 = ;
+                var y1 = ;
+                var W = ;
+
+                //toe
+                ctx.bezierCurveTo(20, height, 20, height, x0, y0); 
+                //linear section
+                ctx.bezierCurveTo(x0, y0, x0, y0, x1, y1); 
+                //shoulder
+                ctx.bezierCurveTo(x1, y1, x1 + x_add, y1 - y_add, W, height); 
+                */
                 
                 ctx.stroke();
             }
