@@ -29,7 +29,7 @@ Prop.PropGroup {
 
     property var showProps: true
     property var showSubs: true
-    property var jobEnabled: rootConfig.getConfig(jobPath).enabled
+    property bool jobEnabled: rootConfig.getConfig(jobPath).enabled
     property var jobCpuTime: pullCpuTime()
 
     function pullCpuTime() {
@@ -71,8 +71,8 @@ Prop.PropGroup {
                 id: enabledIcon
                 anchors.right:parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                filled: root.jobEnabled
-                fillColor: (root.jobEnabled ? root.global.colorGreenHighlight : global.colorOrangeAccent)
+                filled: true
+                fillColor: (root.jobEnabled ? global.colorGreenHighlight : global.colorRedAccent)
                 icon: 5
                 
                 MouseArea{
@@ -91,7 +91,7 @@ Prop.PropGroup {
       //  console.log(JSON.stringify(props));
         if (showProps) {
             for (var p in props) {
-                propsModel.push({"object": rootConfig.getConfig(jobPath), "property":props[p] })
+                propsModel.push({"object": rootConfig.getConfig(jobPath), "property":props[p]})
             }
             root.updatePropItems(root.propItemsPanel, propsModel);
         }
