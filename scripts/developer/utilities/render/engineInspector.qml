@@ -31,8 +31,8 @@ Item {
             anchors.right: parent.right 
 
             Jet.TaskPropView {
+                label: "Root"
                 rootConfig: root.rootConfig
-                anchors.fill: root        
             }
         }
     }

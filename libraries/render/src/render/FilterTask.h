@@ -19,7 +19,7 @@ namespace render {
 
     class MultiFilterItemsConfig : public Job::Config {
         Q_OBJECT
-        Q_PROPERTY(int numItems READ getNumItems)
+        Q_PROPERTY(int numItems READ getNumItems NOTIFY newStats)
     public:
         int numItems{ 0 };
         int getNumItems() { return numItems; }
@@ -79,8 +79,8 @@ namespace render {
     // SliceItems job config defining the slice range
     class SliceItemsConfig : public Job::Config {
         Q_OBJECT
-        Q_PROPERTY(int rangeOffset MEMBER rangeOffset)
-        Q_PROPERTY(int rangeLength MEMBER rangeLength)
+        Q_PROPERTY(int rangeOffset MEMBER rangeOffset NOTIFY newStats)
+        Q_PROPERTY(int rangeLength MEMBER rangeLength NOTIFY newStats)
         Q_PROPERTY(int numItems READ getNumItems NOTIFY dirty())
         int numItems { 0 };
     public:

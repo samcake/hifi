@@ -22,8 +22,8 @@ namespace render {
         Q_OBJECT
         Q_PROPERTY(bool showVisibleCells READ getShowVisibleCells WRITE setShowVisibleCells NOTIFY dirty())
         Q_PROPERTY(bool showEmptyCells READ getShowEmptyCells WRITE setShowEmptyCells NOTIFY dirty())
-        Q_PROPERTY(int numAllocatedCells READ getNumAllocatedCells)
-        Q_PROPERTY(int numFreeCells READ getNumFreeCells)
+        Q_PROPERTY(int numAllocatedCells READ getNumAllocatedCells NOTIFY newStats())
+        Q_PROPERTY(int numFreeCells READ getNumFreeCells NOTIFY newStats())
 
     public:
 

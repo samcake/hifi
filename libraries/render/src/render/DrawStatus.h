@@ -18,8 +18,8 @@
 namespace render {
     class DrawStatusConfig : public Job::Config {
         Q_OBJECT
-        Q_PROPERTY(bool showDisplay MEMBER showDisplay WRITE setShowDisplay)
-        Q_PROPERTY(bool showNetwork MEMBER showNetwork WRITE setShowNetwork)
+        Q_PROPERTY(bool showDisplay MEMBER showDisplay WRITE setShowDisplay NOTIFY dirty)
+        Q_PROPERTY(bool showNetwork MEMBER showNetwork WRITE setShowNetwork NOTIFY dirty)
     public:
         DrawStatusConfig() : Job::Config(false) {} // FIXME FOR debug
 

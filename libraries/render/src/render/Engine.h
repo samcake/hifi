@@ -40,10 +40,10 @@ namespace render {
     // Versions of the COnfig integrating a gpu & batch timer
     class GPUJobConfig : public JobConfig {
         Q_OBJECT
-            Q_PROPERTY(double gpuRunTime READ getGPURunTime)
-            Q_PROPERTY(double batchRunTime READ getBatchRunTime)
+        Q_PROPERTY(double gpuRunTime READ getGPURunTime NOTIFY newStats)
+        Q_PROPERTY(double batchRunTime READ getBatchRunTime NOTIFY newStats)
 
-            double _msGPURunTime { 0.0 };
+        double _msGPURunTime { 0.0 };
         double _msBatchRunTime { 0.0 };
     public:
         using Persistent = PersistentConfig<GPUJobConfig>;
@@ -56,28 +56,7 @@ namespace render {
         double getGPURunTime() const { return _msGPURunTime; }
         double getBatchRunTime() const { return _msBatchRunTime; }
     };
-
-    class GPUTaskConfig : public TaskConfig {
-        Q_OBJECT
-        Q_PROPERTY(double gpuRunTime READ getGPURunTime)
-        Q_PROPERTY(double batchRunTime READ getBatchRunTime)
-
-        double _msGPURunTime { 0.0 };
-        double _msBatchRunTime { 0.0 };
-    public:
-
-        using Persistent = PersistentConfig<GPUTaskConfig>;
-
-
-        GPUTaskConfig() = default;
-        GPUTaskConfig(bool enabled) : render::TaskConfig(enabled) {}
-
-        // Running Time measurement on GPU and for Batch execution
-        void setGPUBatchRunTime(double msGpuTime, double msBatchTime) { _msGPURunTime = msGpuTime; _msBatchRunTime = msBatchTime; }
-        double getGPURunTime() const { return _msGPURunTime; }
-        double getBatchRunTime() const { return _msBatchRunTime; }
-    };
-
+    using GPUTaskConfig = GPUJobConfig;
 
     // The render engine holds all render tasks, and is itself a render task.
     // State flows through tasks to jobs via the render and scene contexts -

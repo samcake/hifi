@@ -46,9 +46,9 @@ namespace render {
 
     class FetchSpatialTreeConfig : public Job::Config {
         Q_OBJECT
-        Q_PROPERTY(int numItems READ getNumItems)
-        Q_PROPERTY(bool freezeFrustum MEMBER freezeFrustum WRITE setFreezeFrustum)
-        Q_PROPERTY(float LODAngle MEMBER lodAngle NOTIFY dirty)
+        Q_PROPERTY(int numItems READ getNumItems NOTIFY newStats)
+        Q_PROPERTY(bool freezeFrustum MEMBER freezeFrustum WRITE setFreezeFrustum NOTIFY dirty)
+        Q_PROPERTY(float LODAngle MEMBER lodAngle NOTIFY newStats)
     
     public:
         int numItems{ 0 };
@@ -83,9 +83,9 @@ namespace render {
 
     class CullSpatialSelectionConfig : public Job::Config {
         Q_OBJECT
-        Q_PROPERTY(int numItems READ getNumItems)
-        Q_PROPERTY(bool freezeFrustum MEMBER freezeFrustum WRITE setFreezeFrustum)
-        Q_PROPERTY(bool skipCulling MEMBER skipCulling WRITE setSkipCulling)
+        Q_PROPERTY(int numItems READ getNumItems NOTIFY newStats)
+        Q_PROPERTY(bool freezeFrustum MEMBER freezeFrustum WRITE setFreezeFrustum NOTIFY dirty)
+        Q_PROPERTY(bool skipCulling MEMBER skipCulling WRITE setSkipCulling NOTIFY dirty)
     public:
         int numItems{ 0 };
         int getNumItems() { return numItems; }
