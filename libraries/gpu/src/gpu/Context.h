@@ -52,6 +52,17 @@ public:
     void evalDelta(const ContextStats& begin, const ContextStats& end);
 };
 
+struct TextureDesc {
+    TextureDesc() {}
+    TextureDesc(const TexturePointer& tex) : _texture(tex) {}
+
+    void clear() { _texture.reset(); }
+
+    std::weak_ptr<Texture> _texture;
+
+    using Vector = std::vector< TextureDesc >;
+};
+
 class Backend {
 public:
     virtual ~Backend(){};
@@ -93,6 +104,13 @@ public:
 
     void resetStats() const { _stats = ContextStats(); }
     void getStats(ContextStats& stats) const { stats = _stats; }
+
+
+    std::mutex _textureLibLock;
+    TextureDesc::Vector _textureLib;
+    TextureID registerTexture(const TexturePointer& tex);
+    void unregisterTexture(const TextureID id);
+    const TextureDesc getTextureDesc(const TextureID id);
 
     virtual bool isTextureManagementSparseEnabled() const = 0;
 
@@ -270,6 +288,9 @@ public:
 
     void processProgramsToSync();
 
+
+    TextureDesc getTexture(const TextureID id) const;
+    
 protected:
     Context(const Context& context);
 

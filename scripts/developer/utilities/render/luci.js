@@ -72,6 +72,7 @@ function openView() {
     pages.addPage('openEngineInspectorView', 'Render Engine Inspector', '../engineInspector.qml', 300, 400);
     pages.addPage('openEngineLODView', 'Render LOD', '../lod.qml', 300, 400);
     pages.addPage('openMaterialInspectorView', 'Material Inspector', '../materialInspector.qml', 300, 400, MaterialInspector.setWindow, MaterialInspector.setWindow);
+    pages.addPage('openTextureMonitorView', 'Texture Monitor', './textureMemory.qml', 300, 400);
 
     pages.open('Luci');
 

@@ -85,6 +85,13 @@ Rectangle {
                 }
             }
             Prop.PropFolderPanel {
+                label: "Texture Memory"
+                panelFrameData: Component {
+                    TextureMemory {
+                    }
+                }
+            }
+            Prop.PropFolderPanel {
                 label: "Tools"
                 panelFrameData: Component {
                     Row {
@@ -112,14 +119,6 @@ Rectangle {
                     }
                 }
             }
-      /*      Jet.TaskPropView {
-                id: "le"
-                jobPath: ""
-                label: "Le Render Engine"
-
-              //  anchors.left: parent.left
-              //  anchors.right: parent.right 
-            }*/
         }
     }
 }

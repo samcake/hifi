@@ -9,13 +9,8 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 
-// Set up the qml ui
-var qml = Script.resolvePath('textureMonitor.qml');
-var window = new OverlayWindow({
-    title: 'Textures',
-    source: qml,
-    width: 320, 
-    height: 300,
+var window = Desktop.createWindow(Script.resolvePath('./luci/TextureMemory.qml'), {
+    title: "Texture Monitor",
+    presentationMode: Desktop.PresentationMode.NATIVE,
+    size: {x: 350, y: 300}
 });
-window.setPosition(500, 50);
-window.closed.connect(function() { Script.stop(); });

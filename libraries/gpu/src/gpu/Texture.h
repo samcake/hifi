@@ -200,7 +200,7 @@ enum class TextureUsageType : uint8 {
     EXTERNAL,
 };
 
-class Texture : public Resource {
+class Texture : public Resource, public std::enable_shared_from_this<Texture> {
     static ContextMetricCount _textureCPUCount;
     static ContextMetricSize _textureCPUMemSize;
 
@@ -222,6 +222,8 @@ public:
     using ExternalRecycler = std::function<void(uint32, void*)>;
     using ExternalIdAndFence = std::pair<uint32, void*>;
     using ExternalUpdates = std::list<ExternalIdAndFence>;
+
+    TexturePointer getThisPtr() const { return const_cast<Texture*> (this)->shared_from_this(); }
 
     class Usage {
     public:
@@ -570,6 +572,8 @@ public:
 
     const GPUObjectPointer gpuObject {};
 
+    TextureID getID() const;
+
     ExternalUpdates getUpdates() const;
 
     // Serialize a texture into a KTX file
@@ -590,7 +594,6 @@ protected:
     mutable Mutex _externalMutex;
     mutable std::list<ExternalIdAndFence> _externalUpdates;
     ExternalRecycler _externalRecycler;
-
 
     std::weak_ptr<Texture> _fallback;
     // Not strictly necessary, but incredibly useful for debugging

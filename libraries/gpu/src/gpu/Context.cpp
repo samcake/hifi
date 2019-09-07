@@ -427,6 +427,23 @@ void Context::releaseBatch(Batch* batch) {
     _batchPool.push_back(batch);
 }
 
+TextureID Backend::registerTexture(const TexturePointer& tex) {
+    Lock lock(_textureLibLock);
+    _textureLib.push_back(TextureDesc(tex));
+    return (TextureID) _textureLib.size() - 1;
+}
+
+void Backend::unregisterTexture(const TextureID id) {
+    Lock lock(_textureLibLock);
+    _textureLib[id].clear();
+}
+
+const TextureDesc Backend::getTextureDesc(const TextureID id) {
+    Lock lock(_textureLibLock);
+    return _textureLib[id];
+}
+
+
 void gpu::doInBatch(const char* name,
                     const std::shared_ptr<gpu::Context>& context,
                     const std::function<void(Batch& batch)>& f) {

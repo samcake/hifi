@@ -139,6 +139,10 @@ GLTexture::GLTexture(const std::weak_ptr<GLBackend>& backend, const Texture& tex
     _texelFormat(GLTexelFormat::evalGLTexelFormatInternal(texture.getTexelFormat()))
 {
     Backend::setGPUObject(texture, this);
+    auto lbackend = backend.lock();
+    if (lbackend) {
+        _textureID = lbackend->registerTexture(texture.getThisPtr());
+    }
 }
 
 GLTexture::~GLTexture() {
