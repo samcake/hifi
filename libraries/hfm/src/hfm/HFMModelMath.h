@@ -25,13 +25,14 @@ void calculateExtentsForShape(hfm::Shape& shape, const std::vector<hfm::Mesh>& m
 
 void calculateExtentsForModel(Extents& modelExtents, const std::vector<hfm::Shape>& shapes);
 
-const uint16_t NUM_SKINNING_WEIGHTS_PER_VERTEX = 4;
-
-struct ReweightedDeformers {
+class ReweightedDeformers {
+public:
     std::vector<uint16_t> indices;
     std::vector<uint16_t> weights;
+    uint16_t weightsPerVertex { 0 };
     bool trimmedToMatch { false };
 };
+const uint16_t DEFAULT_SKINNING_WEIGHTS_PER_VERTEX = 4;
 
 ReweightedDeformers getReweightedDeformers(const size_t numMeshVertices, const std::vector<hfm::SkinCluster> skinClusters, const uint16_t weightsPerVertex = NUM_SKINNING_WEIGHTS_PER_VERTEX);
 
